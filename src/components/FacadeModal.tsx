@@ -1,0 +1,406 @@
+import { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "./ui/dialog";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import { Plus } from "lucide-react";
+import { supabase } from "../lib/supabase";
+
+interface Project {
+  id: string;
+  name: string;
+  customer?: string;
+}
+
+interface Building {
+  id: string;
+  name: string;
+  project_id: string;
+}
+
+interface FacadeData {
+  id: string;
+  name: string;
+  building_id: string;
+  status: number;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface FacadeModalProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  editingFacade?: FacadeData | null;
+  onSubmit: (facadeData: Omit<FacadeData, "id" | "created_at" | "updated_at">) => void;
+  trigger?: React.ReactNode;
+  currentProject?: {
+    id: string;
+    name: string;
+    customer?: string;
+  };
+  currentBuilding?: {
+    id: string;
+    name: string;
+  };
+  currentProjectId?: string;
+  currentProjectName?: string;
+  currentBuildingId?: string;
+  currentBuildingName?: string;
+}
+
+export function FacadeModal({
+  isOpen,
+  onOpenChange,
+  editingFacade,
+  onSubmit,
+  trigger,
+  currentProject,
+  currentBuilding,
+  currentProjectId,
+  currentProjectName,
+  currentBuildingId,
+  currentBuildingName
+}: FacadeModalProps) {
+  const [formData, setFormData] = useState({
+    name: "",
+    building_id: "",
+    status: 1, // Default to active
+    description: ""
+  });
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [buildings, setBuildings] = useState<Building[]>([]);
+
+  // Map database integer to UI status display
+  const statusDisplay: { [key: number]: string } = {
+    0: "Inactive",
+    1: "Active",
+    2: "On Hold",
+    3: "Completed"
+  };
+
+  // Map UI select values to database integers
+  const statusOptions = [
+    { value: 1, label: "Active" },
+    { value: 3, label: "Completed" },
+    { value: 2, label: "On Hold" },
+    { value: 0, label: "Inactive" }
+  ];
+
+  // Determine the current project and building context
+  const effectiveProject = currentProject || (currentProjectId && currentProjectName ? {
+    id: currentProjectId,
+    name: currentProjectName
+  } : null);
+
+  const effectiveBuilding = currentBuilding || (currentBuildingId && currentBuildingName ? {
+    id: currentBuildingId,
+    name: currentBuildingName
+  } : null);
+
+  const isProjectPredefined = !!effectiveProject;
+  const isBuildingPredefined = !!effectiveBuilding;
+
+  // Fetch projects and buildings from Supabase
+  useEffect(() => {
+    async function fetchData() {
+      if (!isProjectPredefined) {
+        const { data: projectData, error: projectError } = await supabase
+          .from('projects')
+          .select('id, name, customer');
+        
+        if (projectError) {
+          console.error('Error fetching projects:', projectError);
+        } else {
+          setProjects(projectData || []);
+        }
+      }
+
+      if (!isBuildingPredefined) {
+        let query = supabase.from('buildings').select('id, name, project_id');
+        if (effectiveProject) {
+          query = query.eq('project_id', effectiveProject.id);
+        }
+        const { data: buildingData, error: buildingError } = await query;
+        
+        if (buildingError) {
+          console.error('Error fetching buildings:', buildingError);
+        } else {
+          setBuildings(buildingData || []);
+        }
+      }
+    }
+
+    fetchData();
+  }, [isProjectPredefined, isBuildingPredefined, effectiveProject]);
+
+  // Reset form when modal opens/closes or editing facade changes
+  useEffect(() => {
+    if (editingFacade) {
+      setFormData({
+        name: editingFacade.name,
+        building_id: editingFacade.building_id,
+        status: editingFacade.status,
+        description: editingFacade.description || ""
+      });
+    } else {
+      setFormData({
+        name: "",
+        building_id: effectiveBuilding?.id || "",
+        status: 1,
+        description: ""
+      });
+    }
+  }, [editingFacade, isOpen, effectiveBuilding]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (formData.status === undefined || formData.status === null) {
+      console.error('Status cannot be null');
+      return;
+    }
+
+    onSubmit({
+      name: formData.name,
+      building_id: formData.building_id,
+      status: formData.status,
+      description: formData.description
+    });
+    
+    // Reset form and close modal
+    setFormData({
+      name: "",
+      building_id: effectiveBuilding?.id || "",
+      status: 1,
+      description: ""
+    });
+    onOpenChange(false);
+  };
+
+  const handleCancel = () => {
+    // Reset form and close modal
+    setFormData({
+      name: "",
+      building_id: effectiveBuilding?.id || "",
+      status: 1,
+      description: ""
+    });
+    onOpenChange(false);
+  };
+
+  // Filter buildings based on selected project
+  const availableBuildings = buildings.filter(building => 
+    building.project_id === (formData.building_id ? 
+      buildings.find(b => b.id === formData.building_id)?.project_id : 
+      effectiveProject?.id)
+  );
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      {trigger && (
+        <DialogTrigger asChild>
+          {trigger}
+        </DialogTrigger>
+      )}
+      <DialogContent className="max-w-2xl bg-card border-border">
+        <DialogHeader>
+          <DialogTitle className="text-card-foreground">
+            {editingFacade ? 'Edit Facade' : 'Create New Facade'}
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2 flex flex-col items-start">
+              <Label htmlFor="name" className="text-card-foreground">Facade Name *</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Enter facade name"
+                className="bg-input border-border text-foreground placeholder:text-muted-foreground"
+                required
+              />
+            </div>
+            
+            <div className="space-y-2 flex flex-col items-start">
+              <Label htmlFor="project" className="text-card-foreground">Project *</Label>
+              {isProjectPredefined ? (
+                <Input
+                  id="project"
+                  value={`${effectiveProject.name}${effectiveProject.customer ? ` - ${effectiveProject.customer}` : ''}`}
+                  disabled
+                  className="bg-input/50 border-border text-muted-foreground cursor-not-allowed"
+                />
+              ) : (
+                <Select 
+                  value={formData.building_id ? buildings.find(b => b.id === formData.building_id)?.project_id : ""} 
+                  onValueChange={(value) => setFormData({ ...formData, building_id: "" })}
+                >
+                  <SelectTrigger className="bg-input border-border text-foreground">
+                    <SelectValue placeholder="Select project" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-border">
+                    {projects.map((project) => (
+                      <SelectItem 
+                        key={project.id} 
+                        value={project.id} 
+                        className="text-popover-foreground"
+                      >
+                        {project.name} {project.customer ? `- ${project.customer}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {isProjectPredefined && (
+                <p className="text-xs text-muted-foreground">
+                  This facade will be added to the current project
+                </p>
+              )}
+            </div>
+            
+            <div className="space-y-2 flex flex-col items-start">
+              <Label htmlFor="building" className="text-card-foreground">Building *</Label>
+              {isBuildingPredefined ? (
+                <Input
+                  id="building"
+                  value={effectiveBuilding.name}
+                  disabled
+                  className="bg-input/50 border-border text-muted-foreground cursor-not-allowed"
+                />
+              ) : (
+                <Select 
+                  value={formData.building_id} 
+                  onValueChange={(value) => setFormData({ ...formData, building_id: value })}
+                >
+                  <SelectTrigger className="bg-input border-border text-foreground">
+                    <SelectValue placeholder="Select building" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-border">
+                    {availableBuildings.map((building) => (
+                      <SelectItem 
+                        key={building.id} 
+                        value={building.id} 
+                        className="text-popover-foreground"
+                      >
+                        {building.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {isBuildingPredefined && (
+                <p className="text-xs text-muted-foreground">
+                  This facade will be added to the current building
+                </p>
+              )}
+            </div>
+            
+            <div className="space-y-2 flex flex-col items-start">
+              <Label htmlFor="status" className="text-card-foreground">Status *</Label>
+              <Select 
+                value={formData.status.toString()} 
+                onValueChange={(value) => setFormData({ ...formData, status: parseInt(value) })}
+              >
+                <SelectTrigger className="bg-input border-border text-foreground">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover border-border">
+                  {statusOptions.map((option) => (
+                    <SelectItem 
+                      key={option.value} 
+                      value={option.value.toString()} 
+                      className="text-popover-foreground"
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <div className="space-y-2 flex flex-col items-start">
+            <Label htmlFor="description" className="text-card-foreground">Description</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Enter facade description (optional)"
+              className="bg-input border-border text-foreground placeholder:text-muted-foreground"
+              rows={3}
+            />
+          </div>
+          
+          <div className="flex gap-3 pt-4">
+            <Button 
+              type="submit" 
+              className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              {editingFacade ? 'Update Facade' : 'Create Facade'}
+            </Button>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleCancel} 
+              className="border-border text-foreground hover:bg-accent"
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function FacadeModalTrigger({ 
+  onSubmit, 
+  editingFacade,
+  currentProject,
+  currentBuilding,
+  currentProjectId,
+  currentProjectName,
+  currentBuildingId,
+  currentBuildingName,
+  ...props 
+}: Omit<FacadeModalProps, "isOpen" | "onOpenChange" | "trigger">) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <FacadeModal
+      isOpen={isOpen}
+      onOpenChange={setIsOpen}
+      editingFacade={editingFacade}
+      onSubmit={onSubmit}
+      currentProject={currentProject}
+      currentBuilding={currentBuilding}
+      currentProjectId={currentProjectId}
+      currentProjectName={currentProjectName}
+      currentBuildingId={currentBuildingId}
+      currentBuildingName={currentBuildingName}
+      trigger={
+        <Button className="gap-2">
+          <Plus className="h-4 w-4" />
+          {editingFacade ? 'Edit Facade' : 'Add Facade'}
+        </Button>
+      }
+      {...props}
+    />
+  );
+}

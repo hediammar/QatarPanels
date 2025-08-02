@@ -1,0 +1,248 @@
+import { useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
+import { UserHeader } from "./UserHeader";
+import { apiService } from "../utils/api";
+import { LayoutDashboard, Users, FolderOpen, Package, RefreshCw, Upload, AlertTriangle, Wifi, WifiOff, Layers, PackagePlus, UserCog, Menu, X, Building2, Building } from "lucide-react";
+
+interface LayoutProps {
+  children: React.ReactNode;
+}
+
+export function Layout({ children }: LayoutProps) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!initialized) {
+      initializeApp();
+    }
+  }, [initialized]);
+
+  const initializeApp = async () => {
+    if (initialized) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('Initializing application...');
+
+      if (apiService.isInFallbackMode()) {
+        console.log('API service already in fallback mode');
+        setInitialized(true);
+        return;
+      }
+
+      // Try to initialize sample data with a timeout
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Connection timeout')), 10000)
+      );
+
+      await Promise.race([
+        apiService.initializeSampleData(),
+        timeoutPromise
+      ]);
+      
+      // Check if we're in fallback mode after initialization
+      const fallbackMode = apiService.isInFallbackMode();
+      
+      if (fallbackMode) {
+        console.log('Application initialized in fallback mode');
+      } else {
+        console.log('Application initialized successfully with server connection');
+      }
+      
+    } catch (error) {
+      console.warn('Error during initialization:', error);
+      
+      // Ensure we're in fallback mode
+      if (!apiService.isInFallbackMode()) {
+        console.log('Forcing fallback mode due to initialization error');
+        apiService.resetConnection();
+        // Force the API service into fallback mode by making it think the server failed
+        try {
+          await apiService.initializeSampleData();
+        } catch (e) {
+          // This should trigger fallback mode
+        }
+      }
+      
+      setError('Unable to connect to server. Running in offline mode with sample data.');
+    } finally {
+      setLoading(false);
+      setInitialized(true);
+    }
+  };
+
+  const handleRetryConnection = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('Attempting to retry connection...');
+      
+      // Reset the API service to try server connection again
+      apiService.resetConnection();
+      
+      // Reset initialization state to force a retry
+      setInitialized(false);
+      
+      // Try to initialize again
+      await initializeApp();
+      
+    } catch (error) {
+      console.error('Retry connection failed:', error);
+      setError('Still unable to connect to server. Continuing in offline mode.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
+
+  const navigationItems = [
+    { id: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { id: '/projects', label: 'Projects', icon: FolderOpen },
+    { id: '/buildings', label: 'Buildings', icon: Building2 },
+    { id: '/facades', label: 'Facades', icon: Building },
+    { id: '/panels', label: 'Panels', icon: Package },
+    { id: '/customers', label: 'Customers', icon: Users },
+    { id: '/panel-groups', label: 'Panel Groups', icon: Layers },
+    { id: '/users', label: 'User Management', icon: UserCog },
+    { id: '/bulk-import-projects', label: 'Import Projects', icon: Upload },
+  ];
+
+  const renderNavigationItem = (item: typeof navigationItems[0]) => {
+    const Icon = item.icon;
+    const isActive = location.pathname === item.id;
+    
+    const buttonContent = (
+      <div className={`qatar-nav-item ${isActive ? 'qatar-nav-item-active' : ''} ${sidebarCollapsed ? 'justify-center' : ''}`}>
+        <Icon className="h-5 w-5 flex-shrink-0" />
+        {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
+      </div>
+    );
+
+    if (sidebarCollapsed) {
+      return (
+        <TooltipProvider key={item.id}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link to={item.id} className="block">
+                {buttonContent}
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="bg-popover text-popover-foreground">
+              <p>{item.label}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+
+    return (
+      <Link key={item.id} to={item.id} className="block">
+        {buttonContent}
+      </Link>
+    );
+  };
+
+  // Show loading spinner during initial app loading
+  if (loading && !initialized) {
+    return (
+      <div className="h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <RefreshCw className="h-8 w-8 mx-auto animate-spin text-primary" />
+          <div className="space-y-2">
+            <h2 className="text-lg text-foreground">Initializing Qatar Panel Tracker</h2>
+            <p className="text-sm text-muted-foreground">Connecting to server...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen bg-background flex">
+      {/* Sidebar */}
+      <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} qatar-sidebar flex flex-col h-full transition-all duration-300 ease-in-out`}>
+        {/* Sidebar Header */}
+        <div className="qatar-sidebar-header">
+          <div className="flex items-center justify-between mb-4">
+            {!sidebarCollapsed && (
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                    <Package className="h-5 w-5 text-primary-foreground" />
+                  </div>
+                  <div>
+                    <h1 className="qatar-sidebar-brand">Qatar Panels</h1>
+                    <p className="qatar-sidebar-subtitle">Qatar Panel Tracker</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleSidebar}
+              className={`${sidebarCollapsed ? 'w-8 h-8 p-0' : 'ml-2'} flex-shrink-0 text-sidebar-foreground hover:bg-sidebar-accent`}
+            >
+              <LayoutDashboard className="h-4 w-4" />
+            </Button>
+          </div>
+
+        </div>
+        
+        {/* Navigation */}
+        <nav className={`flex-1 px-4 space-y-2 ${sidebarCollapsed ? 'flex flex-col items-center px-2' : ''}`}>
+          <div className="space-y-1">
+            {/* Application section header */}
+            {!sidebarCollapsed && (
+              <div className="px-4 py-2">
+                <p className="text-xs font-medium text-sidebar-foreground/60 uppercase tracking-wider">Application</p>
+              </div>
+            )}
+            {navigationItems.map(renderNavigationItem)}
+          </div>
+        </nav>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        {/* User Header - Sticky at top */}
+        <UserHeader />
+
+        {/* Error Banner */}
+        {error && (
+          <div className="bg-red-900/50 border-b border-red-700/50 text-red-200 p-3 sm:p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex-1 pr-2 text-sm">{error}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setError(null)}
+                className="flex-shrink-0 border-red-600 text-red-200 hover:bg-red-800"
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        )}
+        
+        {/* Scrollable Content */}
+        <main className="flex-1 p-4 sm:p-6 overflow-y-auto bg-background">
+          <div className="qatar-fade-in">
+            {children}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}

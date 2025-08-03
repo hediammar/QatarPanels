@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "../components/ui/pagination";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/collapsible";
 import { Plus, Edit, Trash2, MoreHorizontal, Building2, MapPin, Phone, Mail, User, Search, ChevronUp, ChevronDown, Filter, X, Users } from "lucide-react";
+import { crudOperations } from "../utils/userTracking";
 
 interface Customer {
   id: string;
@@ -97,17 +98,11 @@ export function CustomersPage() {
     try {
       if (editingCustomer) {
         // Update customer
-        const { error } = await supabase
-          .from('customers')
-          .update({
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', editingCustomer.id);
-
-        if (error) throw error;
+        await crudOperations.update('customers', editingCustomer.id, {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone
+        });
 
         setCustomers(customers.map(c =>
           c.id === editingCustomer.id ? { ...c, ...formData } : c
@@ -115,30 +110,18 @@ export function CustomersPage() {
         setEditingCustomer(null);
       } else {
         // Add new customer
-        const { data, error } = await supabase
-          .from('customers')
-          .insert([{
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone,
-          }])
-          .select(`
-            id,
-            name,
-            email,
-            phone,
-            projects:projects(count)
-          `)
-          .single();
-
-        if (error) throw error;
+        const newCustomer = await crudOperations.create('customers', {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone
+        });
 
         setCustomers([...customers, {
-          id: data.id,
-          name: data.name,
-          email: data.email,
-          phone: data.phone,
-          projects: data.projects[0]?.count || 0
+          id: newCustomer.id,
+          name: newCustomer.name,
+          email: newCustomer.email,
+          phone: newCustomer.phone,
+          projects: 0
         }]);
         setIsAddDialogOpen(false);
       }
@@ -166,12 +149,7 @@ export function CustomersPage() {
   const confirmDelete = async () => {
     if (deletingCustomer) {
       try {
-        const { error } = await supabase
-          .from('customers')
-          .delete()
-          .eq('id', deletingCustomer.id);
-
-        if (error) throw error;
+        await crudOperations.delete('customers', deletingCustomer.id);
 
         setCustomers(customers.filter(c => c.id !== deletingCustomer.id));
         setDeletingCustomer(null);

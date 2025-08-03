@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -10,163 +10,77 @@ import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popove
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Avatar, AvatarFallback } from "../components/ui/avatar";
-import { Plus, Edit, Trash2, MoreHorizontal, UserPlus, Search, Filter, Users, Shield, Clock, Mail, Phone, Calendar, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Users2 } from "lucide-react";
+import { Plus, Edit, Trash2, MoreHorizontal, UserPlus, Search, Filter, Users, Shield, Clock, Mail, Phone, Calendar, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Users2, Loader2 } from "lucide-react";
+import { supabase } from "../lib/supabase";
+import { useAuth } from "../contexts/AuthContext";
+import { useToastContext } from "../contexts/ToastContext";
 
-// User roles and statuses
+// User roles and statuses - matches database constraints exactly
 const USER_ROLES = [
-  { value: 'admin', label: 'Admin', description: 'Full system access', color: 'destructive' },
-  { value: 'manager', label: 'Manager', description: 'Manage projects and users', color: 'default' },
-  { value: 'user', label: 'User', description: 'Standard user access', color: 'secondary' },
-  { value: 'viewer', label: 'Viewer', description: 'Read-only access', color: 'outline' }
+  { value: 'Administrator', label: 'Administrator', description: 'Full system access including user management', color: 'destructive' },
+  { value: 'Data Entry', label: 'Data Entry', description: 'Data entry and basic access', color: 'default' },
+  { value: 'Production engineer', label: 'Production Engineer', description: 'Production management', color: 'secondary' },
+  { value: 'QC Factory', label: 'QC Factory', description: 'Quality control factory', color: 'outline' },
+  { value: 'Store Site', label: 'Store Site', description: 'Store site management', color: 'outline' },
+  { value: 'QC Site', label: 'QC Site', description: 'Quality control site', color: 'outline' },
+  { value: 'Foreman Site', label: 'Foreman Site', description: 'Site foreman', color: 'outline' },
+  { value: 'Site Engineer', label: 'Site Engineer', description: 'Site engineering', color: 'outline' },
+  { value: 'Customer', label: 'Customer', description: 'Customer access', color: 'outline' }
 ] as const;
 
 type UserRole = typeof USER_ROLES[number]['value'];
 
 interface User {
   id: string;
+  username: string;
   name: string;
   email: string;
-  phone?: string;
+  phone_number?: string;
   role: UserRole;
-  isActive: boolean;
-  lastLogin?: string;
-  createdAt: string;
-  updatedAt: string;
-  loginCount?: number;
+  status: 'active' | 'inactive';
+  last_login?: string;
+  created_at: string;
+  updated_at: string;
   department?: string;
 }
 
 
 
 export function UsersPage() {
-  const users: User[] = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john.doe@company.com',
-    phone: '+1-555-123-4567',
-    role: 'admin',
-    isActive: true,
-    lastLogin: '2025-07-27T10:30:00Z',
-    createdAt: '2024-01-15T09:00:00Z',
-    updatedAt: '2025-07-27T10:30:00Z',
-    loginCount: 150,
-    department: 'IT'
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    email: 'jane.smith@company.com',
-    phone: '+1-555-987-6543',
-    role: 'manager',
-    isActive: true,
-    lastLogin: '2025-07-25T14:20:00Z',
-    createdAt: '2024-03-22T11:00:00Z',
-    updatedAt: '2025-07-25T14:20:00Z',
-    loginCount: 95,
-    department: 'Marketing'
-  },
-  {
-    id: '3',
-    name: 'Robert Johnson',
-    email: 'robert.j@company.com',
-    role: 'user',
-    isActive: false,
-    lastLogin: '2025-06-01T08:15:00Z',
-    createdAt: '2023-11-10T13:30:00Z',
-    updatedAt: '2025-06-01T08:15:00Z',
-    loginCount: 45,
-    department: 'Sales'
-  },
-  {
-    id: '4',
-    name: 'Emily Davis',
-    email: 'emily.davis@company.com',
-    phone: '+1-555-456-7890',
-    role: 'viewer',
-    isActive: true,
-    lastLogin: undefined,
-    createdAt: '2025-07-20T16:00:00Z',
-    updatedAt: '2025-07-20T16:00:00Z',
-    loginCount: 0,
-    department: 'HR'
-  },
-  {
-    id: '5',
-    name: 'Michael Brown',
-    email: 'michael.b@company.com',
-    role: 'user',
-    isActive: true,
-    lastLogin: '2025-07-28T09:00:00Z',
-    createdAt: '2024-06-05T10:00:00Z',
-    updatedAt: '2025-07-28T09:00:00Z',
-    loginCount: 30,
-    department: 'Engineering'
-  },
-  {
-    id: '6',
-    name: 'Sarah Wilson',
-    email: 'sarah.wilson@company.com',
-    phone: '+1-555-321-6547',
-    role: 'manager',
-    isActive: true,
-    lastLogin: '2025-07-26T12:45:00Z',
-    createdAt: '2023-09-18T14:20:00Z',
-    updatedAt: '2025-07-26T12:45:00Z',
-    loginCount: 120,
-    department: 'Marketing'
-  },
-  {
-    id: '7',
-    name: 'David Lee',
-    email: 'david.lee@company.com',
-    role: 'admin',
-    isActive: false,
-    lastLogin: '2025-05-15T11:10:00Z',
-    createdAt: '2023-12-01T09:30:00Z',
-    updatedAt: '2025-05-15T11:10:00Z',
-    loginCount: 80,
-    department: 'IT'
-  },
-  {
-    id: '8',
-    name: 'Lisa Anderson',
-    email: 'lisa.anderson@company.com',
-    phone: '+1-555-654-3210',
-    role: 'user',
-    isActive: true,
-    lastLogin: '2025-07-27T15:25:00Z',
-    createdAt: '2024-02-14T12:00:00Z',
-    updatedAt: '2025-07-27T15:25:00Z',
-    loginCount: 65,
-    department: 'Sales'
-  },
-  {
-    id: '9',
-    name: 'Thomas Clark',
-    email: 'thomas.clark@company.com',
-    role: 'viewer',
-    isActive: true,
-    lastLogin: '2025-07-10T17:00:00Z',
-    createdAt: '2024-04-30T08:45:00Z',
-    updatedAt: '2025-07-10T17:00:00Z',
-    loginCount: 25,
-    department: 'Finance'
-  },
-  {
-    id: '10',
-    name: 'Anna Martinez',
-    email: 'anna.martinez@company.com',
-    phone: '+1-555-789-1234',
-    role: 'manager',
-    isActive: true,
-    lastLogin: '2025-07-28T08:30:00Z',
-    createdAt: '2023-08-25T10:15:00Z',
-    updatedAt: '2025-07-28T08:30:00Z',
-    loginCount: 200,
-    department: 'HR'
-  }
-];
+  const { user: currentUser } = useAuth();
+  const { showToast } = useToastContext();
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  // Check if current user can manage users
+  const canManageUsers = currentUser?.role === 'Administrator';
+
+  // Fetch users from Supabase
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching users:', error);
+        showToast('Error fetching users', 'error');
+        return;
+      }
+
+      setUsers(data || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      showToast('Error fetching users', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -187,13 +101,26 @@ export function UsersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    username: string;
+    name: string;
+    email: string;
+    phone_number: string;
+    role: UserRole;
+    status: 'active' | 'inactive';
+    department: string;
+    password: string;
+    confirmPassword: string;
+  }>({
+    username: '',
     name: '',
     email: '',
-    phone: '',
-    role: 'user' as UserRole,
-    isActive: true,
-    department: ''
+    phone_number: '',
+    role: 'Data Entry',
+    status: 'active',
+    department: '',
+    password: '',
+    confirmPassword: ''
   });
 
   // Get unique values for filters
@@ -201,12 +128,15 @@ export function UsersPage() {
 
   const resetForm = () => {
     setFormData({
+      username: '',
       name: '',
       email: '',
-      phone: '',
-      role: 'user',
-      isActive: true,
-      department: ''
+      phone_number: '',
+      role: 'Data Entry',
+      status: 'active',
+      department: '',
+      password: '',
+      confirmPassword: ''
     });
   };
 
@@ -236,28 +166,120 @@ export function UsersPage() {
     dateRangeFilter !== 'all' ? dateRangeFilter : ''
   ].filter(Boolean).length;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (editingUser) {
-      setEditingUser(null);
-    } else {
-
-      setIsAddDialogOpen(false);
+    if (!canManageUsers) {
+      showToast('You do not have permission to manage users', 'error');
+      return;
     }
-    resetForm();
+
+    // Password validation
+    if (!editingUser) {
+      // For new users, password is required
+      if (!formData.password) {
+        showToast('Password is required for new users', 'error');
+        return;
+      }
+      if (formData.password.length < 6) {
+        showToast('Password must be at least 6 characters long', 'error');
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        showToast('Passwords do not match', 'error');
+        return;
+      }
+    } else {
+      // For editing users, password is optional but must match if provided
+      if (formData.password && formData.password.length < 6) {
+        showToast('Password must be at least 6 characters long', 'error');
+        return;
+      }
+      if (formData.password && formData.password !== formData.confirmPassword) {
+        showToast('Passwords do not match', 'error');
+        return;
+      }
+    }
+    
+    try {
+      if (editingUser) {
+        // Update existing user
+        const updateData: any = {
+          username: formData.username,
+          name: formData.name,
+          email: formData.email,
+          phone_number: formData.phone_number || null,
+          role: formData.role,
+          status: formData.status,
+          department: formData.department || null,
+          updated_at: new Date().toISOString()
+        };
+
+        // Only update password if provided
+        if (formData.password) {
+          // In production, use proper password hashing
+          updateData.password_hash = formData.password; // This should be hashed
+        }
+
+        const { error } = await supabase
+          .from('users')
+          .update(updateData)
+          .eq('id', editingUser.id);
+
+        if (error) {
+          console.error('Error updating user:', error);
+          showToast('Error updating user', 'error');
+          return;
+        }
+
+        showToast('User updated successfully', 'success');
+        setEditingUser(null);
+      } else {
+        // Add new user
+        const { error } = await supabase
+          .from('users')
+          .insert({
+            username: formData.username,
+            name: formData.name,
+            email: formData.email,
+            phone_number: formData.phone_number || null,
+            role: formData.role,
+            status: formData.status,
+            department: formData.department || null,
+            password_hash: formData.password // In production, this should be hashed
+          });
+
+        if (error) {
+          console.error('Error adding user:', error);
+          showToast('Error adding user', 'error');
+          return;
+        }
+
+        showToast('User added successfully', 'success');
+        setIsAddDialogOpen(false);
+      }
+      
+      resetForm();
+      fetchUsers(); // Refresh the users list
+    } catch (error) {
+      console.error('Error saving user:', error);
+      showToast('Error saving user', 'error');
+    }
   };
 
   const startEdit = (user: User) => {
     setEditingUser(user);
     setOpenPopover(null);
     setFormData({
+      username: user.username,
       name: user.name,
       email: user.email,
-      phone: user.phone || '',
+      phone_number: user.phone_number || '',
       role: user.role,
-      isActive: user.isActive,
-      department: user.department || ''
+      status: user.status,
+      department: user.department || '',
+      password: '',
+      confirmPassword: ''
     });
   };
 
@@ -266,13 +288,65 @@ export function UsersPage() {
     setOpenPopover(null);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
+    if (!canManageUsers) {
+      showToast('You do not have permission to delete users', 'error');
+      setDeletingUser(null);
+      return;
+    }
+
     if (deletingUser) {
+      try {
+        const { error } = await supabase
+          .from('users')
+          .delete()
+          .eq('id', deletingUser.id);
+
+        if (error) {
+          console.error('Error deleting user:', error);
+          showToast('Error deleting user', 'error');
+          return;
+        }
+
+        showToast('User deleted successfully', 'success');
+        fetchUsers(); // Refresh the users list
+      } catch (error) {
+        console.error('Error deleting user:', error);
+        showToast('Error deleting user', 'error');
+      }
       setDeletingUser(null);
     }
   };
 
-  const toggleUserStatus = (user: User) => {
+  const toggleUserStatus = async (user: User) => {
+    if (!canManageUsers) {
+      showToast('You do not have permission to modify user status', 'error');
+      setOpenPopover(null);
+      return;
+    }
+
+    try {
+      const newStatus = user.status === 'active' ? 'inactive' : 'active';
+      const { error } = await supabase
+        .from('users')
+        .update({ 
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (error) {
+        console.error('Error updating user status:', error);
+        showToast('Error updating user status', 'error');
+        return;
+      }
+
+      showToast(`User ${newStatus} successfully`, 'success');
+      fetchUsers(); // Refresh the users list
+    } catch (error) {
+      console.error('Error updating user status:', error);
+      showToast('Error updating user status', 'error');
+    }
     setOpenPopover(null);
   };
 
@@ -321,17 +395,17 @@ export function UsersPage() {
     
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     const matchesStatus = statusFilter === 'all' || 
-      (statusFilter === 'active' && user.isActive) ||
-      (statusFilter === 'inactive' && !user.isActive);
+      (statusFilter === 'active' && user.status === 'active') ||
+      (statusFilter === 'inactive' && user.status === 'inactive');
     
     const matchesDepartment = departmentFilter === 'all' || user.department === departmentFilter;
     
     const matchesLoginActivity = (() => {
       if (loginActivityFilter === 'all') return true;
-      if (!user.lastLogin && loginActivityFilter === 'never-logged') return true;
-      if (!user.lastLogin) return false;
+      if (!user.last_login && loginActivityFilter === 'never-logged') return true;
+      if (!user.last_login) return false;
       
-      const daysSinceLogin = (new Date().getTime() - new Date(user.lastLogin).getTime()) / (1000 * 60 * 60 * 24);
+      const daysSinceLogin = (new Date().getTime() - new Date(user.last_login).getTime()) / (1000 * 60 * 60 * 24);
       
       switch (loginActivityFilter) {
         case 'recent': return daysSinceLogin <= 7;
@@ -345,7 +419,7 @@ export function UsersPage() {
     const matchesDateRange = (() => {
       if (dateRangeFilter === 'all') return true;
       
-      const createdDate = new Date(user.createdAt);
+      const createdDate = new Date(user.created_at);
       const now = new Date();
       
       switch (dateRangeFilter) {
@@ -376,11 +450,11 @@ export function UsersPage() {
 
   // Sort users by last login (most recent first), then by name
   const sortedUsers = [...filteredUsers].sort((a, b) => {
-    if (a.lastLogin && b.lastLogin) {
-      return new Date(b.lastLogin).getTime() - new Date(a.lastLogin).getTime();
+    if (a.last_login && b.last_login) {
+      return new Date(b.last_login).getTime() - new Date(a.last_login).getTime();
     }
-    if (a.lastLogin && !b.lastLogin) return -1;
-    if (!a.lastLogin && b.lastLogin) return 1;
+    if (a.last_login && !b.last_login) return -1;
+    if (!a.last_login && b.last_login) return 1;
     return a.name.localeCompare(b.name);
   });
 
@@ -390,10 +464,10 @@ export function UsersPage() {
   const endIndex = startIndex + pageSize;
   const paginatedUsers = sortedUsers.slice(startIndex, endIndex);
 
-  const activeUsersCount = users.filter(u => u.isActive).length;
+  const activeUsersCount = users.filter(u => u.status === 'active').length;
   const recentLoginCount = users.filter(u => {
-    if (!u.lastLogin) return false;
-    const daysSinceLogin = (new Date().getTime() - new Date(u.lastLogin).getTime()) / (1000 * 60 * 60 * 24);
+    if (!u.last_login) return false;
+    const daysSinceLogin = (new Date().getTime() - new Date(u.last_login).getTime()) / (1000 * 60 * 60 * 24);
     return daysSinceLogin <= 7;
   }).length;
 
@@ -413,7 +487,7 @@ export function UsersPage() {
 
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button disabled={!canManageUsers}>
               <Plus className="mr-2 h-4 w-4" />
               Add User
             </Button>
@@ -449,12 +523,23 @@ export function UsersPage() {
                 </div>
 
                 <div className="grid gap-2">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    placeholder="Enter username"
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-2">
                   <Label htmlFor="phone">Phone Number</Label>
                   <Input
                     id="phone"
                     type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    value={formData.phone_number}
+                    onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
                     placeholder="Enter phone number"
                   />
                 </div>
@@ -489,6 +574,30 @@ export function UsersPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="Enter password"
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    placeholder="Confirm password"
+                    required
+                  />
                 </div>
               </div>
               <DialogFooter>
@@ -699,37 +808,52 @@ export function UsersPage() {
       <Card>
         <CardHeader>
           <CardTitle>Users</CardTitle>
-          <CardDescription>Manage user accounts and permissions</CardDescription>
+          <CardDescription>
+            Manage user accounts and permissions
+            {!canManageUsers && (
+              <span className="text-sm text-muted-foreground block mt-1">
+                Only Administrators can add, edit, or delete users
+              </span>
+            )}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[250px]">User</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Last Login</TableHead>
-                  <TableHead>Login Count</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedUsers.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span>Loading users...</span>
+              </div>
+            </div>
+          ) : (
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      <div className="flex flex-col items-center gap-2">
-                        <Users className="h-8 w-8 text-muted-foreground" />
-                        <p className="text-muted-foreground">
-                          {searchTerm || roleFilter !== 'all' || statusFilter !== 'all' || departmentFilter !== 'all' || loginActivityFilter !== 'all' || dateRangeFilter !== 'all'
-                            ? 'No users match your search criteria'
-                            : 'No users found. Add your first user to get started.'}
-                        </p>
-                      </div>
-                    </TableCell>
+                    <TableHead className="w-[250px]">User</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Last Login</TableHead>
+                    <TableHead>Login Count</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
                   </TableRow>
-                ) : (
+                </TableHeader>
+                <TableBody>
+                  {paginatedUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <div className="flex flex-col items-center gap-2">
+                          <Users className="h-8 w-8 text-muted-foreground" />
+                          <p className="text-muted-foreground">
+                            {searchTerm || roleFilter !== 'all' || statusFilter !== 'all' || departmentFilter !== 'all' || loginActivityFilter !== 'all' || dateRangeFilter !== 'all'
+                              ? 'No users match your search criteria'
+                              : 'No users found. Add your first user to get started.'}
+                          </p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
                   paginatedUsers.map((user) => {
                     const roleInfo = getRoleInfo(user.role);
                     return (
@@ -747,10 +871,10 @@ export function UsersPage() {
                                 <Mail className="h-3 w-3" />
                                 {user.email}
                               </div>
-                              {user.phone && (
+                              {user.phone_number && (
                                 <div className="text-sm text-muted-foreground flex items-center gap-1">
                                   <Phone className="h-3 w-3" />
-                                  {user.phone}
+                                  {user.phone_number}
                                 </div>
                               )}
                             </div>
@@ -767,7 +891,7 @@ export function UsersPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            {user.isActive ? (
+                            {user.status === 'active' ? (
                               <>
                                 <div className="h-2 w-2 bg-green-500 rounded-full" />
                                 <span className="text-sm text-green-600">Active</span>
@@ -783,11 +907,11 @@ export function UsersPage() {
                         <TableCell>
                           <div className="flex items-center gap-1 text-sm">
                             <Clock className="h-3 w-3 text-muted-foreground" />
-                            {formatLastLogin(user.lastLogin)}
+                            {formatLastLogin(user.last_login)}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm">{user.loginCount || 0}</span>
+                          <span className="text-sm">—</span>
                         </TableCell>
                         <TableCell>
                             <div className="flex items-center justify-end gap-2">
@@ -795,6 +919,8 @@ export function UsersPage() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => startEdit(user)}
+                                  disabled={!canManageUsers}
+                                  title={!canManageUsers ? "Only Administrators can edit users" : "Edit user"}
                                 >
                                   <Edit className="h-4 w-4" />
                                 </Button>
@@ -802,8 +928,10 @@ export function UsersPage() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => toggleUserStatus(user)}
+                                  disabled={!canManageUsers}
+                                  title={!canManageUsers ? "Only Administrators can modify user status" : "Toggle user status"}
                                 >
-                                  {user.isActive ? (
+                                  {user.status === 'active' ? (
                                     <>
                                       <EyeOff className="h-4 w-4" />
                                     </>
@@ -817,6 +945,8 @@ export function UsersPage() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleDelete(user)}
+                                  disabled={!canManageUsers}
+                                  title={!canManageUsers ? "Only Administrators can delete users" : "Delete user"}
                                   className="text-destructive hover:text-destructive hover:bg-destructive/10"
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -830,6 +960,7 @@ export function UsersPage() {
               </TableBody>
             </Table>
           </div>
+          )}
 
           {/* Pagination */}
           {totalPages > 1 && (
@@ -915,8 +1046,8 @@ export function UsersPage() {
                   <Input
                     id="edit-phone"
                     type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    value={formData.phone_number}
+                    onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
                   />
                 </div>
 
@@ -949,6 +1080,28 @@ export function UsersPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-password">Password (leave blank to keep current)</Label>
+                  <Input
+                    id="edit-password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="Enter new password"
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-confirmPassword">Confirm Password</Label>
+                  <Input
+                    id="edit-confirmPassword"
+                    type="password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                    placeholder="Confirm new password"
+                  />
                 </div>
               </div>
               <DialogFooter>

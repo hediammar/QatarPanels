@@ -25,7 +25,8 @@ import {
   Trash2,
   Upload,
   Users,
-  X
+  X,
+  RefreshCw
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
@@ -84,6 +85,8 @@ import { Textarea } from "../ui/textarea";
 import { Timeline } from "../Timeline";
 import { useToastContext } from "../../contexts/ToastContext";
 import { DateInput } from "../ui/date-input";
+import { crudOperations } from "../../utils/userTracking";
+import { StatusChangeDialog } from "../StatusChangeDialog";
 
 const PANEL_STATUSES = [
   "Issued For Production",
@@ -214,6 +217,8 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
   const [selectedPanelForTimeline, setSelectedPanelForTimeline] = useState<PanelModel | null>(null);
   const [isBulkStatusDialogOpen, setIsBulkStatusDialogOpen] = useState(false);
   const [bulkStatusValue, setBulkStatusValue] = useState<number>(0);
+  const [isStatusChangeDialogOpen, setIsStatusChangeDialogOpen] = useState(false);
+  const [selectedPanelForStatusChange, setSelectedPanelForStatusChange] = useState<PanelModel | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const itemsPerPage = 10;
@@ -289,15 +294,11 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
     try {
       const panelIds = Array.from(selectedPanels);
       
-      const { error } = await supabase
-        .from("panels")
-        .update({ status: bulkStatusValue })
-        .in("id", panelIds);
-
-      if (error) {
-        console.error("Error updating panel statuses:", error);
-        showToast("Failed to update panel statuses", "error");
-        return;
+      // Update each panel individually to track user changes
+      for (const panelId of panelIds) {
+        console.log('Bulk updating panel:', panelId, 'with status:', bulkStatusValue);
+        await crudOperations.update("panels", panelId, { status: bulkStatusValue });
+        // Database triggers will automatically add status history
       }
 
       // Update local state
@@ -317,19 +318,18 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       showToast("An unexpected error occurred", "error");
     }
   };
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
+  const fetchData = async () => {
+    setLoading(true);
 
-      const { data: buildingData, error: buildingError } = await supabase
-        .from("buildings")
-        .select("id, name")
-        .eq("project_id", projectId);
-      if (buildingError) {
-        console.error("Error fetching buildings:", buildingError);
-      } else {
-        setBuildings(buildingData || []);
-      }
+    const { data: buildingData, error: buildingError } = await supabase
+      .from("buildings")
+      .select("id, name")
+      .eq("project_id", projectId);
+    if (buildingError) {
+      console.error("Error fetching buildings:", buildingError);
+    } else {
+      setBuildings(buildingData || []);
+    }
 
     const { data: facadeData, error: facadeError } = await supabase
       .from("facades")
@@ -345,30 +345,31 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
         setFacades(facadeData || []);
       }
 
-      const { data, error } = await supabase
-        .from("panels")
-        .select(`
-          *,
-          projects!inner(name),
-          buildings(name),
-          facades(name)
-        `)
-        .eq("project_id", projectId);
+    const { data, error } = await supabase
+      .from("panels")
+      .select(`
+        *,
+        projects!inner(name),
+        buildings(name),
+        facades(name)
+      `)
+      .eq("project_id", projectId);
 
-      if (error) {
-        console.error("Error fetching panels:", error);
-      } else {
-        const formattedData = data?.map((panel) => ({
-          ...panel,
-          project_name: panel.projects?.name,
-          building_name: panel.buildings?.name,
-          facade_name: panel.facades?.name,
-        })) || [];
-        setPanels(formattedData);
-      }
-      setLoading(false);
+    if (error) {
+      console.error("Error fetching panels:", error);
+    } else {
+      const formattedData = data?.map((panel) => ({
+        ...panel,
+        project_name: panel.projects?.name,
+        building_name: panel.buildings?.name,
+        facade_name: panel.facades?.name,
+      })) || [];
+      setPanels(formattedData);
     }
+    setLoading(false);
+  };
 
+  useEffect(() => {
     fetchData();
   }, [projectId]);
 
@@ -419,15 +420,25 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
     setIsTimelineOpen(true);
   };
 
+  const handleStatusChange = (panel: PanelModel) => {
+    setSelectedPanelForStatusChange(panel);
+    setIsStatusChangeDialogOpen(true);
+  };
+
+  const handleStatusChanged = () => {
+    // Refresh the panels data
+    fetchData();
+  };
+
   const confirmDeletePanel = async () => {
     if (panelToDelete) {
-      const { error } = await supabase.from("panels").delete().eq("id", panelToDelete.id);
-      if (error) {
-        console.error("Error deleting panel:", error);
-        showToast("Error deleting panel", "error");
-      } else {
+      try {
+        await crudOperations.delete("panels", panelToDelete.id);
         setPanels(panels.filter((p) => p.id !== panelToDelete.id));
         showToast("Panel deleted successfully", "success");
+      } catch (error) {
+        console.error("Error deleting panel:", error);
+        showToast("Error deleting panel", "error");
       }
       setIsDeleteDialogOpen(false);
       setPanelToDelete(null);
@@ -475,15 +486,28 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       issued_for_production_date: newPanelModel.issued_for_production_date || null,
     };
 
-    if (editingPanel) {
-      const { error } = await supabase
-        .from("panels")
-        .update(panelData)
-        .eq("id", editingPanel.id);
-      if (error) {
-        console.error("Error updating panel:", error);
-        showToast("Failed to update panel", "error");
-      } else {
+    try {
+      if (editingPanel) {
+        // Check if status changed
+        const statusChanged = editingPanel.status !== panelData.status;
+        console.log(`Updating panel ${editingPanel.id}:`, {
+          oldStatus: editingPanel.status,
+          newStatus: panelData.status,
+          statusChanged
+        });
+        
+        // Update panel with user tracking
+        console.log('Calling crudOperations.update with panelData:', panelData);
+        await crudOperations.update("panels", editingPanel.id, panelData);
+        console.log('crudOperations.update completed');
+        
+        // Database triggers will automatically add status history when status changes
+        if (statusChanged) {
+          console.log(`Status changed from ${editingPanel.status} to ${panelData.status}, database triggers will handle history`);
+        } else {
+          console.log(`Status unchanged (${panelData.status}), no history needed`);
+        }
+        
         setPanels(
           panels.map((p) =>
             p.id === editingPanel.id
@@ -507,33 +531,44 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
           )
         );
         showToast("Panel updated successfully", "success");
-      }
-    } else {
-      const { data, error } = await supabase
-        .from("panels")
-        .insert(panelData)
-        .select(`
-          *,
-          projects!inner(name),
-          buildings(name),
-          facades(name)
-        `)
-        .single();
-      if (error) {
-        console.error("Error adding panel:", error);
-        showToast("Failed to add panel", "error");
       } else {
-        setPanels([
-          ...panels,
-          {
-            ...data,
-            project_name: data.projects?.name,
-            building_name: data.buildings?.name,
-            facade_name: data.facades?.name,
-          },
-        ]);
+        // Create panel with user tracking
+        console.log('Calling crudOperations.create with panelData:', panelData);
+        const newPanel = await crudOperations.create("panels", panelData);
+        
+        // Database triggers will automatically add initial status history
+        console.log(`Panel created with status ${panelData.status}, database triggers will handle initial history`);
+        
+        // Fetch the complete panel data with relations
+        const { data, error } = await supabase
+          .from("panels")
+          .select(`
+            *,
+            projects!inner(name),
+            buildings(name),
+            facades(name)
+          `)
+          .eq("id", newPanel.id)
+          .single();
+          
+        if (error) {
+          console.error("Error fetching complete panel data:", error);
+        } else {
+          setPanels([
+            ...panels,
+            {
+              ...data,
+              project_name: data.projects?.name,
+              building_name: data.buildings?.name,
+              facade_name: data.facades?.name,
+            },
+          ]);
+        }
         showToast("Panel added successfully", "success");
       }
+    } catch (error) {
+      console.error("Error saving panel:", error);
+      showToast("Error saving panel", "error");
     }
 
     setIsAddPanelDialogOpen(false);
@@ -689,20 +724,34 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
         issued_for_production_date: p.issued_for_production_date || null,
       }));
 
+      // Import panels with user tracking
+      const importedPanels = [];
+      for (const panelData of newPanels) {
+        try {
+          console.log('Importing panel with data:', panelData);
+          const newPanel = await crudOperations.create("panels", panelData);
+          // Database triggers will automatically add status history
+          importedPanels.push(newPanel);
+        } catch (error) {
+          console.error("Error importing panel:", error);
+          // Continue with other panels even if one fails
+        }
+      }
+
+      // Fetch complete data for imported panels
+      const panelIds = importedPanels.map(p => p.id);
       const { data, error } = await supabase
         .from("panels")
-        .insert(newPanels)
         .select(`
           *,
           projects!inner(name),
           buildings(name),
           facades(name)
-        `);
+        `)
+        .in("id", panelIds);
 
       if (error) {
-        console.error("Bulk import error:", error);
-        setBulkImportErrors(["Failed to import panels. Please try again."]);
-        return;
+        console.error("Error fetching imported panels:", error);
       }
 
       setPanels([
@@ -1653,6 +1702,18 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
+                              handleStatusChange(panel);
+                            }}
+                            className="p-0 text-blue-600 hover:text-blue-700"
+                            title="Change Status"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               handleViewQRCode(panel);
                             }}
                             className="p-0"
@@ -2233,18 +2294,20 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
 
 
       <Dialog open={isTimelineOpen} onOpenChange={setIsTimelineOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="w-[95vw] h-[90vh] max-w-6xl max-h-[90vh] flex flex-col sm:w-[90vw] md:w-[85vw] lg:w-[80vw]">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>Panel Timeline</DialogTitle>
             <DialogDescription>
               Status history for {selectedPanelForTimeline?.name}
             </DialogDescription>
           </DialogHeader>
-          {selectedPanelForTimeline && (
-            <Timeline
-              panel={selectedPanelForTimeline}
-            />
-          )}
+          <div className="flex-1 overflow-y-auto min-h-0 pr-2">
+            {selectedPanelForTimeline && (
+              <Timeline
+                panel={selectedPanelForTimeline}
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -2383,6 +2446,17 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+      {/* Status Change Dialog */}
+      <StatusChangeDialog
+        panel={selectedPanelForStatusChange}
+        isOpen={isStatusChangeDialogOpen}
+        onClose={() => {
+          setIsStatusChangeDialogOpen(false);
+          setSelectedPanelForStatusChange(null);
+        }}
+        onStatusChanged={handleStatusChanged}
+      />
     </div>
   );
 }

@@ -64,6 +64,7 @@ import {
 import { supabase } from "../lib/supabase";
 import { useToastContext } from "../contexts/ToastContext";
 import { DateInput } from "./ui/date-input";
+import { crudOperations } from "../utils/userTracking";
 
 interface Customer {
   id: string;
@@ -211,55 +212,24 @@ export function ProjectManagement() {
     
     // If "Other" is selected, create new customer
     if (formData.customer_id === "other") {
-      const { data: newCustomer, error: customerError } = await supabase
-        .from('customers')
-        .insert({
+      try {
+        const newCustomer = await crudOperations.create('customers', {
           name: formData.new_customer_name,
           email: formData.new_customer_email,
-          phone: formData.new_customer_phone || null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
+          phone: formData.new_customer_phone || null
+        });
         
-      if (customerError) {
-        console.error('Error creating customer:', customerError);
+        customerId = newCustomer.id;
+      } catch (error) {
+        console.error('Error creating customer:', error);
         showToast('Error creating customer', 'error');
         return;
       }
-      
-      customerId = newCustomer.id;
     }
 
-    if (editingProject) {
-      const { error } = await supabase
-        .from('projects')
-        .update({
-          name: formData.name,
-          customer_id: customerId,
-          location: formData.location,
-          start_date: formData.start_date,
-          end_date: formData.end_date || null,
-          status: formData.status,
-          estimated_cost: formData.estimated_cost,
-          estimated_panels: formData.estimated_panels,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', editingProject.id);
-        
-      if (error) {
-        console.error('Error updating project:', error);
-        showToast('Error updating project', 'error');
-        return;
-      }
-      
-      showToast('Project updated successfully', 'success');
-      setEditingProject(null);
-    } else {
-      const { error } = await supabase
-        .from('projects')
-        .insert({
+    try {
+      if (editingProject) {
+        await crudOperations.update('projects', editingProject.id, {
           name: formData.name,
           customer_id: customerId,
           location: formData.location,
@@ -270,19 +240,31 @@ export function ProjectManagement() {
           estimated_panels: formData.estimated_panels
         });
         
-      if (error) {
-        console.error('Error adding project:', error);
-        showToast('Error adding project', 'error');
-        return;
+        showToast('Project updated successfully', 'success');
+        setEditingProject(null);
+      } else {
+        await crudOperations.create('projects', {
+          name: formData.name,
+          customer_id: customerId,
+          location: formData.location,
+          start_date: formData.start_date,
+          end_date: formData.end_date || null,
+          status: formData.status,
+          estimated_cost: formData.estimated_cost,
+          estimated_panels: formData.estimated_panels
+        });
+        
+        showToast('Project added successfully', 'success');
+        setIsAddDialogOpen(false);
       }
       
-      showToast('Project added successfully', 'success');
-      setIsAddDialogOpen(false);
+      resetForm();
+      await fetchProjects();
+      await fetchCustomers();
+    } catch (error) {
+      console.error('Error saving project:', error);
+      showToast('Error saving project', 'error');
     }
-    
-    resetForm();
-    await fetchProjects();
-    await fetchCustomers();
   };
 
   const startEdit = (project: Project) => {
@@ -308,20 +290,16 @@ export function ProjectManagement() {
 
   const confirmDelete = async () => {
     if (deletingProject) {
-      const { error } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', deletingProject.id);
+      try {
+        await crudOperations.delete('projects', deletingProject.id);
         
-      if (error) {
+        showToast('Project deleted successfully', 'success');
+        setDeletingProject(null);
+        await fetchProjects();
+      } catch (error) {
         console.error('Error deleting project:', error);
         showToast('Error deleting project', 'error');
-        return;
       }
-      
-      showToast('Project deleted successfully', 'success');
-      setDeletingProject(null);
-      await fetchProjects();
     }
   };
 

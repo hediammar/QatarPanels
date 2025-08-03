@@ -5,7 +5,8 @@ import { Badge } from "./ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { UserHeader } from "./UserHeader";
 import { apiService } from "../utils/api";
-import { LayoutDashboard, Users, FolderOpen, Package, RefreshCw, Upload, AlertTriangle, Wifi, WifiOff, Layers, PackagePlus, UserCog, Menu, X, Building2, Building } from "lucide-react";
+import { LayoutDashboard, Users, FolderOpen, Package, RefreshCw, Upload, AlertTriangle, Wifi, WifiOff, Layers, PackagePlus, UserCog, Menu, X, Building2, Building, LogOut } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -17,6 +18,7 @@ export function Layout({ children }: LayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const location = useLocation();
+  const { user: currentUser } = useAuth();
 
   useEffect(() => {
     if (!initialized) {
@@ -106,7 +108,8 @@ export function Layout({ children }: LayoutProps) {
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
-  const navigationItems = [
+  // Define all possible navigation items
+  const allNavigationItems = [
     { id: '/', label: 'Dashboard', icon: LayoutDashboard },
     { id: '/projects', label: 'Projects', icon: FolderOpen },
     { id: '/buildings', label: 'Buildings', icon: Building2 },
@@ -114,9 +117,19 @@ export function Layout({ children }: LayoutProps) {
     { id: '/panels', label: 'Panels', icon: Package },
     { id: '/customers', label: 'Customers', icon: Users },
     { id: '/panel-groups', label: 'Panel Groups', icon: Layers },
-    { id: '/users', label: 'User Management', icon: UserCog },
+    { id: '/users', label: 'User Management', icon: UserCog, requiresAdmin: true },
     { id: '/bulk-import-projects', label: 'Import Projects', icon: Upload },
   ];
+
+  // Filter navigation items based on user role
+  const navigationItems = allNavigationItems.filter(item => {
+    // If the item requires admin access, check if user is administrator
+    if (item.requiresAdmin) {
+      return currentUser?.role === 'Administrator';
+    }
+    // Otherwise, show the item to all users
+    return true;
+  });
 
   const renderNavigationItem = (item: typeof navigationItems[0]) => {
     const Icon = item.icon;

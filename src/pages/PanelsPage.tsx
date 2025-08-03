@@ -24,7 +24,8 @@ import {
   Trash2,
   Upload,
   Users,
-  X
+  X,
+  RefreshCw
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import * as XLSX from "xlsx";
@@ -83,6 +84,8 @@ import { Timeline } from "../components/Timeline";
 import { QRCodeModal } from "../components/QRCodeModal";
 import { useToastContext } from "../contexts/ToastContext";
 import { DateInput } from "../components/ui/date-input";
+import { crudOperations } from "../utils/userTracking";
+import { StatusChangeDialog } from "../components/StatusChangeDialog";
 
 const PANEL_STATUSES = [
   "Issued For Production",
@@ -204,6 +207,8 @@ export function PanelsPage() {
   const [selectedPanelForTimeline, setSelectedPanelForTimeline] = useState<PanelModel | null>(null);
   const [isBulkStatusDialogOpen, setIsBulkStatusDialogOpen] = useState(false);
   const [bulkStatusValue, setBulkStatusValue] = useState<number>(0);
+  const [isStatusChangeDialogOpen, setIsStatusChangeDialogOpen] = useState(false);
+  const [selectedPanelForStatusChange, setSelectedPanelForStatusChange] = useState<PanelModel | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const itemsPerPage = 10;
@@ -279,15 +284,10 @@ export function PanelsPage() {
     try {
       const panelIds = Array.from(selectedPanels);
       
-      const { error } = await supabase
-        .from("panels")
-        .update({ status: bulkStatusValue })
-        .in("id", panelIds);
-
-      if (error) {
-        console.error("Error updating panel statuses:", error);
-        showToast("Failed to update panel statuses", "error");
-        return;
+      // Update each panel individually to track user changes
+      for (const panelId of panelIds) {
+        await crudOperations.update("panels", panelId, { status: bulkStatusValue });
+        // Database triggers will automatically add status history
       }
 
       // Update local state
@@ -424,15 +424,28 @@ export function PanelsPage() {
     setIsTimelineOpen(true);
   };
 
+  const handleStatusChange = (panel: PanelModel) => {
+    setSelectedPanelForStatusChange(panel);
+    setIsStatusChangeDialogOpen(true);
+  };
+
+  const handleStatusChanged = () => {
+    // Refresh the panels data by triggering a re-fetch
+    // This will trigger the useEffect to re-run
+    setLoading(true);
+    // Force a re-render by updating a state that triggers the useEffect
+    setCurrentPage(currentPage);
+  };
+
   const confirmDeletePanel = async () => {
     if (panelToDelete) {
-      const { error } = await supabase.from("panels").delete().eq("id", panelToDelete.id);
-      if (error) {
-        console.error("Error deleting panel:", error);
-        showToast("Error deleting panel", "error");
-      } else {
+      try {
+        await crudOperations.delete("panels", panelToDelete.id);
         setPanels(panels.filter((p) => p.id !== panelToDelete.id));
         showToast("Panel deleted successfully", "success");
+      } catch (error) {
+        console.error("Error deleting panel:", error);
+        showToast("Error deleting panel", "error");
       }
       setIsDeleteDialogOpen(false);
       setPanelToDelete(null);
@@ -441,6 +454,8 @@ export function PanelsPage() {
 
   const startEditPanel = (panel: PanelModel) => {
     setEditingPanel(panel);
+    // Set the selected project to the panel's project
+    setSelectedProjectId(panel.project_id);
     setNewPanelModel({
       name: panel.name,
       type: panel.type,
@@ -468,6 +483,7 @@ export function PanelsPage() {
       name: newPanelModel.name,
       type: newPanelModel.type,
       status: newPanelModel.status,
+      project_id: editingPanel ? editingPanel.project_id : selectedProjectId,
       building_id: newPanelModel.building_id || null,
       facade_id: newPanelModel.facade_id || null,
       issue_transmittal_no: newPanelModel.issue_transmittal_no || null,
@@ -479,74 +495,112 @@ export function PanelsPage() {
       issued_for_production_date: newPanelModel.issued_for_production_date || null,
     };
 
-    if (editingPanel) {
-      const { error } = await supabase
-        .from("panels")
-        .update(panelData)
-        .eq("id", editingPanel.id);
-      if (error) {
-        console.error("Error updating panel:", error);
-        showToast("Error updating panel", "error");
-      } else {
-        setPanels(
-          panels.map((p) =>
-            p.id === editingPanel.id
-              ? { 
-                  ...p, 
-                  ...panelData, 
-                  project_name: 'projectName', 
-                  building_name: buildings.find(b => b.id === panelData.building_id)?.name, 
-                  facade_name: facades.find(e => e.id === panelData.facade_id)?.name,
-                  building_id: panelData.building_id || undefined,
-                  facade_id: panelData.facade_id || undefined,
-                  issue_transmittal_no: panelData.issue_transmittal_no || undefined,
-                  drawing_number: panelData.drawing_number || undefined,
-                  unit_rate_qr_m2: panelData.unit_rate_qr_m2 || undefined,
-                  ifp_qty_area_sm: panelData.ifp_qty_area_sm || undefined,
-                  ifp_qty_nos: panelData.ifp_qty_nos || undefined,
-                  weight: panelData.weight || undefined,
-                  issued_for_production_date: panelData.issued_for_production_date || undefined,
-                }
-              : p
-          )
-        );
-        showToast("Panel updated successfully", "success");
-      }
-          } else {
-        if (!selectedProjectId) {
-          showToast("Please select a project first", "error");
-          return;
+    try {
+      if (editingPanel) {
+        // Check if status changed
+        const statusChanged = editingPanel.status !== panelData.status;
+        console.log(`Updating panel ${editingPanel.id}:`, {
+          oldStatus: editingPanel.status,
+          newStatus: panelData.status,
+          statusChanged
+        });
+        
+        // Update panel with user tracking
+        console.log('Calling crudOperations.update...');
+        await crudOperations.update("panels", editingPanel.id, panelData);
+        console.log('crudOperations.update completed');
+        
+        // Database triggers will automatically add status history when status changes
+        if (statusChanged) {
+          console.log(`Status changed from ${editingPanel.status} to ${panelData.status}, database triggers will handle history`);
+        } else {
+          console.log(`Status unchanged (${panelData.status}), no history needed`);
         }
-
-        const { data, error } = await supabase
+        
+        // Fetch the updated panel data with relations to get correct project name
+        const { data: updatedPanel, error: fetchError } = await supabase
           .from("panels")
-          .insert({
-            ...panelData,
-            project_id: selectedProjectId
-          })
           .select(`
             *,
             projects!inner(name),
             buildings(name),
             facades(name)
           `)
+          .eq("id", editingPanel.id)
           .single();
-        if (error) {
-          console.error("Error adding panel:", error);
-          showToast("Error adding panel", "error");
+
+        if (fetchError) {
+          console.error("Error fetching updated panel data:", fetchError);
+        } else {
+          setPanels(
+            panels.map((p) =>
+              p.id === editingPanel.id
+                ? { 
+                    ...p, 
+                    ...panelData, 
+                    project_name: updatedPanel.projects?.name, 
+                    building_name: updatedPanel.buildings?.name, 
+                    facade_name: updatedPanel.facades?.name,
+                    building_id: panelData.building_id || undefined,
+                    facade_id: panelData.facade_id || undefined,
+                    issue_transmittal_no: panelData.issue_transmittal_no || undefined,
+                    drawing_number: panelData.drawing_number || undefined,
+                    unit_rate_qr_m2: panelData.unit_rate_qr_m2 || undefined,
+                    ifp_qty_area_sm: panelData.ifp_qty_area_sm || undefined,
+                    ifp_qty_nos: panelData.ifp_qty_nos || undefined,
+                    weight: panelData.weight || undefined,
+                    issued_for_production_date: panelData.issued_for_production_date || undefined,
+                  }
+                : p
+            )
+          );
+        }
+        showToast("Panel updated successfully", "success");
+      } else {
+        if (!selectedProjectId) {
+          showToast("Please select a project first", "error");
+          return;
+        }
+
+        const newPanel = await crudOperations.create("panels", {
+          ...panelData,
+          project_id: selectedProjectId
+        });
+
+        // Database triggers will automatically add initial status history
+        console.log(`Panel created with status ${panelData.status}, database triggers will handle initial history`);
+
+        // Fetch the complete panel data with relations
+        const { data: completePanel, error: fetchError } = await supabase
+          .from("panels")
+          .select(`
+            *,
+            projects!inner(name),
+            buildings(name),
+            facades(name)
+          `)
+          .eq("id", newPanel.id)
+          .single();
+
+        if (fetchError) {
+          console.error("Error fetching complete panel data:", fetchError);
         } else {
           setPanels([
             ...panels,
             {
-              ...data,
-              project_name: data.projects?.name,
-              building_name: data.buildings?.name,
-              facade_name: data.facades?.name,
+              ...completePanel,
+              project_name: completePanel.projects?.name,
+              building_name: completePanel.buildings?.name,
+              facade_name: completePanel.facades?.name,
             },
           ]);
-          showToast("Panel added successfully", "success");
         }
+        showToast("Panel added successfully", "success");
       }
+    } catch (error) {
+      console.error("Error saving panel:", error);
+      showToast("Error saving panel", "error");
+    }
 
     setIsAddPanelDialogOpen(false);
     setIsEditDialogOpen(false);
@@ -706,20 +760,33 @@ export function PanelsPage() {
         issued_for_production_date: p.issued_for_production_date || null,
       }));
 
+      // Import panels with user tracking
+      const importedPanels = [];
+      for (const panelData of newPanels) {
+        try {
+          const newPanel = await crudOperations.create("panels", panelData);
+          // Database triggers will automatically add status history
+          importedPanels.push(newPanel);
+        } catch (error) {
+          console.error("Error importing panel:", error);
+          // Continue with other panels even if one fails
+        }
+      }
+
+      // Fetch complete data for imported panels
+      const panelIds = importedPanels.map(p => p.id);
       const { data, error } = await supabase
         .from("panels")
-        .insert(newPanels)
         .select(`
           *,
           projects!inner(name),
           buildings(name),
           facades(name)
-        `);
+        `)
+        .in("id", panelIds);
 
       if (error) {
-        console.error("Bulk import error:", error);
-        setBulkImportErrors(["Failed to import panels. Please try again."]);
-        return;
+        console.error("Error fetching imported panels:", error);
       }
 
       setPanels([
@@ -836,7 +903,8 @@ export function PanelsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="h-screen flex flex-col overflow-hidden">
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-2">
           <Package className="h-5 w-5 text-primary" />
@@ -1073,6 +1141,18 @@ export function PanelsPage() {
                           </div>
                         </div>
                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStatusChange(panel);
+                            }}
+                            className="p-0 text-blue-600 hover:text-blue-700"
+                            title="Change Status"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1683,18 +1763,20 @@ export function PanelsPage() {
 
 
       <Dialog open={isTimelineOpen} onOpenChange={setIsTimelineOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="w-[95vw] h-[90vh] max-w-6xl max-h-[90vh] flex flex-col sm:w-[90vw] md:w-[85vw] lg:w-[80vw]">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle>Panel Timeline</DialogTitle>
             <DialogDescription>
               Status history for {selectedPanelForTimeline?.name}
             </DialogDescription>
           </DialogHeader>
-          {selectedPanelForTimeline && (
-            <Timeline
-              panel={selectedPanelForTimeline}
-            />
-          )}
+          <div className="flex-1 overflow-y-auto min-h-0 pr-2">
+            {selectedPanelForTimeline && (
+              <Timeline
+                panel={selectedPanelForTimeline}
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -1833,6 +1915,18 @@ export function PanelsPage() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+      {/* Status Change Dialog */}
+      <StatusChangeDialog
+        panel={selectedPanelForStatusChange}
+        isOpen={isStatusChangeDialogOpen}
+        onClose={() => {
+          setIsStatusChangeDialogOpen(false);
+          setSelectedPanelForStatusChange(null);
+        }}
+        onStatusChanged={handleStatusChanged}
+      />
+      </div>
     </div>
   );
 }

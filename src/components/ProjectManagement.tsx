@@ -80,7 +80,7 @@ interface Customer {
 interface Project {
   id: string;
   name: string;
-  customer_id: string;
+  customer_id: string | null;
   customer_name: string;
   location: string;
   start_date: string;
@@ -281,7 +281,7 @@ export function ProjectManagement() {
           id: project.id,
           name: project.name,
           customer_id: project.customer_id,
-          customer_name: project.customers.name,
+          customer_name: project.customers?.name || 'No Customer',
           location: project.location,
           start_date: project.start_date,
           end_date: project.end_date,
@@ -460,7 +460,7 @@ export function ProjectManagement() {
     setEditingProject(project);
     setFormData({
       name: project.name,
-      customer_id: project.customer_id,
+      customer_id: project.customer_id || "",
       new_customer_name: "",
       new_customer_email: "",
       new_customer_phone: "",

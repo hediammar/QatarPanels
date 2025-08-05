@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ProjectManagement } from '../components/ProjectManagement';
-import { apiService } from '../utils/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -37,42 +36,17 @@ export function ProjectsPage() {
       }
       setError(null);
 
-      console.log('Loading projects and customers data...');
+      console.log('Loading projects data...');
       
-      const [projectsData, customersData] = await Promise.all([
-        apiService.getProjects(),
-        apiService.getCustomers()
-      ]);
-
-      setProjects(projectsData || []);
-      setCustomers(customersData || []);
+      // Since ProjectManagement handles its own data loading, we don't need to load data here
+      setProjects([]);
+      setCustomers([]);
       
-      console.log('Data loaded successfully:', {
-        projects: projectsData?.length || 0,
-        customers: customersData?.length || 0,
-        fallbackMode: apiService.isInFallbackMode()
-      });
+      console.log('Data loading handled by ProjectManagement component');
 
     } catch (err) {
       console.error('Error loading projects data:', err);
       setError('Failed to load data. Please check your connection and try again.');
-      
-      // Try to load fallback data as a last resort
-      try {
-        const [fallbackProjects, fallbackCustomers] = await Promise.all([
-          apiService.getProjects(),
-          apiService.getCustomers()
-        ]);
-        setProjects(fallbackProjects || []);
-        setCustomers(fallbackCustomers || []);
-        setError(null);
-        console.log('Fallback data loaded successfully');
-      } catch (fallbackErr) {
-        console.error('Failed to load fallback data:', fallbackErr);
-        // Keep the error state but with empty arrays
-        setProjects([]);
-        setCustomers([]);
-      }
     } finally {
       setLoading(false);
       setIsRetrying(false);
@@ -81,40 +55,6 @@ export function ProjectsPage() {
 
   const handleRetry = () => {
     loadData(true);
-  };
-
-  const handleAddProject = async (projectData: any) => {
-    try {
-      const newProject = await apiService.createProject(projectData);
-      setProjects(prev => [...prev, newProject]);
-    } catch (err) {
-      console.error('Error adding project:', err);
-      setError('Failed to add project. Please try again.');
-    }
-  };
-
-  const handleUpdateProject = async (id: string, updates: any) => {
-    try {
-      const updatedProject = await apiService.updateProject(id, updates);
-      setProjects(prev => prev.map(p => p.id === id ? updatedProject : p));
-    } catch (err) {
-      console.error('Error updating project:', err);
-      setError('Failed to update project. Please try again.');
-    }
-  };
-
-  const handleDeleteProject = async (id: string) => {
-    try {
-      await apiService.deleteProject(id);
-      setProjects(prev => prev.filter(p => p.id !== id));
-    } catch (err) {
-      console.error('Error deleting project:', err);
-      setError('Failed to delete project. Please try again.');
-    }
-  };
-
-  const handleNavigateToBulkImport = () => {
-    navigate('/bulk-import-projects');
   };
 
   if (loading) {

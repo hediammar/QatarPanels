@@ -19,6 +19,7 @@ import {
 } from "./ui/select";
 import { Plus } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../contexts/AuthContext";
 
 interface Project {
   id: string;
@@ -84,6 +85,7 @@ export function FacadeModal({
   });
   const [projects, setProjects] = useState<Project[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
+  const { user: currentUser } = useAuth();
 
   // Map database integer to UI status display
   const statusDisplay: { [key: number]: string } = {
@@ -118,35 +120,66 @@ export function FacadeModal({
   // Fetch projects and buildings from Supabase
   useEffect(() => {
     async function fetchData() {
+      console.log('🔍 FacadeModal: Starting data fetch...');
+      console.log('🔍 FacadeModal: Modal isOpen:', isOpen);
+      
       if (!isProjectPredefined) {
+        console.log('🔍 FacadeModal: Fetching projects...');
         const { data: projectData, error: projectError } = await supabase
           .from('projects')
-          .select('id, name, customer');
+          .select(`
+            id, 
+            name, 
+            customers (name)
+          `)
+          .order('name');
         
         if (projectError) {
-          console.error('Error fetching projects:', projectError);
+          console.error('❌ FacadeModal: Error fetching projects:', projectError);
         } else {
-          setProjects(projectData || []);
+          console.log('✅ FacadeModal: Projects fetched successfully:', projectData?.length || 0);
+          // Transform the data to match the expected interface
+          const transformedProjects = projectData?.map((project: any) => ({
+            id: project.id,
+            name: project.name,
+            customer: project.customers?.name || ''
+          })) || [];
+          console.log('✅ FacadeModal: Transformed projects:', transformedProjects);
+          setProjects(transformedProjects);
         }
       }
 
       if (!isBuildingPredefined) {
+        console.log('🔍 FacadeModal: Fetching buildings...');
         let query = supabase.from('buildings').select('id, name, project_id');
+        
+        // If we have a specific project context, filter buildings by that project
         if (effectiveProject) {
           query = query.eq('project_id', effectiveProject.id);
+          console.log('🔍 FacadeModal: Filtering buildings by project:', effectiveProject.id);
         }
+        
         const { data: buildingData, error: buildingError } = await query;
         
         if (buildingError) {
-          console.error('Error fetching buildings:', buildingError);
+          console.error('❌ FacadeModal: Error fetching buildings:', buildingError);
         } else {
+          console.log('✅ FacadeModal: Buildings fetched successfully:', buildingData?.length || 0);
+          console.log('✅ FacadeModal: Buildings data:', buildingData);
           setBuildings(buildingData || []);
         }
       }
+      
+      console.log('🔍 FacadeModal: Data fetch completed');
     }
 
-    fetchData();
-  }, [isProjectPredefined, isBuildingPredefined, effectiveProject]);
+    if (isOpen) {
+      console.log('🔍 FacadeModal: Modal opened, fetching data...');
+      fetchData();
+    } else {
+      console.log('🔍 FacadeModal: Modal closed, not fetching data');
+    }
+  }, [isProjectPredefined, isBuildingPredefined, effectiveProject, isOpen]);
 
   // Reset form when modal opens/closes or editing facade changes
   useEffect(() => {
@@ -170,8 +203,23 @@ export function FacadeModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!currentUser?.id) {
+      console.error('User not authenticated');
+      return;
+    }
+
     if (formData.status === undefined || formData.status === null) {
       console.error('Status cannot be null');
+      return;
+    }
+
+    if (!formData.name.trim()) {
+      console.error('Facade name is required');
+      return;
+    }
+
+    if (!formData.building_id) {
+      console.error('Building selection is required');
       return;
     }
 
@@ -204,11 +252,21 @@ export function FacadeModal({
   };
 
   // Filter buildings based on selected project
-  const availableBuildings = buildings.filter(building => 
-    building.project_id === (formData.building_id ? 
-      buildings.find(b => b.id === formData.building_id)?.project_id : 
-      effectiveProject?.id)
-  );
+  const availableBuildings = buildings.filter(building => {
+    // If we have a predefined project, only show buildings from that project
+    if (effectiveProject) {
+      return building.project_id === effectiveProject.id;
+    }
+    
+    // If no project is selected, show all buildings
+    if (!formData.building_id) {
+      return true;
+    }
+    
+    // If a building is selected, show buildings from the same project
+    const selectedBuilding = buildings.find(b => b.id === formData.building_id);
+    return selectedBuilding ? building.project_id === selectedBuilding.project_id : true;
+  });
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -248,22 +306,28 @@ export function FacadeModal({
                 />
               ) : (
                 <Select 
-                  value={formData.building_id ? buildings.find(b => b.id === formData.building_id)?.project_id : ""} 
+                  value={formData.building_id ? buildings.find(b => b.id === formData.building_id)?.project_id || "" : ""} 
                   onValueChange={(value) => setFormData({ ...formData, building_id: "" })}
                 >
                   <SelectTrigger className="bg-input border-border text-foreground">
                     <SelectValue placeholder="Select project" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover border-border">
-                    {projects.map((project) => (
-                      <SelectItem 
-                        key={project.id} 
-                        value={project.id} 
-                        className="text-popover-foreground"
-                      >
-                        {project.name} {project.customer ? `- ${project.customer}` : ''}
-                      </SelectItem>
-                    ))}
+                    {projects.length === 0 ? (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        No projects available
+                      </div>
+                    ) : (
+                      projects.map((project) => (
+                        <SelectItem 
+                          key={project.id} 
+                          value={project.id} 
+                          className="text-popover-foreground"
+                        >
+                          {project.name} {project.customer ? `- ${project.customer}` : ''}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               )}
@@ -292,15 +356,24 @@ export function FacadeModal({
                     <SelectValue placeholder="Select building" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover border-border">
-                    {availableBuildings.map((building) => (
-                      <SelectItem 
-                        key={building.id} 
-                        value={building.id} 
-                        className="text-popover-foreground"
-                      >
-                        {building.name}
-                      </SelectItem>
-                    ))}
+                    {availableBuildings.length === 0 ? (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        No buildings available
+                      </div>
+                    ) : (
+                      availableBuildings.map((building) => {
+                        console.log('🔍 FacadeModal: Rendering building in dropdown:', building);
+                        return (
+                          <SelectItem 
+                            key={building.id} 
+                            value={building.id} 
+                            className="text-popover-foreground"
+                          >
+                            {building.name}
+                          </SelectItem>
+                        );
+                      })
+                    )}
                   </SelectContent>
                 </Select>
               )}
@@ -308,6 +381,15 @@ export function FacadeModal({
                 <p className="text-xs text-muted-foreground">
                   This facade will be added to the current building
                 </p>
+              )}
+              {!isBuildingPredefined && (
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p>Available buildings: {availableBuildings.length}</p>
+                  <p>Total buildings: {buildings.length}</p>
+                  {effectiveProject && (
+                    <p>Filtered by project: {effectiveProject.name}</p>
+                  )}
+                </div>
               )}
             </div>
             

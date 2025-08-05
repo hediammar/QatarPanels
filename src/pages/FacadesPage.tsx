@@ -179,13 +179,19 @@ export function FacadesPage({
   };
 
   const handleAddFacade = async (facadeData: Omit<FacadeData, "id" | "created_at" | "updated_at">) => {
+    if (!currentUser?.id) {
+      console.error('User not authenticated');
+      return;
+    }
+
     const { data, error } = await supabase
       .from('facades')
       .insert({
         name: facadeData.name,
         building_id: facadeData.building_id,
         status: facadeData.status,
-        description: facadeData.description
+        description: facadeData.description,
+        user_id: currentUser.id
       })
       .select(`
         *,
@@ -419,6 +425,11 @@ export function FacadesPage({
                     {canUpdateFacades && (
                       <FacadeModalTrigger
                         onSubmit={async (data) => {
+                          if (!currentUser?.id) {
+                            console.error('User not authenticated');
+                            return;
+                          }
+
                           const { error } = await supabase
                             .from('facades')
                             .update({
@@ -426,6 +437,7 @@ export function FacadesPage({
                               building_id: data.building_id,
                               status: data.status,
                               description: data.description,
+                              user_id: currentUser.id,
                               updated_at: new Date().toISOString()
                             })
                             .eq('id', facade.id);

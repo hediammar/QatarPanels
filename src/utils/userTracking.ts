@@ -17,7 +17,8 @@ export const getCurrentUserId = (): string | null => {
     try {
       const user = JSON.parse(userStr);
       console.log('getCurrentUserId: parsed user:', user);
-      return user.id;
+      // The user object has an 'id' field directly
+      return user.id || null;
     } catch (error) {
       console.error('Error parsing user from localStorage:', error);
       return null;
@@ -70,17 +71,11 @@ export const addUserTrackingForCreate = (data: any, table?: string): any => {
     return trackedData;
   }
   
-  // Fallback: if no user_id is available but table requires it, try to get a default admin user
+  // If no user_id is available but table requires it, proceed without user tracking
   if (table && TABLES_WITH_USER_TRACKING.includes(table)) {
-    console.log(`No user_id available, attempting to find default admin user for ${table}`);
-    // For now, we'll try to proceed without user_id and let the database handle it
-    // In production, you might want to throw an error or redirect to login
-    const trackedData = {
-      ...data,
-      // Don't set user_id if not available - let the database handle the constraint
-    };
-    console.log(`Proceeding without user_id for ${table}:`, trackedData);
-    return trackedData;
+    console.log(`No user_id available, proceeding without user tracking for ${table}`);
+    // Return data without user_id - let the database handle the constraint
+    return data;
   }
   
   console.log(`No user tracking added for create: userId=${userId}, table=${table}`);
@@ -150,15 +145,108 @@ export const crudOperations = {
         
         // Validate that customer exists
         if (preparedData.customer_id) {
+          console.log('Validating customer_id:', preparedData.customer_id);
           const { data: customer, error: customerError } = await supabase
             .from('customers')
-            .select('id')
+            .select('id, name')
             .eq('id', preparedData.customer_id)
             .single();
             
-          if (customerError || !customer) {
-            throw new Error(`Customer with ID ${preparedData.customer_id} does not exist`);
+          if (customerError) {
+            console.error('Error validating customer:', customerError);
+            throw new Error(`Customer validation failed: ${customerError.message}`);
           }
+          
+          if (!customer) {
+            throw new Error(`Customer with ID ${preparedData.customer_id} does not exist. Please select a valid customer.`);
+          }
+          
+          console.log('Customer validation successful:', customer);
+        } else {
+          console.log('No customer_id provided, skipping customer validation');
+        }
+        
+        // Validate that user exists in users table
+        if (preparedData.user_id) {
+          console.log('Validating user_id:', preparedData.user_id);
+          const { data: user, error: userError } = await supabase
+            .from('users')
+            .select('id, username, name')
+            .eq('id', preparedData.user_id)
+            .single();
+            
+          if (userError) {
+            console.error('Error validating user:', userError);
+            throw new Error(`User validation failed: ${userError.message}`);
+          }
+          
+          if (!user) {
+            console.error('User not found in users table:', preparedData.user_id);
+            
+            // Try to get the current user from Supabase auth
+            try {
+              const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+              
+              if (authError) {
+                console.error('Error getting auth user:', authError);
+                throw new Error(`User with ID ${preparedData.user_id} does not exist in the users table. Please log in again.`);
+              }
+              
+              if (authUser) {
+                console.log('Found user in auth, checking if they exist in users table...');
+                
+                // Check if the auth user exists in the users table
+                const { data: existingUser, error: checkError } = await supabase
+                  .from('users')
+                  .select('id, username, name')
+                  .eq('email', authUser.email)
+                  .single();
+                
+                if (checkError || !existingUser) {
+                  console.log('User not found in users table, creating user record...');
+                  
+                  // Create the user in the users table
+                  const newUserData = {
+                    id: authUser.id,
+                    username: authUser.email?.split('@')[0] || 'user',
+                    name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User',
+                    email: authUser.email || '',
+                    role: 'Data Entry', // Default role
+                    password_hash: 'temp_hash', // Will be updated on first login
+                    status: 'active'
+                  };
+                  
+                  const { data: createdUser, error: createError } = await supabase
+                    .from('users')
+                    .insert(newUserData)
+                    .select()
+                    .single();
+                  
+                  if (createError) {
+                    console.error('Error creating user:', createError);
+                    throw new Error(`Failed to create user record. Please contact an administrator.`);
+                  }
+                  
+                  console.log('User created successfully:', createdUser);
+                  // Update the user_id to use the created user's ID
+                  preparedData.user_id = createdUser.id;
+                } else {
+                  console.log('User found in users table:', existingUser);
+                  // Update the user_id to use the existing user's ID
+                  preparedData.user_id = existingUser.id;
+                }
+              } else {
+                throw new Error(`User with ID ${preparedData.user_id} does not exist in the users table. Please log in again.`);
+              }
+            } catch (error) {
+              console.error('Error handling missing user:', error);
+              throw new Error(`User with ID ${preparedData.user_id} does not exist in the users table. Please log in again.`);
+            }
+          } else {
+            console.log('User validation successful:', user);
+          }
+        } else {
+          console.log('No user_id provided, skipping user validation');
         }
         
         // Remove any undefined or null values that might cause issues
@@ -243,42 +331,15 @@ export const crudOperations = {
           throw new Error('Project is required');
         }
         
-        // Validate that project exists
-        if (preparedData.project_id) {
-          const { data: project, error: projectError } = await supabase
-            .from('projects')
-            .select('id')
-            .eq('id', preparedData.project_id)
-            .single();
-            
-          if (projectError || !project) {
-            throw new Error(`Project with ID ${preparedData.project_id} does not exist`);
-          }
-        }
-        
-        // Validate building_id if provided
-        if (preparedData.building_id) {
-          const { data: building, error: buildingError } = await supabase
-            .from('buildings')
-            .select('id')
-            .eq('id', preparedData.building_id)
-            .single();
-            
-          if (buildingError || !building) {
-            throw new Error(`Building with ID ${preparedData.building_id} does not exist`);
-          }
-        }
-        
-        // Validate facade_id if provided
-        if (preparedData.facade_id) {
-          const { data: facade, error: facadeError } = await supabase
-            .from('facades')
-            .select('id')
-            .eq('id', preparedData.facade_id)
-            .single();
-            
-          if (facadeError || !facade) {
-            throw new Error(`Facade with ID ${preparedData.facade_id} does not exist`);
+        // Handle user_id - if not available, try to get it from current session
+        if (!preparedData.user_id) {
+          const userId = getCurrentUserId();
+          if (userId) {
+            preparedData.user_id = userId;
+          } else {
+            // If no user_id is available, we'll proceed without it
+            console.warn('No user_id available for panel creation');
+            delete preparedData.user_id;
           }
         }
         
@@ -286,24 +347,6 @@ export const crudOperations = {
         Object.keys(preparedData).forEach(key => {
           if (preparedData[key] === undefined || preparedData[key] === '') {
             delete preparedData[key];
-          }
-        });
-        
-        // Ensure we have a valid UUID for the ID field
-        if (!preparedData.id || typeof preparedData.id !== 'string' || preparedData.id.length !== 36) {
-          preparedData.id = generateUUID();
-        }
-        
-        // Validate UUID format for all UUID fields
-        const uuidFields = ['id', 'project_id', 'building_id', 'facade_id', 'user_id'];
-        uuidFields.forEach(field => {
-          if (preparedData[field] && (typeof preparedData[field] !== 'string' || preparedData[field].length !== 36)) {
-            console.warn(`Invalid UUID format for ${field}:`, preparedData[field]);
-            if (field === 'id') {
-              preparedData[field] = generateUUID();
-            } else {
-              delete preparedData[field]; // Remove invalid UUIDs for optional fields
-            }
           }
         });
         
@@ -338,56 +381,36 @@ export const crudOperations = {
           throw new Error(`Cannot access panels table: ${testError.message}`);
         }
         console.log('Panels table access test successful');
-        
-        // Also test if we can read from the projects table since panels reference it
-        console.log('Testing connection to projects table for panel creation...');
-        const { data: projectTestData, error: projectTestError } = await supabase
-          .from('projects')
-          .select('id')
-          .limit(1);
-        
-        if (projectTestError) {
-          console.error('Error testing projects table access:', projectTestError);
-          throw new Error(`Cannot access projects table: ${projectTestError.message}`);
-        }
-        console.log('Projects table access test successful');
-        
-        // Test if we can insert a minimal panel record (this will be rolled back)
-        console.log('Testing minimal panel insert...');
-        const testPanelData = {
-          id: generateUUID(),
-          name: 'TEST_PANEL_DELETE_ME',
-          type: 0,
-          status: 1,
-          project_id: projectTestData?.[0]?.id
-        };
-        
-        const { error: testInsertError } = await supabase
-          .from('panels')
-          .insert(testPanelData);
-        
-        if (testInsertError) {
-          console.error('Error testing panel insert:', testInsertError);
-          console.error('Test insert error details:', {
-            message: testInsertError.message,
-            details: testInsertError.details,
-            hint: testInsertError.hint,
-            code: testInsertError.code
-          });
-        } else {
-          console.log('Test panel insert successful - this indicates permissions are OK');
-          // Clean up the test record
-          await supabase
-            .from('panels')
-            .delete()
-            .eq('name', 'TEST_PANEL_DELETE_ME');
-        }
       }
       
       const trackedData = addUserTrackingForCreate(preparedData, table);
       console.log(`Creating ${table} with data:`, trackedData);
       
       console.log(`Attempting to insert into ${table} with data:`, trackedData);
+      
+      // For projects, check if a project with the same name already exists
+      if (table === 'projects' && preparedData.name) {
+        console.log('Checking for existing project with same name...');
+        const { data: existingProjects, error: checkError } = await supabase
+          .from('projects')
+          .select('id, name, customer_id')
+          .eq('name', preparedData.name);
+        
+        if (checkError) {
+          console.error('Error checking for existing projects:', checkError);
+        } else if (existingProjects && existingProjects.length > 0) {
+          console.log('Found existing projects with same name:', existingProjects);
+          throw new Error(`A project with the name "${preparedData.name}" already exists. Please choose a different name.`);
+        }
+      }
+      
+      // Log the exact data being sent to help debug 409 errors
+      console.log(`=== ${table.toUpperCase()} INSERT DEBUG ===`);
+      console.log('Table:', table);
+      console.log('Data being inserted:', JSON.stringify(trackedData, null, 2));
+      console.log('User ID:', getCurrentUserId());
+      console.log('Session available:', !!(await getCurrentUserSession()));
+      console.log('=====================================');
       
       const { data: result, error } = await supabase
         .from(table)
@@ -404,29 +427,34 @@ export const crudOperations = {
           code: error.code
         });
         
-        // Try to get more information about the error
-        if (error.code === '42501') {
-          console.error('Permission denied - check RLS policies');
+        // Log the exact request that failed
+        console.error(`Failed request data:`, {
+          table: table,
+          data: trackedData,
+          error: error
+        });
+        
+        // Log the full error object for debugging
+        console.error(`Full error object:`, JSON.stringify(error, null, 2));
+        
+        // Handle specific error codes
+        if (error.code === '23505') {
+          // Unique constraint violation
+          if (table === 'projects') {
+            throw new Error(`A project with this name already exists. Please choose a different name.`);
+          } else {
+            throw new Error(`A record with these details already exists. Please check your input and try again.`);
+          }
         } else if (error.code === '23503') {
-          console.error('Foreign key constraint violation');
-        } else if (error.code === '23502') {
-          console.error('Not null constraint violation');
-        } else if (error.code === '23505') {
-          console.error('Unique constraint violation');
-        } else if (error.code === '22P02') {
-          console.error('Invalid text representation');
+          // Foreign key constraint violation
+          if (table === 'projects' && error.message.includes('customer_id')) {
+            throw new Error(`The selected customer does not exist. Please choose a valid customer.`);
+          } else {
+            throw new Error(`Referenced record does not exist. Please check your selection.`);
+          }
+        } else {
+          throw new Error(`Failed to create ${table}: ${error.message}`);
         }
-        
-        // For panels table, provide more specific debugging
-        if (table === 'panels') {
-          console.error('=== PANELS TABLE ERROR DEBUG ===');
-          console.error('Attempted data:', trackedData);
-          console.error('User ID:', getCurrentUserId());
-          console.error('Session available:', !!(await getCurrentUserSession()));
-          console.error('================================');
-        }
-        
-        throw error;
       }
       return result;
     } catch (error: any) {
@@ -563,5 +591,127 @@ export const crudOperations = {
       }
       return data;
     }
+  }
+}; 
+
+// Test database connectivity and table structure
+export const testDatabaseConnection = async () => {
+  try {
+    console.log('Testing database connection...');
+    
+    // Test basic connection
+    const { data: testData, error: testError } = await supabase
+      .from('panels')
+      .select('id')
+      .limit(1);
+    
+    if (testError) {
+      console.error('Database connection test failed:', testError);
+      return false;
+    }
+    
+    console.log('Database connection test successful');
+    
+    // Test if we can read from projects table
+    const { data: projectData, error: projectError } = await supabase
+      .from('projects')
+      .select('id, name')
+      .limit(1);
+    
+    if (projectError) {
+      console.error('Projects table access test failed:', projectError);
+      return false;
+    }
+    
+    console.log('Projects table access test successful');
+    return true;
+  } catch (error) {
+    console.error('Database connection test error:', error);
+    return false;
+  }
+}; 
+
+// Check table structure to understand required fields
+export const checkTableStructure = async (tableName: string) => {
+  try {
+    console.log(`Checking structure for table: ${tableName}`);
+    
+    // Try to get table information
+    const { data, error } = await supabase
+      .from(tableName)
+      .select('*')
+      .limit(0);
+    
+    if (error) {
+      console.error(`Error checking table structure for ${tableName}:`, error);
+      return null;
+    }
+    
+    console.log(`Table ${tableName} structure check successful`);
+    return true;
+  } catch (error) {
+    console.error(`Error checking table structure for ${tableName}:`, error);
+    return null;
+  }
+}; 
+
+// Test minimal panel creation to debug 400 error
+export const testMinimalPanelCreation = async () => {
+  try {
+    console.log('Testing minimal panel creation...');
+    
+    // Get a valid project ID first
+    const { data: projects, error: projectError } = await supabase
+      .from('projects')
+      .select('id')
+      .limit(1);
+    
+    if (projectError || !projects || projects.length === 0) {
+      console.error('No projects available for testing');
+      return false;
+    }
+    
+    const testProjectId = projects[0].id;
+    console.log('Using test project ID:', testProjectId);
+    
+    // Try to create a minimal panel
+    const minimalPanelData = {
+      name: 'TEST_PANEL_DELETE_ME',
+      type: 0,
+      status: 1,
+      project_id: testProjectId
+    };
+    
+    console.log('Testing with minimal data:', minimalPanelData);
+    
+    const { data, error } = await supabase
+      .from('panels')
+      .insert(minimalPanelData)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Minimal panel creation failed:', error);
+      console.error('Error details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      return false;
+    }
+    
+    console.log('Minimal panel creation successful:', data);
+    
+    // Clean up the test record
+    await supabase
+      .from('panels')
+      .delete()
+      .eq('name', 'TEST_PANEL_DELETE_ME');
+    
+    return true;
+  } catch (error) {
+    console.error('Test minimal panel creation error:', error);
+    return false;
   }
 }; 

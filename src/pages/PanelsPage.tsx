@@ -84,7 +84,7 @@ import { Timeline } from "../components/Timeline";
 import { QRCodeModal } from "../components/QRCodeModal";
 import { useToastContext } from "../contexts/ToastContext";
 import { DateInput } from "../components/ui/date-input";
-import { crudOperations } from "../utils/userTracking";
+import { crudOperations, testDatabaseConnection, checkTableStructure, testMinimalPanelCreation } from "../utils/userTracking";
 import { StatusChangeDialog } from "../components/StatusChangeDialog";
 import { useAuth } from "../contexts/AuthContext";
 import { hasPermission, isCustomerRole, UserRole } from "../utils/rolePermissions";
@@ -521,28 +521,44 @@ export function PanelsPage() {
       return;
     }
 
-          // Check if current user is a customer and implement data filtering
-      const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
-      
-      // If user is a customer, verify they can only work with their own projects
-      if (isCustomer && currentUser?.customer_id) {
-        const targetProjectId = editingPanel ? editingPanel.project_id : selectedProjectId;
-        
-        // For customer users, we'll rely on the database-level filtering
-        // The fetchData function already filters projects by customer_id
-        console.log('Customer user creating/editing panel for project:', targetProjectId);
-      }
+    // Test database connection first
+    const dbConnectionOk = await testDatabaseConnection();
+    if (!dbConnectionOk) {
+      showToast("Database connection failed. Please try again.", "error");
+      return;
+    }
 
-    // Get customer_id from the selected project
-    const selectedProject = projects.find(p => p.id === (editingPanel ? editingPanel.project_id : selectedProjectId));
-    const customerId = selectedProject?.customer_id || currentUser?.customer_id;
+    // Check table structure
+    const panelsTableOk = await checkTableStructure('panels');
+    if (!panelsTableOk) {
+      showToast("Panels table structure check failed. Please try again.", "error");
+      return;
+    }
+
+    // Test minimal panel creation
+    const minimalTestOk = await testMinimalPanelCreation();
+    if (!minimalTestOk) {
+      showToast("Panel creation test failed. Please check database permissions.", "error");
+      return;
+    }
+
+    // Check if current user is a customer and implement data filtering
+    const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
+      
+    // If user is a customer, verify they can only work with their own projects
+    if (isCustomer && currentUser?.customer_id) {
+      const targetProjectId = editingPanel ? editingPanel.project_id : selectedProjectId;
+      
+      // For customer users, we'll rely on the database-level filtering
+      // The fetchData function already filters projects by customer_id
+      console.log('Customer user creating/editing panel for project:', targetProjectId);
+    }
 
     const panelData = {
       name: newPanelModel.name,
       type: newPanelModel.type,
       status: newPanelModel.status,
       project_id: editingPanel ? editingPanel.project_id : selectedProjectId,
-      customer_id: customerId, // Add customer_id for customer-specific filtering
       building_id: newPanelModel.building_id || null,
       facade_id: newPanelModel.facade_id || null,
       issue_transmittal_no: newPanelModel.issue_transmittal_no || null,
@@ -553,6 +569,21 @@ export function PanelsPage() {
       weight: newPanelModel.weight || null,
       issued_for_production_date: newPanelModel.issued_for_production_date || null,
     };
+
+    console.log('Panel data being sent:', panelData);
+
+    // Validate data types before sending
+    const validatedPanelData = {
+      ...panelData,
+      type: Number(panelData.type),
+      status: Number(panelData.status),
+      unit_rate_qr_m2: panelData.unit_rate_qr_m2 ? Number(panelData.unit_rate_qr_m2) : null,
+      ifp_qty_area_sm: panelData.ifp_qty_area_sm ? Number(panelData.ifp_qty_area_sm) : null,
+      ifp_qty_nos: panelData.ifp_qty_nos ? Number(panelData.ifp_qty_nos) : null,
+      weight: panelData.weight ? Number(panelData.weight) : null,
+    };
+
+    console.log('Validated panel data:', validatedPanelData);
 
     try {
       if (editingPanel) {
@@ -566,14 +597,14 @@ export function PanelsPage() {
         
         // Update panel with user tracking
         console.log('Calling crudOperations.update...');
-        await crudOperations.update("panels", editingPanel.id, panelData);
+        await crudOperations.update("panels", editingPanel.id, validatedPanelData);
         console.log('crudOperations.update completed');
         
         // Database triggers will automatically add status history when status changes
         if (statusChanged) {
-          console.log(`Status changed from ${editingPanel.status} to ${panelData.status}, database triggers will handle history`);
+          console.log(`Status changed from ${editingPanel.status} to ${validatedPanelData.status}, database triggers will handle history`);
         } else {
-          console.log(`Status unchanged (${panelData.status}), no history needed`);
+          console.log(`Status unchanged (${validatedPanelData.status}), no history needed`);
         }
         
         // Fetch the updated panel data with relations to get correct project name
@@ -596,19 +627,19 @@ export function PanelsPage() {
               p.id === editingPanel.id
                 ? { 
                     ...p, 
-                    ...panelData, 
+                    ...validatedPanelData, 
                     project_name: updatedPanel.projects?.name, 
                     building_name: updatedPanel.buildings?.name, 
                     facade_name: updatedPanel.facades?.name,
-                    building_id: panelData.building_id || undefined,
-                    facade_id: panelData.facade_id || undefined,
-                    issue_transmittal_no: panelData.issue_transmittal_no || undefined,
-                    drawing_number: panelData.drawing_number || undefined,
-                    unit_rate_qr_m2: panelData.unit_rate_qr_m2 || undefined,
-                    ifp_qty_area_sm: panelData.ifp_qty_area_sm || undefined,
-                    ifp_qty_nos: panelData.ifp_qty_nos || undefined,
-                    weight: panelData.weight || undefined,
-                    issued_for_production_date: panelData.issued_for_production_date || undefined,
+                    building_id: validatedPanelData.building_id || undefined,
+                    facade_id: validatedPanelData.facade_id || undefined,
+                    issue_transmittal_no: validatedPanelData.issue_transmittal_no || undefined,
+                    drawing_number: validatedPanelData.drawing_number || undefined,
+                    unit_rate_qr_m2: validatedPanelData.unit_rate_qr_m2 || undefined,
+                    ifp_qty_area_sm: validatedPanelData.ifp_qty_area_sm || undefined,
+                    ifp_qty_nos: validatedPanelData.ifp_qty_nos || undefined,
+                    weight: validatedPanelData.weight || undefined,
+                    issued_for_production_date: validatedPanelData.issued_for_production_date || undefined,
                   }
                 : p
             )
@@ -621,13 +652,11 @@ export function PanelsPage() {
           return;
         }
 
-        const newPanel = await crudOperations.create("panels", {
-          ...panelData,
-          project_id: selectedProjectId
-        });
+        // Create new panel with the prepared data
+        const newPanel = await crudOperations.create("panels", validatedPanelData);
 
         // Database triggers will automatically add initial status history
-        console.log(`Panel created with status ${panelData.status}, database triggers will handle initial history`);
+        console.log(`Panel created with status ${validatedPanelData.status}, database triggers will handle initial history`);
 
         // Fetch the complete panel data with relations
         const { data: completePanel, error: fetchError } = await supabase
@@ -658,7 +687,23 @@ export function PanelsPage() {
       }
     } catch (error) {
       console.error("Error saving panel:", error);
-      showToast("Error saving panel", "error");
+      
+      // Handle specific error types
+      if (error instanceof Error) {
+        if (error.message.includes('customer_id')) {
+          showToast("Customer validation failed. Please check your selection.", "error");
+        } else if (error.message.includes('project_id')) {
+          showToast("Project validation failed. Please check your selection.", "error");
+        } else if (error.message.includes('building_id')) {
+          showToast("Building validation failed. Please check your selection.", "error");
+        } else if (error.message.includes('facade_id')) {
+          showToast("Facade validation failed. Please check your selection.", "error");
+        } else {
+          showToast(`Error saving panel: ${error.message}`, "error");
+        }
+      } else {
+        showToast("Error saving panel", "error");
+      }
     }
 
     setIsAddPanelDialogOpen(false);
@@ -803,16 +848,11 @@ export function PanelsPage() {
         return;
       }
 
-      // Get customer_id from the selected project
-      const selectedProject = projects.find(p => p.id === selectedProjectId);
-      const customerId = selectedProject?.customer_id || currentUser?.customer_id;
-
       const newPanels = validPanels.map((p) => ({
         name: p.name,
         type: p.type,
         status: p.status,
         project_id: selectedProjectId,
-        customer_id: customerId, // Add customer_id for customer-specific filtering
         building_id: p.building_id || null,
         facade_id: p.facade_id || null,
         issue_transmittal_no: p.issue_transmittal_no || null,
@@ -1449,6 +1489,15 @@ export function PanelsPage() {
               </Select>
             </div>
             <div className="space-y-2">
+            <DateInput
+              id="issued_for_production_date"
+              label="Issued for Production Date"
+              value={newPanelModel.issued_for_production_date}
+              onChange={(value) => setNewPanelModel({ ...newPanelModel, issued_for_production_date: value || undefined })}
+              placeholder="Select date"
+            />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="status">Status *</Label>
               <Select
                 value={statusMap[newPanelModel.status]}
@@ -1565,13 +1614,7 @@ export function PanelsPage() {
                 placeholder="Enter weight in kg"
               />
             </div>
-            <DateInput
-              id="issued_for_production_date"
-              label="Issued for Production Date"
-              value={newPanelModel.issued_for_production_date}
-              onChange={(value) => setNewPanelModel({ ...newPanelModel, issued_for_production_date: value || undefined })}
-              placeholder="Select date"
-            />
+            
           </div>
           <DialogFooter>
             <Button
@@ -1635,6 +1678,15 @@ export function PanelsPage() {
                 placeholder="Enter panel name"
                 required
               />
+            </div>
+            <div className="space-y-2">
+            <DateInput
+              id="edit-issued_for_production_date"
+              label="Issued for Production Date"
+              value={newPanelModel.issued_for_production_date}
+              onChange={(value) => setNewPanelModel({ ...newPanelModel, issued_for_production_date: value || undefined })}
+              placeholder="Select date"
+            />
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-type">Panel Type *</Label>
@@ -1771,13 +1823,7 @@ export function PanelsPage() {
                 placeholder="Enter weight in kg"
               />
             </div>
-            <DateInput
-              id="edit-issued_for_production_date"
-              label="Issued for Production Date"
-              value={newPanelModel.issued_for_production_date}
-              onChange={(value) => setNewPanelModel({ ...newPanelModel, issued_for_production_date: value || undefined })}
-              placeholder="Select date"
-            />
+            
           </div>
           <DialogFooter>
             <Button

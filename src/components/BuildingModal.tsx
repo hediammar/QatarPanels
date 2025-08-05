@@ -19,12 +19,21 @@ import {
 import { Plus } from "lucide-react";
 import { Textarea } from './ui/textarea';
 import { supabase } from "../lib/supabase";
-
+import { useAuth } from "../contexts/AuthContext";
+import { useToastContext } from "../contexts/ToastContext";
 
 interface Project {
   id: string;
   name: string;
   customer?: string;
+}
+
+interface ProjectData {
+  id: string;
+  name: string;
+  customers: {
+    name: string;
+  } | null;
 }
 
 interface BuildingData {
@@ -52,30 +61,6 @@ interface BuildingModalProps {
   currentProjectName?: string;
 }
 
-// Sample projects data - only used when no current project is provided
-const sampleProjects: Project[] = [
-  {
-    id: "1",
-    name: "Qatar National Convention Centre",
-    customer: "Qatar Foundation"
-  },
-  {
-    id: "2", 
-    name: "Doha Sports Complex",
-    customer: "Qatar Sports Authority"
-  },
-  {
-    id: "3",
-    name: "Al Rayyan Stadium",
-    customer: "Supreme Committee"
-  },
-  {
-    id: "4",
-    name: "Lusail Towers",
-    customer: "Qatari Diar"
-  }
-];
-
 export function BuildingModal({
   isOpen,
   onOpenChange,
@@ -86,6 +71,8 @@ export function BuildingModal({
   currentProjectId,
   currentProjectName
 }: BuildingModalProps) {
+  const { user: currentUser } = useAuth();
+  const { showToast } = useToastContext();
   const [formData, setFormData] = useState({
     name: "",
     project_id: "",
@@ -94,6 +81,8 @@ export function BuildingModal({
     description: ""
   });
   const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [projectsLoading, setProjectsLoading] = useState(true);
 
   // Map UI status to database integer
   const statusToNumber: { [key: string]: number } = {
@@ -117,28 +106,64 @@ export function BuildingModal({
     name: currentProjectName
   } : null);
 
-  const isProjectPredefined = !!effectiveProject;
-
-  // Fetch projects from Supabase if no current project is provided
+  // Fetch projects from Supabase
   useEffect(() => {
     async function fetchProjects() {
-      if (!isProjectPredefined) {
+      setProjectsLoading(true);
+      try {
+        console.log('🔍 BuildingModal: Starting project fetch...');
+        console.log('🔍 BuildingModal: Modal isOpen:', isOpen);
+        
         const { data, error } = await supabase
           .from('projects')
-          .select('id, name, customer');
+          .select(`
+            id, 
+            name, 
+            customers (name)
+          `)
+          .order('name');
         
         if (error) {
-          console.error('Error fetching projects:', error);
-          setProjects(sampleProjects);
+          console.error('❌ BuildingModal: Error fetching projects:', error);
+          showToast('Failed to load projects', 'error');
+          setProjects([]);
           return;
         }
         
-        setProjects(data || sampleProjects);
+        console.log('✅ BuildingModal: Projects fetched successfully:', data);
+        console.log('✅ BuildingModal: Raw projects data:', data);
+        
+        // Transform the data to match the expected interface
+        const transformedProjects: Project[] = (data as any[])?.map((project: any) => {
+          const transformed = {
+            id: project.id,
+            name: project.name,
+            customer: project.customers?.name || ''
+          };
+          console.log('🔍 BuildingModal: Transformed project:', transformed);
+          return transformed;
+        }) || [];
+        
+        console.log('✅ BuildingModal: Final transformed projects:', transformedProjects);
+        setProjects(transformedProjects);
+      } catch (error) {
+        console.error('❌ BuildingModal: Exception during project fetch:', error);
+        showToast('Failed to load projects', 'error');
+        setProjects([]);
+      } finally {
+        setProjectsLoading(false);
+        console.log('🔍 BuildingModal: Project loading finished');
       }
     }
 
-    fetchProjects();
-  }, [isProjectPredefined]);
+    // Only fetch projects when modal is open
+    if (isOpen) {
+      console.log('🔍 BuildingModal: Modal opened, fetching projects...');
+      fetchProjects();
+    } else {
+      console.log('🔍 BuildingModal: Modal closed, not fetching projects');
+    }
+  }, [isOpen, showToast]);
 
   // Reset form when modal opens/closes or editing building changes
   useEffect(() => {
@@ -161,33 +186,73 @@ export function BuildingModal({
     }
   }, [editingBuilding, isOpen, effectiveProject]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    let selectedProject;
-    if (isProjectPredefined) {
-      selectedProject = { id: effectiveProject.id, name: effectiveProject.name };
-    } else {
-      selectedProject = projects.find(p => p.id === formData.project_id);
+    if (!currentUser?.id) {
+      showToast('You must be logged in to perform this action', 'error');
+      return;
+    }
+
+    // Validate required fields
+    if (!formData.name.trim()) {
+      showToast('Building name is required', 'error');
+      return;
+    }
+
+    if (!formData.project_id) {
+      showToast('Project selection is required', 'error');
+      return;
+    }
+
+    if (!formData.address.trim()) {
+      showToast('Building address is required', 'error');
+      return;
+    }
+
+    // Verify the user exists in the database
+    try {
+      const { data: userCheck, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', currentUser.id)
+        .single();
+
+      if (userError || !userCheck) {
+        console.error('User not found in database:', currentUser.id);
+        showToast('User authentication error. Please log in again.', 'error');
+        return;
+      }
+    } catch (error) {
+      console.error('Error verifying user:', error);
+      showToast('Authentication error. Please log in again.', 'error');
+      return;
     }
     
-    onSubmit({
-      name: formData.name,
-      project_id: formData.project_id,
-      address: formData.address,
-      status: statusToNumber[formData.status],
-      description: formData.description
-    });
-    
-    // Reset form and close modal
-    setFormData({
-      name: "",
-      project_id: effectiveProject?.id || "",
-      address: "",
-      status: "active",
-      description: ""
-    });
-    onOpenChange(false);
+    try {
+      const buildingData = {
+        name: formData.name.trim(),
+        project_id: formData.project_id,
+        address: formData.address.trim(),
+        status: statusToNumber[formData.status],
+        description: formData.description.trim()
+      };
+      
+      onSubmit(buildingData);
+      
+      // Reset form and close modal
+      setFormData({
+        name: "",
+        project_id: effectiveProject?.id || "",
+        address: "",
+        status: "active",
+        description: ""
+      });
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error submitting building:', error);
+      showToast('Failed to save building', 'error');
+    }
   };
 
   const handleCancel = () => {
@@ -231,37 +296,92 @@ export function BuildingModal({
             
             <div className="space-y-2">
               <Label htmlFor="project" className="text-card-foreground">Project *</Label>
-              {isProjectPredefined ? (
-                <Input
-                  id="project"
-                  value={`${effectiveProject.name}${effectiveProject.customer ? ` - ${effectiveProject.customer}` : ''}`}
-                  disabled
-                  className="bg-input/50 border-border text-muted-foreground cursor-not-allowed"
-                />
-              ) : (
-                <Select 
-                  value={formData.project_id} 
-                  onValueChange={(value) => setFormData({ ...formData, project_id: value })}
-                >
-                  <SelectTrigger className="bg-input border-border text-foreground">
-                    <SelectValue placeholder="Select project" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover border-border">
-                    {projects.map((project) => (
-                      <SelectItem 
-                        key={project.id} 
-                        value={project.id} 
-                        className="text-popover-foreground"
-                      >
-                        {project.name} {project.customer ? `- ${project.customer}` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <Select 
+                value={formData.project_id} 
+                onValueChange={(value) => setFormData({ ...formData, project_id: value })}
+                disabled={projectsLoading}
+              >
+                <SelectTrigger className="bg-input border-border text-foreground">
+                  <SelectValue placeholder={projectsLoading ? "Loading projects..." : "Select project"} />
+                </SelectTrigger>
+                <SelectContent className="bg-popover border-border">
+                  {projects.length === 0 && !projectsLoading ? (
+                    <SelectItem value="" disabled className="text-popover-foreground">
+                      No projects available
+                    </SelectItem>
+                  ) : (
+                    projects.map((project) => {
+                      console.log('🔍 BuildingModal: Rendering project in dropdown:', project);
+                      return (
+                        <SelectItem 
+                          key={project.id} 
+                          value={project.id} 
+                          className="text-popover-foreground"
+                        >
+                          {project.name} {project.customer ? `- ${project.customer}` : ''}
+                        </SelectItem>
+                      );
+                    })
+                  )}
+                </SelectContent>
+              </Select>
+              {projectsLoading && (
+                <p className="text-xs text-muted-foreground">Loading projects...</p>
               )}
-              {isProjectPredefined && (
+              {!projectsLoading && projects.length === 0 && (
+                <div className="text-xs text-destructive space-y-1">
+                  <p>No projects found. Please create a project first.</p>
+                  <p>You can create projects from the Projects page.</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      setProjectsLoading(true);
+                      // Trigger a re-fetch
+                      const fetchProjects = async () => {
+                        try {
+                          const { data, error } = await supabase
+                            .from('projects')
+                            .select(`
+                              id, 
+                              name, 
+                              customers (name)
+                            `)
+                            .order('name');
+                          
+                          if (error) {
+                            console.error('Error fetching projects:', error);
+                            showToast('Failed to load projects', 'error');
+                            setProjects([]);
+                            return;
+                          }
+                          
+                          const transformedProjects: Project[] = (data as any[])?.map((project: any) => ({
+                            id: project.id,
+                            name: project.name,
+                            customer: project.customers?.name || ''
+                          })) || [];
+                          
+                          setProjects(transformedProjects);
+                        } catch (error) {
+                          console.error('Error fetching projects:', error);
+                          showToast('Failed to load projects', 'error');
+                          setProjects([]);
+                        } finally {
+                          setProjectsLoading(false);
+                        }
+                      };
+                      fetchProjects();
+                    }}
+                    className="mt-2"
+                  >
+                    Retry
+                  </Button>
+                </div>
+              )}
+              {!projectsLoading && projects.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  This building will be added to the current project
+                  {projects.length} project{projects.length !== 1 ? 's' : ''} available
                 </p>
               )}
             </div>
@@ -315,6 +435,7 @@ export function BuildingModal({
             <Button 
               type="submit" 
               className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
+              disabled={loading || projectsLoading || projects.length === 0}
             >
               {editingBuilding ? 'Update Building' : 'Create Building'}
             </Button>
@@ -323,6 +444,7 @@ export function BuildingModal({
               variant="outline" 
               onClick={handleCancel} 
               className="border-border text-foreground hover:bg-accent"
+              disabled={loading}
             >
               Cancel
             </Button>

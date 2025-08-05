@@ -24,6 +24,7 @@ import { BuildingModalTrigger } from '../components/BuildingModal';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { hasPermission } from '../utils/rolePermissions';
+import { useToastContext } from '../contexts/ToastContext';
 
 
 interface BuildingModel {
@@ -46,6 +47,7 @@ export function BuildingsPage({
   projectName,
 }: BuildingsSectionProps) {
   const { user: currentUser } = useAuth();
+  const { showToast } = useToastContext();
   const [buildings, setBuildings] = useState<BuildingModel[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -116,23 +118,94 @@ export function BuildingsPage({
   useEffect(() => {
     async function fetchBuildings() {
       setLoading(true);
-      let query = supabase
-        .from('buildings')
-        .select('*');
+      try {
+        let query = supabase
+          .from('buildings')
+          .select('*');
 
-      const { data, error } = await query;
-      
-      if (error) {
+        // If we have a project filter, apply it
+        if (projectId) {
+          query = query.eq('project_id', projectId);
+        }
+
+        const { data, error } = await query;
+        
+        if (error) {
+          console.error('Error fetching buildings:', error);
+          showToast('Failed to load buildings', 'error');
+          return;
+        }
+        
+        setBuildings(data || []);
+      } catch (error) {
         console.error('Error fetching buildings:', error);
-        return;
+        showToast('Failed to load buildings', 'error');
+      } finally {
+        setLoading(false);
       }
-      
-      setBuildings(data || []);
-      setLoading(false);
     }
 
     fetchBuildings();
-  }, [projectId]);
+  }, [projectId, showToast]);
+
+  const handleAddBuilding = async (buildingData: Omit<BuildingModel, "id" | "created_at">) => {
+    if (!currentUser?.id) {
+      showToast('You must be logged in to perform this action', 'error');
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('buildings')
+      .insert({
+        name: buildingData.name,
+        project_id: buildingData.project_id,
+        address: buildingData.address,
+        status: buildingData.status,
+        description: buildingData.description,
+        user_id: currentUser.id
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error adding building:', error);
+      showToast('Failed to create building', 'error');
+      return;
+    }
+
+    setBuildings([...buildings, data]);
+    showToast('Building created successfully', 'success');
+  };
+
+  const handleUpdateBuilding = async (buildingId: string, buildingData: Omit<BuildingModel, "id" | "created_at">) => {
+    if (!currentUser?.id) {
+      showToast('You must be logged in to perform this action', 'error');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('buildings')
+      .update({
+        name: buildingData.name,
+        project_id: buildingData.project_id,
+        address: buildingData.address,
+        status: buildingData.status,
+        description: buildingData.description,
+        user_id: currentUser.id
+      })
+      .eq('id', buildingId);
+
+    if (error) {
+      console.error('Error updating building:', error);
+      showToast('Failed to update building', 'error');
+      return;
+    }
+
+    setBuildings(buildings.map(b => 
+      b.id === buildingId ? { ...b, ...buildingData } : b
+    ));
+    showToast('Building updated successfully', 'success');
+  };
 
   const handleDelete = async (building: BuildingModel) => {
     if (window.confirm('Are you sure you want to delete this building?')) {
@@ -143,32 +216,13 @@ export function BuildingsPage({
 
       if (error) {
         console.error('Error deleting building:', error);
+        showToast('Failed to delete building', 'error');
         return;
       }
 
       setBuildings(buildings.filter(b => b.id !== building.id));
+      showToast('Building deleted successfully', 'success');
     }
-  };
-
-  const handleAddBuilding = async (buildingData: Omit<BuildingModel, "id" | "created_at">) => {
-    const { data, error } = await supabase
-      .from('buildings')
-      .insert({
-        name: buildingData.name,
-        project_id: buildingData.project_id,
-        address: buildingData.address,
-        status: buildingData.status,
-        description: buildingData.description
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error adding building:', error);
-      return;
-    }
-
-    setBuildings([...buildings, data]);
   };
 
   const filteredBuildings = buildings.filter((building) => {
@@ -339,27 +393,7 @@ export function BuildingsPage({
                   <div className="flex gap-2">
                     {canUpdateBuildings && (
                       <BuildingModalTrigger
-                        onSubmit={async (data: Omit<BuildingModel, "id" | "created_at">) => {
-                          const { error } = await supabase
-                            .from('buildings')
-                            .update({
-                              name: data.name,
-                              project_id: data.project_id,
-                              address: data.address,
-                              status: data.status,
-                              description: data.description
-                            })
-                            .eq('id', building.id);
-
-                          if (error) {
-                            console.error('Error updating building:', error);
-                            return;
-                          }
-
-                          setBuildings(buildings.map(b => 
-                            b.id === building.id ? { ...b, ...data } : b
-                          ));
-                        }}
+                        onSubmit={handleUpdateBuilding.bind(null, building.id)}
                         editingBuilding={building}
                         currentProject={currentProject}
                       />

@@ -4,7 +4,6 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { UserHeader } from "./UserHeader";
-import { apiService } from "../utils/api";
 import { LayoutDashboard, Users, FolderOpen, Package, RefreshCw, Upload, AlertTriangle, Wifi, WifiOff, Layers, PackagePlus, UserCog, Menu, X, Building2, Building, LogOut } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { canAccessNavigation } from "../utils/rolePermissions";
@@ -33,49 +32,16 @@ export function Layout({ children }: LayoutProps) {
     try {
       setLoading(true);
       setError(null);
-      console.log('Initializing application...');
+      console.log('Initializing application with Supabase...');
 
-      if (apiService.isInFallbackMode()) {
-        console.log('API service already in fallback mode');
-        setInitialized(true);
-        return;
-      }
-
-      // Try to initialize sample data with a timeout
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Connection timeout')), 10000)
-      );
-
-      await Promise.race([
-        apiService.initializeSampleData(),
-        timeoutPromise
-      ]);
-      
-      // Check if we're in fallback mode after initialization
-      const fallbackMode = apiService.isInFallbackMode();
-      
-      if (fallbackMode) {
-        console.log('Application initialized in fallback mode');
-      } else {
-        console.log('Application initialized successfully with server connection');
-      }
+      // Since we're using Supabase directly, we don't need complex connection management
+      // Just set initialized to true
+      setInitialized(true);
+      console.log('Application initialized successfully with Supabase');
       
     } catch (error) {
       console.warn('Error during initialization:', error);
-      
-      // Ensure we're in fallback mode
-      if (!apiService.isInFallbackMode()) {
-        console.log('Forcing fallback mode due to initialization error');
-        apiService.resetConnection();
-        // Force the API service into fallback mode by making it think the server failed
-        try {
-          await apiService.initializeSampleData();
-        } catch (e) {
-          // This should trigger fallback mode
-        }
-      }
-      
-      setError('Unable to connect to server. Running in offline mode with sample data.');
+      setError('Unable to initialize application. Please check your connection.');
     } finally {
       setLoading(false);
       setInitialized(true);
@@ -88,9 +54,6 @@ export function Layout({ children }: LayoutProps) {
       setError(null);
       console.log('Attempting to retry connection...');
       
-      // Reset the API service to try server connection again
-      apiService.resetConnection();
-      
       // Reset initialization state to force a retry
       setInitialized(false);
       
@@ -98,8 +61,8 @@ export function Layout({ children }: LayoutProps) {
       await initializeApp();
       
     } catch (error) {
-      console.error('Retry connection failed:', error);
-      setError('Still unable to connect to server. Continuing in offline mode.');
+      console.error('Error retrying connection:', error);
+      setError('Failed to reconnect. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }

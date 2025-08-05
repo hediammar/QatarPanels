@@ -130,6 +130,81 @@ export function ProjectManagement() {
     estimated_panels: 0,
   });
 
+  // Function to suggest a unique project name
+  const suggestUniqueProjectName = async (baseName: string): Promise<string> => {
+    let counter = 1;
+    let suggestedName = baseName;
+    
+    while (counter <= 10) { // Limit to 10 attempts
+      const { data: existingProjects, error } = await supabase
+        .from('projects')
+        .select('id, name')
+        .eq('name', suggestedName);
+      
+      if (error) {
+        console.error('Error checking for existing projects:', error);
+        break;
+      }
+      
+      if (!existingProjects || existingProjects.length === 0) {
+        return suggestedName;
+      }
+      
+      suggestedName = `${baseName} (${counter})`;
+      counter++;
+    }
+    
+    // If we can't find a unique name, append timestamp
+    return `${baseName} (${new Date().getTime()})`;
+  };
+
+  // Function to check if project name is available
+  const checkProjectNameAvailability = async (name: string): Promise<{ available: boolean; suggestedName?: string }> => {
+    if (!name.trim()) {
+      return { available: true };
+    }
+    
+    const { data: existingProjects, error } = await supabase
+      .from('projects')
+      .select('id, name')
+      .eq('name', name);
+    
+    if (error) {
+      console.error('Error checking project name availability:', error);
+      return { available: true }; // Assume available if we can't check
+    }
+    
+    if (!existingProjects || existingProjects.length === 0) {
+      return { available: true };
+    }
+    
+    const suggestedName = await suggestUniqueProjectName(name);
+    return { available: false, suggestedName };
+  };
+
+  // Function to debug customer issues
+  const debugCustomerIssues = async () => {
+    console.log('=== CUSTOMER DEBUG ===');
+    
+    // Check all customers
+    try {
+      const { data: allCustomers, error } = await supabase
+        .from('customers')
+        .select('id, name, email')
+        .order('name');
+      
+      if (error) {
+        console.error('Error fetching all customers:', error);
+      } else {
+        console.log('All available customers:', allCustomers);
+      }
+    } catch (error) {
+      console.error('Exception fetching all customers:', error);
+    }
+    
+    console.log('=== END CUSTOMER DEBUG ===');
+  };
+
   // Fetch customers and projects on mount
   useEffect(() => {
     fetchCustomers();
@@ -266,6 +341,38 @@ export function ProjectManagement() {
       }
     }
 
+    if (!customerId) {
+      showToast('Please select a customer', 'error');
+      return;
+    }
+
+    // Validate that the selected customer exists
+    try {
+      console.log('Validating selected customer:', customerId);
+      const { data: customer, error: customerError } = await supabase
+        .from('customers')
+        .select('id, name')
+        .eq('id', customerId)
+        .single();
+      
+      if (customerError) {
+        console.error('Error validating customer:', customerError);
+        showToast('Selected customer is invalid. Please choose a different customer.', 'error');
+        return;
+      }
+      
+      if (!customer) {
+        showToast('Selected customer does not exist. Please choose a valid customer.', 'error');
+        return;
+      }
+      
+      console.log('Customer validation successful:', customer);
+    } catch (error) {
+      console.error('Error validating customer:', error);
+      showToast('Error validating customer. Please try again.', 'error');
+      return;
+    }
+
     try {
       console.log('Submitting project data:', {
         editingProject,
@@ -291,6 +398,26 @@ export function ProjectManagement() {
         showToast('Project updated successfully', 'success');
         setEditingProject(null);
       } else {
+        // Check if project name already exists before creating
+        console.log('Checking for existing project with name:', formData.name);
+        const { data: existingProjects, error: checkError } = await supabase
+          .from('projects')
+          .select('id, name, customer_id')
+          .eq('name', formData.name);
+        
+        if (checkError) {
+          console.error('Error checking for existing projects:', checkError);
+        } else if (existingProjects && existingProjects.length > 0) {
+          const suggestedName = await suggestUniqueProjectName(formData.name);
+          showToast(
+            `A project with the name "${formData.name}" already exists. Suggested name: "${suggestedName}"`, 
+            'error'
+          );
+          // Update the form with the suggested name
+          setFormData(prev => ({ ...prev, name: suggestedName }));
+          return;
+        }
+        
         const createData = {
           name: formData.name,
           customer_id: customerId,
@@ -314,7 +441,7 @@ export function ProjectManagement() {
       await fetchCustomers();
     } catch (error) {
       console.error('Error saving project:', error);
-      showToast('Error saving project', 'error');
+      showToast(error instanceof Error ? error.message : 'Error saving project', 'error');
     }
   };
 

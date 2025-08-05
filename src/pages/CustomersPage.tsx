@@ -14,6 +14,8 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/collapsible";
 import { Plus, Edit, Trash2, MoreHorizontal, Building2, MapPin, Phone, Mail, User, Search, ChevronUp, ChevronDown, Filter, X, Users } from "lucide-react";
 import { crudOperations } from "../utils/userTracking";
+import { useAuth } from "../contexts/AuthContext";
+import { hasPermission, UserRole } from "../utils/rolePermissions";
 
 interface Customer {
   id: string;
@@ -24,6 +26,7 @@ interface Customer {
 }
 
 export function CustomersPage() {
+  const { user: currentUser } = useAuth();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [deletingCustomer, setDeletingCustomer] = useState<Customer | null>(null);
@@ -32,6 +35,11 @@ export function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // RBAC Permission checks
+  const canCreateCustomers = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'customers', 'canCreate') : false;
+  const canUpdateCustomers = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'customers', 'canUpdate') : false;
+  const canDeleteCustomers = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'customers', 'canDelete') : false;
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
@@ -348,14 +356,15 @@ export function CustomersPage() {
 
               </div>
         <div className="flex items-center gap-2">
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="w-full sm:w-auto">
-                <Plus className="mr-2 h-4 w-4" />
-                {"Add Customer"}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="w-[95vw] max-w-md mx-auto">
+          {canCreateCustomers && (
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="w-full sm:w-auto">
+                  <Plus className="mr-2 h-4 w-4" />
+                  {"Add Customer"}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="w-[95vw] max-w-md mx-auto">
               <DialogHeader>
                 <DialogTitle>Add New Customer</DialogTitle>
                 <DialogDescription>Create a new customer profile.</DialogDescription>
@@ -402,6 +411,7 @@ export function CustomersPage() {
               </form>
             </DialogContent>
           </Dialog>
+        )}
         </div>
       </div>
 
@@ -449,65 +459,61 @@ export function CustomersPage() {
             </div>
           </div>
 
-          {(
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <div className="space-y-2">
-                <Label>Project Count</Label>
-                <Select value={projectCountFilter} onValueChange={(value) => {
-                  setProjectCountFilter(value);
-                  handleFilterChange();
-                }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Any count" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Any count</SelectItem>
-                    <SelectItem value="0">No projects</SelectItem>
-                    <SelectItem value="1-5">1-5 projects</SelectItem>
-                    <SelectItem value="6-10">6-10 projects</SelectItem>
-                    <SelectItem value="10+">10+ projects</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Sort By</Label>
-                <Select value={sortBy} onValueChange={(value) => setSortBy(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="name">Name</SelectItem>
-                    <SelectItem value="email">Email</SelectItem>
-                    <SelectItem value="projects">Projects</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Items per page</Label>
-                <Select value={pageSize.toString()} onValueChange={(value) => {
-                  setPageSize(parseInt(value));
-                  setCurrentPage(1);
-                }}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10 per page</SelectItem>
-                    <SelectItem value="25">25 per page</SelectItem>
-                    <SelectItem value="50">50 per page</SelectItem>
-                    <SelectItem value="100">100 per page</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-2">
+              <Label>Project Count</Label>
+              <Select value={projectCountFilter} onValueChange={(value) => {
+                setProjectCountFilter(value);
+                handleFilterChange();
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Any count" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Any count</SelectItem>
+                  <SelectItem value="0">No projects</SelectItem>
+                  <SelectItem value="1-5">1-5 projects</SelectItem>
+                  <SelectItem value="6-10">6-10 projects</SelectItem>
+                  <SelectItem value="10+">10+ projects</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          )}
+            <div className="space-y-2">
+              <Label>Sort By</Label>
+              <Select value={sortBy} onValueChange={(value) => setSortBy(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Name</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="projects">Projects</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Items per page</Label>
+              <Select value={pageSize.toString()} onValueChange={(value) => {
+                setPageSize(parseInt(value));
+                setCurrentPage(1);
+              }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10 per page</SelectItem>
+                  <SelectItem value="25">25 per page</SelectItem>
+                  <SelectItem value="50">50 per page</SelectItem>
+                  <SelectItem value="100">100 per page</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <div className="flex items-center justify-between mt-4">
             <div className="text-sm text-muted-foreground">
-              {(
-                <span>
-                  Showing {startIndex + 1}-{Math.min(endIndex, filteredAndSortedCustomers.length)} of {filteredAndSortedCustomers.length} customers
-                </span>
-              )}
+              <span>
+                Showing {startIndex + 1}-{Math.min(endIndex, filteredAndSortedCustomers.length)} of {filteredAndSortedCustomers.length} customers
+              </span>
             </div>
             <Button variant="outline" size="sm" onClick={clearFilters}>
               Clear Filters
@@ -536,88 +542,86 @@ export function CustomersPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {(
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead
-                          className="cursor-pointer select-none"
-                          onClick={() => handleSort("name")}
-                        >
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4" />
-                            Customer Name
-                            <SortIcon column="name" />
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead
+                        className="cursor-pointer select-none"
+                        onClick={() => handleSort("name")}
+                      >
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4" />
+                          Customer Name
+                          <SortIcon column="name" />
+                        </div>
+                      </TableHead>
+                      <TableHead
+                        className="cursor-pointer select-none"
+                        onClick={() => handleSort("email")}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4" />
+                          Email
+                          <SortIcon column="email" />
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4" />
+                          Phone
+                        </div>
+                      </TableHead>
+                      <TableHead
+                        className="cursor-pointer select-none"
+                        onClick={() => handleSort("projects")}
+                      >
+                        <div className="flex items-center gap-2">
+                          Projects
+                          <SortIcon column="projects" />
+                        </div>
+                      </TableHead>
+                      <TableHead className="w-12"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedCustomers.map((customer) => (
+                      <TableRow key={customer.id} className="hover:bg-muted/50">
+                        <TableCell className="font-medium">{customer.name}</TableCell>
+                        <TableCell className="max-w-xs truncate">{customer.email}</TableCell>
+                        <TableCell>{customer.phone}</TableCell>
+                        <TableCell>
+                          {customer.projects !== undefined && (
+                            <Badge variant="secondary">
+                              {customer.projects} project{customer.projects !== 1 ? 's' : ''}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => startEdit(customer)}
+                              className="w-full justify-start h-8"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(customer)}
+                              className="w-full justify-start h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
-                        </TableHead>
-                        <TableHead
-                          className="cursor-pointer select-none"
-                          onClick={() => handleSort("email")}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Mail className="h-4 w-4" />
-                            Email
-                            <SortIcon column="email" />
-                          </div>
-                        </TableHead>
-                        <TableHead>
-                          <div className="flex items-center gap-2">
-                            <Phone className="h-4 w-4" />
-                            Phone
-                          </div>
-                        </TableHead>
-                        <TableHead
-                          className="cursor-pointer select-none"
-                          onClick={() => handleSort("projects")}
-                        >
-                          <div className="flex items-center gap-2">
-                            Projects
-                            <SortIcon column="projects" />
-                          </div>
-                        </TableHead>
-                        <TableHead className="w-12"></TableHead>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {paginatedCustomers.map((customer) => (
-                        <TableRow key={customer.id} className="hover:bg-muted/50">
-                          <TableCell className="font-medium">{customer.name}</TableCell>
-                          <TableCell className="max-w-xs truncate">{customer.email}</TableCell>
-                          <TableCell>{customer.phone}</TableCell>
-                          <TableCell>
-                            {customer.projects !== undefined && (
-                              <Badge variant="secondary">
-                                {customer.projects} project{customer.projects !== 1 ? 's' : ''}
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-end gap-2">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => startEdit(customer)}
-                                    className="w-full justify-start h-8"
-                                  >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleDelete(customer)}
-                                    className="w-full justify-start h-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                                </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
               {totalPages > 1 && (
                 <div className="flex justify-center pt-6">
                   <Pagination>

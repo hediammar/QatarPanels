@@ -6,14 +6,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { AlertCircle, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { hasPermission, isCustomerRole, UserRole } from '../utils/rolePermissions';
 
 export function ProjectsPage() {
   const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
   const [projects, setProjects] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
+
+  // RBAC Permission checks
+  const canCreateProjects = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'projects', 'canCreate') : false;
+  const canUpdateProjects = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'projects', 'canUpdate') : false;
+  const canDeleteProjects = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'projects', 'canDelete') : false;
+  const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
 
   useEffect(() => {
     loadData();

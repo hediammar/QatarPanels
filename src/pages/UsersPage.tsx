@@ -14,6 +14,7 @@ import { Plus, Edit, Trash2, MoreHorizontal, UserPlus, Search, Filter, Users, Sh
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToastContext } from "../contexts/ToastContext";
+import { canManageUsers, hasPermission } from "../utils/rolePermissions";
 
 // User roles and statuses - matches database constraints exactly
 const USER_ROLES = [
@@ -51,8 +52,12 @@ export function UsersPage() {
   const { showToast } = useToastContext();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  // Check if current user can manage users
-  const canManageUsers = currentUser?.role === 'Administrator';
+  
+  // RBAC Permission checks
+  const canManageUsersPermission = currentUser?.role ? canManageUsers(currentUser.role as UserRole) : false;
+  const canCreateUsers = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'users', 'canCreate') : false;
+  const canUpdateUsers = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'users', 'canUpdate') : false;
+  const canDeleteUsers = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'users', 'canDelete') : false;
 
   // Fetch users from Supabase
   useEffect(() => {
@@ -169,7 +174,7 @@ export function UsersPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!canManageUsers) {
+    if (!canManageUsersPermission) {
       showToast('You do not have permission to manage users', 'error');
       return;
     }
@@ -289,7 +294,7 @@ export function UsersPage() {
   };
 
   const confirmDelete = async () => {
-    if (!canManageUsers) {
+    if (!canManageUsersPermission) {
       showToast('You do not have permission to delete users', 'error');
       setDeletingUser(null);
       return;
@@ -319,7 +324,7 @@ export function UsersPage() {
   };
 
   const toggleUserStatus = async (user: User) => {
-    if (!canManageUsers) {
+    if (!canManageUsersPermission) {
       showToast('You do not have permission to modify user status', 'error');
       setOpenPopover(null);
       return;
@@ -487,7 +492,7 @@ export function UsersPage() {
 
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button disabled={!canManageUsers}>
+            <Button disabled={!canCreateUsers}>
               <Plus className="mr-2 h-4 w-4" />
               Add User
             </Button>
@@ -810,7 +815,7 @@ export function UsersPage() {
           <CardTitle>Users</CardTitle>
           <CardDescription>
             Manage user accounts and permissions
-            {!canManageUsers && (
+            {!canManageUsersPermission && (
               <span className="text-sm text-muted-foreground block mt-1">
                 Only Administrators can add, edit, or delete users
               </span>
@@ -915,42 +920,45 @@ export function UsersPage() {
                         </TableCell>
                         <TableCell>
                             <div className="flex items-center justify-end gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => startEdit(user)}
-                                  disabled={!canManageUsers}
-                                  title={!canManageUsers ? "Only Administrators can edit users" : "Edit user"}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => toggleUserStatus(user)}
-                                  disabled={!canManageUsers}
-                                  title={!canManageUsers ? "Only Administrators can modify user status" : "Toggle user status"}
-                                >
-                                  {user.status === 'active' ? (
-                                    <>
-                                      <EyeOff className="h-4 w-4" />
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Eye className="h-4 w-4" />
-                                    </>
-                                  )}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDelete(user)}
-                                  disabled={!canManageUsers}
-                                  title={!canManageUsers ? "Only Administrators can delete users" : "Delete user"}
-                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                {canUpdateUsers && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => startEdit(user)}
+                                    title="Edit user"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {canUpdateUsers && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => toggleUserStatus(user)}
+                                    title="Toggle user status"
+                                  >
+                                    {user.status === 'active' ? (
+                                      <>
+                                        <EyeOff className="h-4 w-4" />
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Eye className="h-4 w-4" />
+                                      </>
+                                    )}
+                                  </Button>
+                                )}
+                                {canDeleteUsers && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDelete(user)}
+                                    title="Delete user"
+                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
                           </div>
                         </TableCell>
                       </TableRow>

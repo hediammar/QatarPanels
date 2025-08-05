@@ -76,12 +76,22 @@ ALTER TABLE customers ADD COLUMN user_id UUID REFERENCES users(id);
 ALTER TABLE facades ADD COLUMN user_id UUID REFERENCES users(id);
 ALTER TABLE panels ADD COLUMN user_id UUID REFERENCES users(id);
 
+-- Add customer_id foreign key to users table for RBAC
+ALTER TABLE public.users ADD COLUMN customer_id UUID NULL;
+ALTER TABLE public.users ADD CONSTRAINT users_customer_id_fkey 
+  FOREIGN KEY (customer_id) REFERENCES customers(id);
+
+-- Add constraint to ensure Customer role users have customer_id
+ALTER TABLE public.users ADD CONSTRAINT users_customer_role_check 
+  CHECK ((role <> 'Customer') OR (customer_id IS NOT NULL));
+
 -- Create indexes for foreign keys
 CREATE INDEX idx_projects_user_id ON projects(user_id);
 CREATE INDEX idx_buildings_user_id ON buildings(user_id);
 CREATE INDEX idx_customers_user_id ON customers(user_id);
 CREATE INDEX idx_facades_user_id ON facades(user_id);
 CREATE INDEX idx_panels_user_id ON panels(user_id);
+CREATE INDEX idx_users_customer_id ON public.users(customer_id);
 
 -- Insert a default administrator user (password: admin123)
 -- Note: In production, use proper password hashing

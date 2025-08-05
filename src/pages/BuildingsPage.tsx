@@ -22,6 +22,8 @@ import {
 import { Badge } from '../components/ui/badge';
 import { BuildingModalTrigger } from '../components/BuildingModal';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { hasPermission } from '../utils/rolePermissions';
 
 
 interface BuildingModel {
@@ -43,10 +45,16 @@ export function BuildingsPage({
   projectId,
   projectName,
 }: BuildingsSectionProps) {
+  const { user: currentUser } = useAuth();
   const [buildings, setBuildings] = useState<BuildingModel[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+
+  // RBAC Permission checks
+  const canCreateBuildings = currentUser?.role ? hasPermission(currentUser.role as any, 'buildings', 'canCreate') : false;
+  const canUpdateBuildings = currentUser?.role ? hasPermission(currentUser.role as any, 'buildings', 'canUpdate') : false;
+  const canDeleteBuildings = currentUser?.role ? hasPermission(currentUser.role as any, 'buildings', 'canDelete') : false;
 
   // Map database status (integer) to UI status
   const statusMap: { [key: number]: string } = {
@@ -208,10 +216,12 @@ export function BuildingsPage({
             </span>
           )}
         </div>
-        <BuildingModalTrigger 
-          onSubmit={handleAddBuilding}
-          currentProject={currentProject}
-        />
+        {canCreateBuildings && (
+          <BuildingModalTrigger 
+            onSubmit={handleAddBuilding}
+            currentProject={currentProject}
+          />
+        )}
       </div>
 
       {/* Filters & Search */}
@@ -327,39 +337,43 @@ export function BuildingsPage({
                     Created: {formatDate(building.created_at)}
                   </div>
                   <div className="flex gap-2">
-                    <BuildingModalTrigger
-                      onSubmit={async (data: Omit<BuildingModel, "id" | "created_at">) => {
-                        const { error } = await supabase
-                          .from('buildings')
-                          .update({
-                            name: data.name,
-                            project_id: data.project_id,
-                            address: data.address,
-                            status: data.status,
-                            description: data.description
-                          })
-                          .eq('id', building.id);
+                    {canUpdateBuildings && (
+                      <BuildingModalTrigger
+                        onSubmit={async (data: Omit<BuildingModel, "id" | "created_at">) => {
+                          const { error } = await supabase
+                            .from('buildings')
+                            .update({
+                              name: data.name,
+                              project_id: data.project_id,
+                              address: data.address,
+                              status: data.status,
+                              description: data.description
+                            })
+                            .eq('id', building.id);
 
-                        if (error) {
-                          console.error('Error updating building:', error);
-                          return;
-                        }
+                          if (error) {
+                            console.error('Error updating building:', error);
+                            return;
+                          }
 
-                        setBuildings(buildings.map(b => 
-                          b.id === building.id ? { ...b, ...data } : b
-                        ));
-                      }}
-                      editingBuilding={building}
-                      currentProject={currentProject}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDelete(building)}
-                      className="border-red-400/50 text-red-400 hover:bg-red-400/10"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                          setBuildings(buildings.map(b => 
+                            b.id === building.id ? { ...b, ...data } : b
+                          ));
+                        }}
+                        editingBuilding={building}
+                        currentProject={currentProject}
+                      />
+                    )}
+                    {canDeleteBuildings && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDelete(building)}
+                        className="border-red-400/50 text-red-400 hover:bg-red-400/10"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -377,7 +391,7 @@ export function BuildingsPage({
               ? "Try adjusting your filters"
               : "Get started by adding your first building"}
           </p>
-          {(!searchTerm && statusFilter === "all") && (
+          {(!searchTerm && statusFilter === "all") && canCreateBuildings && (
             <BuildingModalTrigger 
               onSubmit={handleAddBuilding}
               currentProject={currentProject}

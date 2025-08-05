@@ -65,6 +65,8 @@ import { supabase } from "../lib/supabase";
 import { useToastContext } from "../contexts/ToastContext";
 import { DateInput } from "./ui/date-input";
 import { crudOperations } from "../utils/userTracking";
+import { useAuth } from "../contexts/AuthContext";
+import { isCustomerRole, UserRole } from "../utils/rolePermissions";
 
 interface Customer {
   id: string;
@@ -92,6 +94,7 @@ interface Project {
 export function ProjectManagement() {
   const navigate = useNavigate();
   const { showToast } = useToastContext();
+  const { user: currentUser } = useAuth();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
@@ -134,9 +137,20 @@ export function ProjectManagement() {
   }, []);
 
   const fetchCustomers = async () => {
-    const { data, error } = await supabase
+    // Check if current user is a customer and implement data filtering
+    const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
+    
+    let query = supabase
       .from('customers')
       .select('*');
+    
+    // If user is a customer, only show their own customer record
+    if (isCustomer && currentUser?.customer_id) {
+      query = query.eq('id', currentUser.customer_id);
+      console.log('Filtering customers for customer user:', currentUser.customer_id);
+    }
+    
+    const { data, error } = await query;
     
     if (error) {
       console.error('Error fetching customers:', error);
@@ -146,12 +160,23 @@ export function ProjectManagement() {
   };
 
   const fetchProjects = async () => {
-    const { data, error } = await supabase
+    // Check if current user is a customer and implement data filtering
+    const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
+    
+    let query = supabase
       .from('projects')
       .select(`
         *,
         customers (name)
       `);
+    
+    // If user is a customer, filter projects by their customer_id
+    if (isCustomer && currentUser?.customer_id) {
+      query = query.eq('customer_id', currentUser.customer_id);
+      console.log('Filtering projects for customer:', currentUser.customer_id);
+    }
+    
+    const { data, error } = await query;
     
     if (error) {
       console.error('Error fetching projects:', error);
@@ -161,10 +186,17 @@ export function ProjectManagement() {
     // Fetch actual panel counts for each project
     const projectsWithPanelCounts = await Promise.all(
       data?.map(async (project) => {
-        const { count: panelCount, error: panelError } = await supabase
+        let panelQuery = supabase
           .from('panels')
           .select('*', { count: 'exact', head: true })
           .eq('project_id', project.id);
+        
+        // If user is a customer, also filter panels by customer_id
+        if (isCustomer && currentUser?.customer_id) {
+          panelQuery = panelQuery.eq('customer_id', currentUser.customer_id);
+        }
+        
+        const { count: panelCount, error: panelError } = await panelQuery;
         
         if (panelError) {
           console.error('Error fetching panel count for project:', project.id, panelError);
@@ -208,10 +240,17 @@ export function ProjectManagement() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Check if current user is a customer and implement data filtering
+    const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
+    
     let customerId = formData.customer_id;
     
-    // If "Other" is selected, create new customer
-    if (formData.customer_id === "other") {
+    // If user is a customer, force them to use their own customer_id
+    if (isCustomer && currentUser?.customer_id) {
+      customerId = currentUser.customer_id;
+      console.log('Customer user forced to use their own customer_id:', customerId);
+    } else if (formData.customer_id === "other") {
+      // If "Other" is selected, create new customer (only for non-customer users)
       try {
         const newCustomer = await crudOperations.create('customers', {
           name: formData.new_customer_name,
@@ -228,8 +267,14 @@ export function ProjectManagement() {
     }
 
     try {
+      console.log('Submitting project data:', {
+        editingProject,
+        formData,
+        customerId
+      });
+      
       if (editingProject) {
-        await crudOperations.update('projects', editingProject.id, {
+        const updateData = {
           name: formData.name,
           customer_id: customerId,
           location: formData.location,
@@ -238,12 +283,15 @@ export function ProjectManagement() {
           status: formData.status,
           estimated_cost: formData.estimated_cost,
           estimated_panels: formData.estimated_panels
-        });
+        };
+        console.log('Updating project with data:', updateData);
+        
+        await crudOperations.update('projects', editingProject.id, updateData);
         
         showToast('Project updated successfully', 'success');
         setEditingProject(null);
       } else {
-        await crudOperations.create('projects', {
+        const createData = {
           name: formData.name,
           customer_id: customerId,
           location: formData.location,
@@ -252,7 +300,10 @@ export function ProjectManagement() {
           status: formData.status,
           estimated_cost: formData.estimated_cost,
           estimated_panels: formData.estimated_panels
-        });
+        };
+        console.log('Creating project with data:', createData);
+        
+        await crudOperations.create('projects', createData);
         
         showToast('Project added successfully', 'success');
         setIsAddDialogOpen(false);
@@ -268,6 +319,17 @@ export function ProjectManagement() {
   };
 
   const startEdit = (project: Project) => {
+    // Check if current user is a customer and implement data filtering
+    const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
+    
+    // If user is a customer, verify they can only edit their own projects
+    if (isCustomer && currentUser?.customer_id) {
+      if (project.customer_id !== currentUser.customer_id) {
+        showToast('You can only edit your own projects', 'error');
+        return;
+      }
+    }
+    
     setEditingProject(project);
     setFormData({
       name: project.name,
@@ -285,11 +347,34 @@ export function ProjectManagement() {
   };
 
   const handleDelete = (project: Project) => {
+    // Check if current user is a customer and implement data filtering
+    const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
+    
+    // If user is a customer, verify they can only delete their own projects
+    if (isCustomer && currentUser?.customer_id) {
+      if (project.customer_id !== currentUser.customer_id) {
+        showToast('You can only delete your own projects', 'error');
+        return;
+      }
+    }
+    
     setDeletingProject(project);
   };
 
   const confirmDelete = async () => {
     if (deletingProject) {
+      // Check if current user is a customer and implement data filtering
+      const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
+      
+      // If user is a customer, verify they can only delete their own projects
+      if (isCustomer && currentUser?.customer_id) {
+        if (deletingProject.customer_id !== currentUser.customer_id) {
+          showToast('You can only delete your own projects', 'error');
+          setDeletingProject(null);
+          return;
+        }
+      }
+      
       try {
         await crudOperations.delete('projects', deletingProject.id);
         

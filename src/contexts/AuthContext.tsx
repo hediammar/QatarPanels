@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
+interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+}
+
 interface User {
   id: string;
   username: string;
@@ -11,6 +18,8 @@ interface User {
   department?: string;
   status: string;
   last_login?: string;
+  customer_id?: string;
+  customer?: Customer;
 }
 
 interface AuthContextType {
@@ -60,14 +69,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (username: string, password: string) => {
     try {
-      // For now, we'll use a simple authentication
-      // In production, you should use Supabase Auth or implement proper JWT
+      // Enhanced login with customer data embedding for RBAC
       const { data, error } = await supabase
         .from('users')
-        .select('*')
+        .select(`
+          *,
+          customer:customers!users_customer_id_fkey(id, name, email, phone)
+        `)
         .eq('username', username)
         .eq('status', 'active')
-        .single();
+        .maybeSingle();
 
       if (error || !data) {
         return { success: false, error: 'Invalid username or password' };

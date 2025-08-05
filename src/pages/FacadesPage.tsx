@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { FacadeModalTrigger } from "../components/FacadeModal";
+import { useAuth } from "../contexts/AuthContext";
+import { hasPermission } from "../utils/rolePermissions";
 
 interface FacadeData {
   id: string;
@@ -47,11 +49,17 @@ export function FacadesPage({
   buildingId,
   buildingName,
 }: FacadesPageProps) {
+  const { user: currentUser } = useAuth();
   const [facades, setFacades] = useState<FacadeData[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [buildingFilter, setBuildingFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+
+  // RBAC Permission checks
+  const canCreateFacades = currentUser?.role ? hasPermission(currentUser.role as any, 'facades', 'canCreate') : false;
+  const canUpdateFacades = currentUser?.role ? hasPermission(currentUser.role as any, 'facades', 'canUpdate') : false;
+  const canDeleteFacades = currentUser?.role ? hasPermission(currentUser.role as any, 'facades', 'canDelete') : false;
 
   // Map database status (integer) to UI status
   const statusMap: { [key: number]: string } = {
@@ -264,11 +272,13 @@ export function FacadesPage({
             </span>
           )}
         </div>
-        <FacadeModalTrigger
-          onSubmit={handleAddFacade}
-          currentProject={currentProject}
-          currentBuilding={currentBuilding}
-        />
+        {canCreateFacades && (
+          <FacadeModalTrigger
+            onSubmit={handleAddFacade}
+            currentProject={currentProject}
+            currentBuilding={currentBuilding}
+          />
+        )}
       </div>
 
       {/* Filters & Search */}
@@ -406,40 +416,44 @@ export function FacadesPage({
                     Created: {formatDate(facade.created_at)}
                   </div>
                   <div className="flex gap-2">
-                    <FacadeModalTrigger
-                      onSubmit={async (data) => {
-                        const { error } = await supabase
-                          .from('facades')
-                          .update({
-                            name: data.name,
-                            building_id: data.building_id,
-                            status: data.status,
-                            description: data.description,
-                            updated_at: new Date().toISOString()
-                          })
-                          .eq('id', facade.id);
+                    {canUpdateFacades && (
+                      <FacadeModalTrigger
+                        onSubmit={async (data) => {
+                          const { error } = await supabase
+                            .from('facades')
+                            .update({
+                              name: data.name,
+                              building_id: data.building_id,
+                              status: data.status,
+                              description: data.description,
+                              updated_at: new Date().toISOString()
+                            })
+                            .eq('id', facade.id);
 
-                        if (error) {
-                          console.error('Error updating facade:', error);
-                          return;
-                        }
+                          if (error) {
+                            console.error('Error updating facade:', error);
+                            return;
+                          }
 
-                        setFacades(facades.map(f => 
-                          f.id === facade.id ? { ...f, ...data, updated_at: new Date().toISOString() } : f
-                        ));
-                      }}
-                      editingFacade={facade}
-                      currentProject={currentProject}
-                      currentBuilding={currentBuilding}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDelete(facade)}
-                      className="border-red-400/50 text-red-400 hover:bg-red-400/10"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                          setFacades(facades.map(f => 
+                            f.id === facade.id ? { ...f, ...data, updated_at: new Date().toISOString() } : f
+                          ));
+                        }}
+                        editingFacade={facade}
+                        currentProject={currentProject}
+                        currentBuilding={currentBuilding}
+                      />
+                    )}
+                    {canDeleteFacades && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDelete(facade)}
+                        className="border-red-400/50 text-red-400 hover:bg-red-400/10"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -457,7 +471,7 @@ export function FacadesPage({
               ? "Try adjusting your filters"
               : "Get started by adding your first facade"}
           </p>
-          {(!searchTerm && statusFilter === "all" && buildingFilter === "all") && (
+          {(!searchTerm && statusFilter === "all" && buildingFilter === "all") && canCreateFacades && (
             <FacadeModalTrigger 
               onSubmit={handleAddFacade}
               currentProject={currentProject}

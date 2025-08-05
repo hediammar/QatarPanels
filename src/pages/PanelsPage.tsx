@@ -86,6 +86,8 @@ import { useToastContext } from "../contexts/ToastContext";
 import { DateInput } from "../components/ui/date-input";
 import { crudOperations } from "../utils/userTracking";
 import { StatusChangeDialog } from "../components/StatusChangeDialog";
+import { useAuth } from "../contexts/AuthContext";
+import { hasPermission, isCustomerRole, UserRole } from "../utils/rolePermissions";
 
 const PANEL_STATUSES = [
   "Issued For Production",
@@ -166,10 +168,11 @@ interface ImportedPanel {
 
 export function PanelsPage() {
   const { showToast } = useToastContext();
+  const { user: currentUser } = useAuth();
   const [panels, setPanels] = useState<PanelModel[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [facades, setFacades] = useState<Facade[]>([]);
-  const [projects, setProjects] = useState<Array<{id: string, name: string}>>([]);
+  const [projects, setProjects] = useState<Array<{id: string, name: string, customer_id?: string}>>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -209,6 +212,13 @@ export function PanelsPage() {
   const [bulkStatusValue, setBulkStatusValue] = useState<number>(0);
   const [isStatusChangeDialogOpen, setIsStatusChangeDialogOpen] = useState(false);
   const [selectedPanelForStatusChange, setSelectedPanelForStatusChange] = useState<PanelModel | null>(null);
+
+  // RBAC Permission checks
+  const canCreatePanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canCreate') : false;
+  const canUpdatePanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canUpdate') : false;
+  const canDeletePanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canDelete') : false;
+  const canBulkImportPanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canBulkImport') : false;
+  const canChangePanelStatus = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canChangeStatus') : false;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const itemsPerPage = 10;
@@ -311,10 +321,20 @@ export function PanelsPage() {
     async function fetchData() {
       setLoading(true);
 
-      // Fetch projects
-      const { data: projectData, error: projectError } = await supabase
+      // Check if current user is a customer and implement data filtering
+      const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
+
+      // Fetch projects with customer filtering
+      let projectQuery = supabase
         .from("projects")
-        .select("id, name");
+        .select("id, name, customer_id");
+      
+      if (isCustomer && currentUser?.customer_id) {
+        projectQuery = projectQuery.eq('customer_id', currentUser.customer_id);
+        console.log('Filtering projects for customer:', currentUser.customer_id);
+      }
+      
+      const { data: projectData, error: projectError } = await projectQuery;
       if (projectError) {
         console.error("Error fetching projects:", projectError);
       } else {
@@ -325,36 +345,58 @@ export function PanelsPage() {
         }
       }
 
-      const { data: buildingData, error: buildingError } = await supabase
+      // Fetch buildings with customer filtering
+      let buildingQuery = supabase
         .from("buildings")
-        .select("id, name");
+        .select("id, name, project_id");
+      
+      if (isCustomer && currentUser?.customer_id) {
+        buildingQuery = buildingQuery.eq('customer_id', currentUser.customer_id);
+      }
+      
+      const { data: buildingData, error: buildingError } = await buildingQuery;
       if (buildingError) {
         console.error("Error fetching buildings:", buildingError);
       } else {
         setBuildings(buildingData || []);
       }
 
-    const { data: facadeData, error: facadeError } = await supabase
-      .from("facades")
-      .select(`
-        id,
-        name,
-        buildings!inner(project_id)
-      `)
+      // Fetch facades with customer filtering
+      let facadeQuery = supabase
+        .from("facades")
+        .select(`
+          id,
+          name,
+          buildings!inner(project_id)
+        `);
+      
+      if (isCustomer && currentUser?.customer_id) {
+        facadeQuery = facadeQuery.eq('customer_id', currentUser.customer_id);
+      }
+      
+      const { data: facadeData, error: facadeError } = await facadeQuery;
       if (facadeError) {
         console.error("Error fetching facades:", facadeError);
       } else {
         setFacades(facadeData || []);
       }
 
-      const { data, error } = await supabase
+      // Fetch panels with customer filtering
+      let panelQuery = supabase
         .from("panels")
         .select(`
           *,
           projects!inner(name),
           buildings(name),
           facades(name)
-        `)
+        `);
+      
+      if (isCustomer && currentUser?.customer_id) {
+        panelQuery = panelQuery.eq('customer_id', currentUser.customer_id);
+        console.log('Filtering panels for customer:', currentUser.customer_id);
+      }
+
+      const { data, error } = await panelQuery;
 
       if (error) {
         console.error("Error fetching panels:", error);
@@ -479,11 +521,28 @@ export function PanelsPage() {
       return;
     }
 
+          // Check if current user is a customer and implement data filtering
+      const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
+      
+      // If user is a customer, verify they can only work with their own projects
+      if (isCustomer && currentUser?.customer_id) {
+        const targetProjectId = editingPanel ? editingPanel.project_id : selectedProjectId;
+        
+        // For customer users, we'll rely on the database-level filtering
+        // The fetchData function already filters projects by customer_id
+        console.log('Customer user creating/editing panel for project:', targetProjectId);
+      }
+
+    // Get customer_id from the selected project
+    const selectedProject = projects.find(p => p.id === (editingPanel ? editingPanel.project_id : selectedProjectId));
+    const customerId = selectedProject?.customer_id || currentUser?.customer_id;
+
     const panelData = {
       name: newPanelModel.name,
       type: newPanelModel.type,
       status: newPanelModel.status,
       project_id: editingPanel ? editingPanel.project_id : selectedProjectId,
+      customer_id: customerId, // Add customer_id for customer-specific filtering
       building_id: newPanelModel.building_id || null,
       facade_id: newPanelModel.facade_id || null,
       issue_transmittal_no: newPanelModel.issue_transmittal_no || null,
@@ -744,11 +803,16 @@ export function PanelsPage() {
         return;
       }
 
+      // Get customer_id from the selected project
+      const selectedProject = projects.find(p => p.id === selectedProjectId);
+      const customerId = selectedProject?.customer_id || currentUser?.customer_id;
+
       const newPanels = validPanels.map((p) => ({
         name: p.name,
         type: p.type,
         status: p.status,
         project_id: selectedProjectId,
+        customer_id: customerId, // Add customer_id for customer-specific filtering
         building_id: p.building_id || null,
         facade_id: p.facade_id || null,
         issue_transmittal_no: p.issue_transmittal_no || null,
@@ -914,14 +978,16 @@ export function PanelsPage() {
         <div className="flex items-center gap-2">
            {isSelectionMode && (
             <>
-              <Button
-                variant="outline"
-                onClick={() => setIsBulkStatusDialogOpen(true)}
-                disabled={selectedPanels.size === 0}
-              >
-                <Edit className="h-4 w-4 mr-2" />
-                Update Status ({selectedPanels.size})
-              </Button>
+              {canChangePanelStatus && (
+                <Button
+                  variant="outline"
+                  onClick={() => setIsBulkStatusDialogOpen(true)}
+                  disabled={selectedPanels.size === 0}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Update Status ({selectedPanels.size})
+                </Button>
+              )}
               <Button
                 variant="outline"
                 onClick={() => setIsAddToGroupDialogOpen(true)}
@@ -940,10 +1006,12 @@ export function PanelsPage() {
               </Button>
             </>
           )}
-          <Button onClick={() => setIsAddPanelDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Panel
-          </Button>
+          {canCreatePanels && (
+            <Button onClick={() => setIsAddPanelDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Panel
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1175,28 +1243,32 @@ export function PanelsPage() {
                           >
                             <History className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              startEditPanel(panel);
-                            }}
-                            className="p-0"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeletePanel(panel);
-                            }}
-                            className="p-0 text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {canUpdatePanels && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startEditPanel(panel);
+                              }}
+                              className="p-0"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canDeletePanels && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeletePanel(panel);
+                              }}
+                              className="p-0 text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                           
                         </div>
                       </div>

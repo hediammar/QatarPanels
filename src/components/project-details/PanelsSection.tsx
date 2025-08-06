@@ -100,9 +100,9 @@ const PANEL_STATUSES = [
   "Installed",
   "Approved Final",
   "Broken at Site",
-  "On Hold",
-  "Cancelled",
-] as const;
+          "On Hold",
+        "Cancelled",
+      ] as const;
 
 
 const PANEL_TYPES = [

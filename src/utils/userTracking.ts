@@ -531,32 +531,23 @@ export const crudOperations = {
     }
   },
 
-  // Delete with user tracking (soft delete or log)
+  // Delete with user tracking (hard delete for all tables)
   async delete(table: string, id: string) {
     try {
-      // For soft delete, update status instead of deleting
-      const trackedData = addUserTrackingForUpdate({ status: 'deleted' }, table);
+      // Perform hard delete for all tables including panels
+      // The ON DELETE CASCADE constraint on panel_status_histories will handle related records
       const { error } = await supabase
-        .from(table)
-        .update(trackedData)
-        .eq('id', id);
-
-      if (error) {
-        console.error(`Error soft deleting ${table}:`, error);
-        throw error;
-      }
-    } catch (error: any) {
-      // If soft delete fails, try hard delete
-      console.warn(`Soft delete failed for ${table}, trying hard delete:`, error);
-      const { error: deleteError } = await supabase
         .from(table)
         .delete()
         .eq('id', id);
 
-      if (deleteError) {
-        console.error(`Error deleting ${table}:`, deleteError);
-        throw deleteError;
+      if (error) {
+        console.error(`Error deleting ${table}:`, error);
+        throw error;
       }
+    } catch (error: any) {
+      console.error(`Error deleting ${table}:`, error);
+      throw error;
     }
   },
 

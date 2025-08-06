@@ -24,9 +24,9 @@ const PANEL_STATUSES = [
   "Installed",
   "Approved Final",
   "Broken at Site",
-  "On Hold",
-  "Cancelled",
-] as const;
+          "On Hold",
+        "Cancelled",
+      ] as const;
 
 type PanelStatus = (typeof PANEL_STATUSES)[number];
 

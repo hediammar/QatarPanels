@@ -114,8 +114,8 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
             <User className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">{customer.name}</div>
-            {customer.email && (
+            <div className="text-xl font-bold">{customer?.name || 'No Customer'}</div>
+            {customer?.email && (
               <p className="text-xs text-muted-foreground mt-1">
                 {customer.email}
               </p>

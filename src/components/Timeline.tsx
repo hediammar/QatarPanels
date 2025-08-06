@@ -36,6 +36,7 @@ const PANEL_STATUSES = [
   'Broken at Site',
   'On Hold',
   'Cancelled',
+  'Deleted',
 ] as const;
 
 export function Timeline({ panel }: TimelineProps) {

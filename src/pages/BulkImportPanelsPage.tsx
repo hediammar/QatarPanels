@@ -190,8 +190,11 @@ export function BulkImportPanelsPage() {
           // Get the first worksheet
           const worksheet = workbook.Sheets[workbook.SheetNames[0]];
           
-          // Convert to JSON
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                     // Convert to JSON - keep raw values to handle dates properly
+           const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+             header: 1,
+             raw: true // Keep raw values to handle dates properly
+           });
           
           // Skip header row and convert to our format
           const panels: PanelImportData[] = [];
@@ -202,12 +205,37 @@ export function BulkImportPanelsPage() {
             const hasData = row && row.some((cell: any) => cell !== null && cell !== undefined && cell !== '');
             
             if (hasData) {
+                             // Helper function to convert Excel date to proper date string
+               const convertExcelDate = (cell: any): string => {
+                 if (!cell) return '';
+                 
+                 // If it's already a string, return as is
+                 if (typeof cell === 'string') {
+                   return cell.trim();
+                 }
+                 
+                 // If it's a number (Excel serial date), convert it
+                 if (typeof cell === 'number' && cell > 0) {
+                   // Excel serial date: number of days since January 1, 1900
+                   // Use the XLSX library's built-in date conversion
+                   const date = XLSX.SSF.parse_date_code(cell);
+                   if (date) {
+                     const day = String(date.d).padStart(2, '0');
+                     const month = String(date.m).padStart(2, '0');
+                     const year = date.y;
+                     return `${day}/${month}/${year}`;
+                   }
+                 }
+                 
+                 return cell.toString().trim();
+               };
+              
               panels.push({
                 project_name: row[0]?.toString().trim() || '',
                 name: row[1]?.toString().trim() || '',
                 type: row[2]?.toString().trim() || '',
                 status: row[3]?.toString().trim() || '',
-                date: row[4]?.toString().trim() || '',
+                date: convertExcelDate(row[4]),
                 issue_transmittal_no: row[5]?.toString().trim() || '',
                 dwg_no: row[6]?.toString().trim() || '',
                 description: row[7]?.toString().trim() || '',
@@ -249,106 +277,99 @@ export function BulkImportPanelsPage() {
         }
       }
 
-      // Date validation - only validate if date is provided
-      if (row.date && row.date.trim()) {
-        const dateStr = row.date.trim();
-        
-        // Helper function to parse date in different formats (same as import function)
-        const parseDateForValidation = (dateStr: string): Date | null => {
-          if (!dateStr.trim()) return null;
-          
-          const str = dateStr.trim();
-          
-          // Handle 0000-00-00 format - convert to earliest valid date
-          if (str === '0000-00-00' || str === '00/00/0000' || str === '00.00.0000') {
-            return new Date('1900-01-01'); // Use 1900 instead of 0001 for better compatibility
-          }
-          
-          try {
-            // Try different date formats
-            if (str.includes('/')) {
-              // Format: DD/MM/YYYY
-              const parts = str.split('/');
-              if (parts.length === 3) {
-                // Check for invalid date parts (00/00/YYYY or DD/00/YYYY or DD/MM/0000)
-                if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
-                  return new Date('1900-01-01'); // Convert to 1900 for better compatibility
-                }
-                const year = parseInt(parts[2]);
-                const month = parseInt(parts[1]) - 1;
-                const day = parseInt(parts[0]);
-                
-                // Validate date components
-                if (year < 1900 || year > 2100 || month < 0 || month > 11 || day < 1 || day > 31) {
-                  return new Date('1900-01-01');
-                }
-                
-                return new Date(year, month, day);
-              }
-            } else if (str.includes('.')) {
-              // Format: DD.MM.YYYY
-              const parts = str.split('.');
-              if (parts.length === 3) {
-                // Check for invalid date parts (00.00.YYYY or DD.00.YYYY or DD.MM.0000)
-                if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
-                  return new Date('1900-01-01'); // Convert to 1900 for better compatibility
-                }
-                const year = parseInt(parts[2]);
-                const month = parseInt(parts[1]) - 1;
-                const day = parseInt(parts[0]);
-                
-                // Validate date components
-                if (year < 1900 || year > 2100 || month < 0 || month > 11 || day < 1 || day > 31) {
-                  return new Date('1900-01-01');
-                }
-                
-                return new Date(year, month, day);
-              }
-            } else if (str.includes('-')) {
-              // Format: YYYY-MM-DD
-              const parts = str.split('-');
-              if (parts.length === 3) {
-                // Check for invalid date parts (0000-MM-DD or YYYY-00-DD or YYYY-MM-00)
-                if (parts[0] === '0000' || parts[1] === '00' || parts[2] === '00') {
-                  return new Date('1900-01-01'); // Convert to 1900 for better compatibility
-                }
-                const year = parseInt(parts[0]);
-                const month = parseInt(parts[1]) - 1;
-                const day = parseInt(parts[2]);
-                
-                // Validate date components
-                if (year < 1900 || year > 2100 || month < 0 || month > 11 || day < 1 || day > 31) {
-                  return new Date('1900-01-01');
-                }
-                
-                return new Date(year, month, day);
-              }
-            }
-            
-            // Try parsing as ISO string
-            const parsedDate = new Date(str);
-            if (!isNaN(parsedDate.getTime())) {
-              // Validate the parsed date is within reasonable range
-              const year = parsedDate.getFullYear();
-              if (year >= 1900 && year <= 2100) {
-                return parsedDate;
-              }
-            }
-            
-            // If all else fails, return 1900-01-01
-            return new Date('1900-01-01');
-          } catch (error) {
-            // If any error occurs, return 1900-01-01
-            return new Date('1900-01-01');
-          }
-        };
-        
-        const panelDate = parseDateForValidation(dateStr);
-        
-        if (!panelDate || isNaN(panelDate.getTime())) {
-          errors.push('Invalid date format (use DD/MM/YYYY, DD.MM.YYYY, or YYYY-MM-DD)');
-        }
-      }
+             // Date validation - only validate if date is provided
+       if (row.date && row.date.trim()) {
+         const dateStr = row.date.trim();
+         
+         // Helper function to parse date in different formats (same as import function)
+         const parseDateForValidation = (dateStr: string): Date | null => {
+           if (!dateStr.trim()) return null;
+           
+           const str = dateStr.trim();
+           
+           // Handle 0000-00-00 format - convert to earliest valid date
+           if (str === '0000-00-00' || str === '00/00/0000' || str === '00.00.0000') {
+             return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+           }
+           
+           try {
+             // Try different date formats
+             if (str.includes('/')) {
+               // Format: DD/MM/YYYY
+               const parts = str.split('/');
+               if (parts.length === 3) {
+                 // Check for invalid date parts (00/00/YYYY or DD/00/YYYY or DD/MM/0000)
+                 if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
+                   return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+                 }
+                 const year = parseInt(parts[2]);
+                 const month = parseInt(parts[1]) - 1;
+                 const day = parseInt(parts[0]);
+                 
+                 // Create date using UTC to avoid timezone issues
+                 const date = new Date(Date.UTC(year, month, day));
+                 if (!isNaN(date.getTime())) {
+                   return date;
+                 }
+               }
+             } else if (str.includes('.')) {
+               // Format: DD.MM.YYYY
+               const parts = str.split('.');
+               if (parts.length === 3) {
+                 // Check for invalid date parts (00.00.YYYY or DD.00.YYYY or DD.MM.0000)
+                 if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
+                   return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+                 }
+                 const year = parseInt(parts[2]);
+                 const month = parseInt(parts[1]) - 1;
+                 const day = parseInt(parts[0]);
+                 
+                 // Create date using UTC to avoid timezone issues
+                 const date = new Date(Date.UTC(year, month, day));
+                 if (!isNaN(date.getTime())) {
+                   return date;
+                 }
+               }
+             } else if (str.includes('-')) {
+               // Format: YYYY-MM-DD
+               const parts = str.split('-');
+               if (parts.length === 3) {
+                 // Check for invalid date parts (0000-MM-DD or YYYY-00-DD or YYYY-MM-00)
+                 if (parts[0] === '0000' || parts[1] === '00' || parts[2] === '00') {
+                   return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+                 }
+                 const year = parseInt(parts[0]);
+                 const month = parseInt(parts[1]) - 1;
+                 const day = parseInt(parts[2]);
+                 
+                 // Create date using UTC to avoid timezone issues
+                 const date = new Date(Date.UTC(year, month, day));
+                 if (!isNaN(date.getTime())) {
+                   return date;
+                 }
+               }
+             }
+             
+             // Try parsing as ISO string
+             const parsedDate = new Date(str);
+             if (!isNaN(parsedDate.getTime())) {
+               return parsedDate;
+             }
+             
+             // If all else fails, return 1900-01-01
+             return new Date('1900-01-01T00:00:00.000Z');
+           } catch (error) {
+             // If any error occurs, return 1900-01-01
+             return new Date('1900-01-01T00:00:00.000Z');
+           }
+         };
+         
+         const panelDate = parseDateForValidation(dateStr);
+         
+         if (!panelDate || isNaN(panelDate.getTime())) {
+           errors.push('Invalid date format (use DD/MM/YYYY, DD.MM.YYYY, or YYYY-MM-DD)');
+         }
+       }
 
       // Type validation - only validate if type is provided
       if (row.type && row.type.trim()) {
@@ -472,95 +493,88 @@ export function BulkImportPanelsPage() {
           ? projects.find(p => p.name.toLowerCase() === row.project_name.toLowerCase())
           : null;
 
-        // Helper function to parse date in different formats
-        const parseDate = (dateStr: string): Date | null => {
-          if (!dateStr.trim()) return null;
-          
-          const str = dateStr.trim();
-          
-          // Handle 0000-00-00 format - convert to earliest valid date
-          if (str === '0000-00-00' || str === '00/00/0000' || str === '00.00.0000') {
-            return new Date('1900-01-01'); // Use 1900 instead of 0001 for better compatibility
-          }
-          
-          try {
-            // Try different date formats
-            if (str.includes('/')) {
-              // Format: DD/MM/YYYY
-              const parts = str.split('/');
-              if (parts.length === 3) {
-                // Check for invalid date parts (00/00/YYYY or DD/00/YYYY or DD/MM/0000)
-                if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
-                  return new Date('1900-01-01'); // Convert to 1900 for better compatibility
-                }
-                const year = parseInt(parts[2]);
-                const month = parseInt(parts[1]) - 1;
-                const day = parseInt(parts[0]);
-                
-                // Validate date components
-                if (year < 1900 || year > 2100 || month < 0 || month > 11 || day < 1 || day > 31) {
-                  return new Date('1900-01-01');
-                }
-                
-                return new Date(year, month, day);
-              }
-            } else if (str.includes('.')) {
-              // Format: DD.MM.YYYY
-              const parts = str.split('.');
-              if (parts.length === 3) {
-                // Check for invalid date parts (00.00.YYYY or DD.00.YYYY or DD.MM.0000)
-                if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
-                  return new Date('1900-01-01'); // Convert to 1900 for better compatibility
-                }
-                const year = parseInt(parts[2]);
-                const month = parseInt(parts[1]) - 1;
-                const day = parseInt(parts[0]);
-                
-                // Validate date components
-                if (year < 1900 || year > 2100 || month < 0 || month > 11 || day < 1 || day > 31) {
-                  return new Date('1900-01-01');
-                }
-                
-                return new Date(year, month, day);
-              }
-            } else if (str.includes('-')) {
-              // Format: YYYY-MM-DD
-              const parts = str.split('-');
-              if (parts.length === 3) {
-                // Check for invalid date parts (0000-MM-DD or YYYY-00-DD or YYYY-MM-00)
-                if (parts[0] === '0000' || parts[1] === '00' || parts[2] === '00') {
-                  return new Date('1900-01-01'); // Convert to 1900 for better compatibility
-                }
-                const year = parseInt(parts[0]);
-                const month = parseInt(parts[1]) - 1;
-                const day = parseInt(parts[2]);
-                
-                // Validate date components
-                if (year < 1900 || year > 2100 || month < 0 || month > 11 || day < 1 || day > 31) {
-                  return new Date('1900-01-01');
-                }
-                
-                return new Date(year, month, day);
-              }
-            }
-            
-            // Try parsing as ISO string
-            const parsedDate = new Date(str);
-            if (!isNaN(parsedDate.getTime())) {
-              // Validate the parsed date is within reasonable range
-              const year = parsedDate.getFullYear();
-              if (year >= 1900 && year <= 2100) {
-                return parsedDate;
-              }
-            }
-            
-            // If all else fails, return 1900-01-01
-            return new Date('1900-01-01');
-          } catch (error) {
-            // If any error occurs, return 1900-01-01
-            return new Date('1900-01-01');
-          }
-        };
+                 // Helper function to parse date in different formats
+         const parseDate = (dateStr: string): Date | null => {
+           if (!dateStr.trim()) return null;
+           
+           const str = dateStr.trim();
+           
+           // Handle 0000-00-00 format - convert to earliest valid date
+           if (str === '0000-00-00' || str === '00/00/0000' || str === '00.00.0000') {
+             return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+           }
+           
+           try {
+             // Try different date formats
+             if (str.includes('/')) {
+               // Format: DD/MM/YYYY
+               const parts = str.split('/');
+               if (parts.length === 3) {
+                 // Check for invalid date parts (00/00/YYYY or DD/00/YYYY or DD/MM/0000)
+                 if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
+                   return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+                 }
+                 const year = parseInt(parts[2]);
+                 const month = parseInt(parts[1]) - 1;
+                 const day = parseInt(parts[0]);
+                 
+                 // Create date using UTC to avoid timezone issues
+                 const date = new Date(Date.UTC(year, month, day));
+                 if (!isNaN(date.getTime())) {
+                   return date;
+                 }
+               }
+             } else if (str.includes('.')) {
+               // Format: DD.MM.YYYY
+               const parts = str.split('.');
+               if (parts.length === 3) {
+                 // Check for invalid date parts (00.00.YYYY or DD.00.YYYY or DD.MM.0000)
+                 if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
+                   return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+                 }
+                 const year = parseInt(parts[2]);
+                 const month = parseInt(parts[1]) - 1;
+                 const day = parseInt(parts[0]);
+                 
+                 // Create date using UTC to avoid timezone issues
+                 const date = new Date(Date.UTC(year, month, day));
+                 if (!isNaN(date.getTime())) {
+                   return date;
+                 }
+               }
+             } else if (str.includes('-')) {
+               // Format: YYYY-MM-DD
+               const parts = str.split('-');
+               if (parts.length === 3) {
+                 // Check for invalid date parts (0000-MM-DD or YYYY-00-DD or YYYY-MM-00)
+                 if (parts[0] === '0000' || parts[1] === '00' || parts[2] === '00') {
+                   return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+                 }
+                 const year = parseInt(parts[0]);
+                 const month = parseInt(parts[1]) - 1;
+                 const day = parseInt(parts[2]);
+                 
+                 // Create date using UTC to avoid timezone issues
+                 const date = new Date(Date.UTC(year, month, day));
+                 if (!isNaN(date.getTime())) {
+                   return date;
+                 }
+               }
+             }
+             
+             // Try parsing as ISO string
+             const parsedDate = new Date(str);
+             if (!isNaN(parsedDate.getTime())) {
+               return parsedDate;
+             }
+             
+             // If all else fails, return 1900-01-01
+             return new Date('1900-01-01T00:00:00.000Z');
+           } catch (error) {
+             // If any error occurs, return 1900-01-01
+             return new Date('1900-01-01T00:00:00.000Z');
+           }
+         };
 
         // Helper function to map status text to numeric value
         const mapStatusToNumber = (statusText: string): number | null => {
@@ -618,7 +632,15 @@ export function BulkImportPanelsPage() {
           unit_rate_qr_m2: row.unit_qty?.trim() ? parseFloat(row.unit_qty) : null,
           ifp_qty_area_sm: row.ifp_qty?.trim() ? parseFloat(row.ifp_qty) : null,
           ifp_qty_nos: row.ifp_qty_nos?.trim() ? parseInt(row.ifp_qty_nos) : null,
-          issued_for_production_date: row.date?.trim() ? parseDate(row.date)?.toISOString().split('T')[0] || null : null,
+          issued_for_production_date: row.date?.trim() ? (() => {
+            const parsedDate = parseDate(row.date);
+            if (!parsedDate) return null;
+            // Format as YYYY-MM-DD string for Supabase
+            const year = parsedDate.getUTCFullYear();
+            const month = String(parsedDate.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(parsedDate.getUTCDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          })() : null,
           user_id: currentUser?.id || null
         };
 

@@ -83,6 +83,7 @@ export function Layout({ children }: LayoutProps) {
     { id: '/panel-groups', label: 'Panel Groups', icon: Layers, accessKey: 'panelGroups' as const },
     { id: '/users', label: 'User Management', icon: UserCog, accessKey: 'users' as const },
     { id: '/bulk-import-projects', label: 'Import Projects', icon: Upload, accessKey: 'bulkImport' as const },
+    { id: '/bulk-import-panels', label: 'Import Panels', icon: Upload, accessKey: 'bulkImport' as const },
   ];
 
   // Filter navigation items based on user role using centralized permissions

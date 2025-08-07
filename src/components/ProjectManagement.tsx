@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useRef } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -100,6 +101,10 @@ export function ProjectManagement() {
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  
+  // Add form submission protection
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const lastSubmissionTime = useRef<number>(0);
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
@@ -211,6 +216,13 @@ export function ProjectManagement() {
     fetchProjects();
   }, []);
 
+  // Reset submitting state when dialog closes
+  useEffect(() => {
+    if (!isAddDialogOpen && !editingProject) {
+      setIsSubmitting(false);
+    }
+  }, [isAddDialogOpen, editingProject]);
+
   const fetchCustomers = async () => {
     // Check if current user is a customer and implement data filtering
     const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
@@ -315,65 +327,135 @@ export function ProjectManagement() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Check if current user is a customer and implement data filtering
-    const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
+    // Prevent multiple submissions
+    if (isSubmitting) {
+      console.log('Form submission already in progress, ignoring duplicate submission');
+      return;
+    }
     
-    let customerId = formData.customer_id;
+    // Debounce rapid submissions (prevent submissions within 2 seconds)
+    const now = Date.now();
+    if (now - lastSubmissionTime.current < 2000) {
+      console.log('Form submission debounced, ignoring rapid submission');
+      return;
+    }
+    lastSubmissionTime.current = now;
     
-    // If user is a customer, force them to use their own customer_id
-    if (isCustomer && currentUser?.customer_id) {
-      customerId = currentUser.customer_id;
-      console.log('Customer user forced to use their own customer_id:', customerId);
-    } else if (formData.customer_id === "other") {
-      // If "Other" is selected, create new customer (only for non-customer users)
+    setIsSubmitting(true);
+    
+    // Add timeout to prevent stuck state
+    const timeoutId = setTimeout(() => {
+      console.log('Form submission timeout, resetting state');
+      setIsSubmitting(false);
+      showToast('Request timed out. Please try again.', 'error');
+    }, 30000); // 30 seconds timeout
+    
+    try {
+      // Check if current user is a customer and implement data filtering
+      const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
+      
+      let customerId = formData.customer_id;
+      
+      // Validate required fields
+      if (!formData.name.trim()) {
+        showToast('Project name is required', 'error');
+        clearTimeout(timeoutId);
+        setIsSubmitting(false);
+        return;
+      }
+      
+      if (!formData.start_date) {
+        showToast('Start date is required', 'error');
+        clearTimeout(timeoutId);
+        setIsSubmitting(false);
+        return;
+      }
+      
+      if (!formData.location.trim()) {
+        showToast('Location is required', 'error');
+        clearTimeout(timeoutId);
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // If user is a customer, force them to use their own customer_id
+      if (isCustomer && currentUser?.customer_id) {
+        customerId = currentUser.customer_id;
+        console.log('Customer user forced to use their own customer_id:', customerId);
+      } else if (formData.customer_id === "other") {
+        // If "Other" is selected, create new customer (only for non-customer users)
+        try {
+          // Validate new customer data
+          if (!formData.new_customer_name.trim()) {
+            showToast('New customer name is required', 'error');
+            clearTimeout(timeoutId);
+            setIsSubmitting(false);
+            return;
+          }
+          
+          console.log('Creating new customer with data:', {
+            name: formData.new_customer_name,
+            email: formData.new_customer_email,
+            phone: formData.new_customer_phone || null
+          });
+          
+          const newCustomer = await crudOperations.create('customers', {
+            name: formData.new_customer_name,
+            email: formData.new_customer_email,
+            phone: formData.new_customer_phone || null
+          });
+          
+          customerId = newCustomer.id;
+          console.log('Customer created successfully with ID:', customerId);
+        } catch (error) {
+          console.error('Error creating customer:', error);
+          showToast('Error creating customer. Please try again.', 'error');
+          clearTimeout(timeoutId);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      if (!customerId) {
+        showToast('Please select a customer', 'error');
+        clearTimeout(timeoutId);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Validate that the selected customer exists
       try {
-        const newCustomer = await crudOperations.create('customers', {
-          name: formData.new_customer_name,
-          email: formData.new_customer_email,
-          phone: formData.new_customer_phone || null
-        });
+        console.log('Validating selected customer:', customerId);
+        const { data: customer, error: customerError } = await supabase
+          .from('customers')
+          .select('id, name')
+          .eq('id', customerId)
+          .single();
         
-        customerId = newCustomer.id;
+        if (customerError) {
+          console.error('Error validating customer:', customerError);
+          showToast('Selected customer is invalid. Please choose a different customer.', 'error');
+          clearTimeout(timeoutId);
+          setIsSubmitting(false);
+          return;
+        }
+        
+        if (!customer) {
+          showToast('Selected customer does not exist. Please choose a valid customer.', 'error');
+          clearTimeout(timeoutId);
+          setIsSubmitting(false);
+          return;
+        }
+        
+        console.log('Customer validation successful:', customer);
       } catch (error) {
-        console.error('Error creating customer:', error);
-        showToast('Error creating customer', 'error');
+        console.error('Error validating customer:', error);
+        showToast('Error validating customer. Please try again.', 'error');
+        clearTimeout(timeoutId);
+        setIsSubmitting(false);
         return;
       }
-    }
 
-    if (!customerId) {
-      showToast('Please select a customer', 'error');
-      return;
-    }
-
-    // Validate that the selected customer exists
-    try {
-      console.log('Validating selected customer:', customerId);
-      const { data: customer, error: customerError } = await supabase
-        .from('customers')
-        .select('id, name')
-        .eq('id', customerId)
-        .single();
-      
-      if (customerError) {
-        console.error('Error validating customer:', customerError);
-        showToast('Selected customer is invalid. Please choose a different customer.', 'error');
-        return;
-      }
-      
-      if (!customer) {
-        showToast('Selected customer does not exist. Please choose a valid customer.', 'error');
-        return;
-      }
-      
-      console.log('Customer validation successful:', customer);
-    } catch (error) {
-      console.error('Error validating customer:', error);
-      showToast('Error validating customer. Please try again.', 'error');
-      return;
-    }
-
-    try {
       console.log('Submitting project data:', {
         editingProject,
         formData,
@@ -415,6 +497,8 @@ export function ProjectManagement() {
           );
           // Update the form with the suggested name
           setFormData(prev => ({ ...prev, name: suggestedName }));
+          clearTimeout(timeoutId);
+          setIsSubmitting(false);
           return;
         }
         
@@ -441,7 +525,11 @@ export function ProjectManagement() {
       await fetchCustomers();
     } catch (error) {
       console.error('Error saving project:', error);
-      showToast(error instanceof Error ? error.message : 'Error saving project', 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Error saving project';
+      showToast(errorMessage, 'error');
+    } finally {
+      clearTimeout(timeoutId);
+      setIsSubmitting(false);
     }
   };
 
@@ -752,9 +840,14 @@ export function ProjectManagement() {
             </DialogTrigger>
             <DialogContent className="max-w-3xl">
               <DialogHeader>
-                <DialogTitle>Add New Project</DialogTitle>
+                <DialogTitle>
+                  {isSubmitting ? "Adding Project..." : "Add New Project"}
+                </DialogTitle>
                 <DialogDescription>
-                  Create a new project for a customer.
+                  {isSubmitting 
+                    ? "Please wait while we create your project..." 
+                    : "Create a new project for a customer."
+                  }
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit}>
@@ -771,6 +864,7 @@ export function ProjectManagement() {
                         })
                       }
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
 
@@ -784,6 +878,7 @@ export function ProjectManagement() {
                           customer_id: value,
                         })
                       }
+                      disabled={isSubmitting}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select a customer" />
@@ -813,6 +908,7 @@ export function ProjectManagement() {
                             })
                           }
                           required
+                          disabled={isSubmitting}
                         />
                       </div>
                       <div className="grid gap-2">
@@ -827,6 +923,7 @@ export function ProjectManagement() {
                               new_customer_email: e.target.value,
                             })
                           }
+                          disabled={isSubmitting}
                         />
                       </div>
                       <div className="grid gap-2">
@@ -841,6 +938,7 @@ export function ProjectManagement() {
                               new_customer_phone: e.target.value,
                             })
                           }
+                          disabled={isSubmitting}
                         />
                       </div>
                     </div>
@@ -858,6 +956,7 @@ export function ProjectManagement() {
                         })
                       }
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
 
@@ -904,6 +1003,7 @@ export function ProjectManagement() {
                         }
                         placeholder="0"
                         required
+                        disabled={isSubmitting}
                       />
                     </div>
                     <div className="grid gap-2">
@@ -922,6 +1022,7 @@ export function ProjectManagement() {
                         }
                         placeholder="0"
                         required
+                        disabled={isSubmitting}
                       />
                     </div>
                   </div>
@@ -936,6 +1037,7 @@ export function ProjectManagement() {
                           status: value as any,
                         })
                       }
+                      disabled={isSubmitting}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -949,7 +1051,9 @@ export function ProjectManagement() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button type="submit">Add Project</Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? "Adding Project..." : "Add Project"}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -986,6 +1090,7 @@ export function ProjectManagement() {
                       handleFilterChange();
                     }}
                     className="pl-8"
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -999,6 +1104,7 @@ export function ProjectManagement() {
                     setCustomerFilter(value);
                     handleFilterChange();
                   }}
+                  disabled={isSubmitting}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="All customers" />
@@ -1023,6 +1129,7 @@ export function ProjectManagement() {
                     setStatusFilter(value);
                     handleFilterChange();
                   }}
+                  disabled={isSubmitting}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="All statuses" />
@@ -1045,6 +1152,7 @@ export function ProjectManagement() {
                     setLocationFilter(value);
                     handleFilterChange();
                   }}
+                  disabled={isSubmitting}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="All locations" />
@@ -1069,6 +1177,7 @@ export function ProjectManagement() {
                     setPageSize(parseInt(value));
                     setCurrentPage(1);
                   }}
+                  disabled={isSubmitting}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -1094,6 +1203,7 @@ export function ProjectManagement() {
                     setDateRangeFilter(value);
                     handleFilterChange();
                   }}
+                  disabled={isSubmitting}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Any time" />
@@ -1138,6 +1248,7 @@ export function ProjectManagement() {
                 <Select
                   value={sortBy}
                   onValueChange={(value) => setSortBy(value)}
+                  disabled={isSubmitting}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -1160,6 +1271,7 @@ export function ProjectManagement() {
                 <Select
                   value={sortOrder}
                   onValueChange={(value) => setSortOrder(value as "asc" | "desc")}
+                  disabled={isSubmitting}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -1178,7 +1290,7 @@ export function ProjectManagement() {
               Showing {startIndex + 1}-
               {Math.min(endIndex, filteredAndSortedProjects.length)} of {filteredAndSortedProjects.length} projects
             </div>
-            <Button variant="outline" size="sm" onClick={clearFilters}>
+            <Button variant="outline" size="sm" onClick={clearFilters} disabled={isSubmitting}>
               Clear Filters
             </Button>
           </div>
@@ -1193,7 +1305,7 @@ export function ProjectManagement() {
             {activeFiltersCount > 0 ? "No projects match your filters" : "No projects found"}
           </p>
           {activeFiltersCount > 0 && (
-            <Button variant="outline" size="sm" onClick={clearFilters} className="mt-4">
+            <Button variant="outline" size="sm" onClick={clearFilters} className="mt-4" disabled={isSubmitting}>
               Clear Filters
             </Button>
           )}
@@ -1285,6 +1397,7 @@ export function ProjectManagement() {
                           startEdit(project);
                         }}
                         className="flex-1"
+                        disabled={isSubmitting}
                       >
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
@@ -1297,6 +1410,7 @@ export function ProjectManagement() {
                           handleDelete(project);
                         }}
                         className="flex-1 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        disabled={isSubmitting}
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
                         Delete
@@ -1316,6 +1430,7 @@ export function ProjectManagement() {
                     <PaginationPrevious
                       onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                       className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      disabled={isSubmitting}
                     />
                   </PaginationItem>
 
@@ -1328,6 +1443,7 @@ export function ProjectManagement() {
                           onClick={() => setCurrentPage(page as number)}
                           isActive={currentPage === page}
                           className="cursor-pointer"
+                          disabled={isSubmitting}
                         >
                           {page}
                         </PaginationLink>
@@ -1339,6 +1455,7 @@ export function ProjectManagement() {
                     <PaginationNext
                       onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                       className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      disabled={isSubmitting}
                     />
                   </PaginationItem>
                 </PaginationContent>
@@ -1353,8 +1470,15 @@ export function ProjectManagement() {
         <Dialog open={true} onOpenChange={() => setEditingProject(null)}>
           <DialogContent className="max-w-3xl">
             <DialogHeader>
-              <DialogTitle>Edit Project</DialogTitle>
-              <DialogDescription>Update project information.</DialogDescription>
+              <DialogTitle>
+                {isSubmitting ? "Updating Project..." : "Edit Project"}
+              </DialogTitle>
+              <DialogDescription>
+                {isSubmitting 
+                  ? "Please wait while we update your project..." 
+                  : "Update project information."
+                }
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4 py-4">
@@ -1370,6 +1494,7 @@ export function ProjectManagement() {
                       })
                     }
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
 
@@ -1383,6 +1508,7 @@ export function ProjectManagement() {
                         customer_id: value,
                       })
                     }
+                    disabled={isSubmitting}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select a customer" />
@@ -1412,6 +1538,7 @@ export function ProjectManagement() {
                           })
                         }
                         required
+                        disabled={isSubmitting}
                       />
                     </div>
                     <div className="grid gap-2">
@@ -1426,7 +1553,7 @@ export function ProjectManagement() {
                             new_customer_email: e.target.value,
                           })
                         }
-                        
+                        disabled={isSubmitting}
                       />
                     </div>
                     <div className="grid gap-2">
@@ -1441,6 +1568,7 @@ export function ProjectManagement() {
                             new_customer_phone: e.target.value,
                           })
                         }
+                        disabled={isSubmitting}
                       />
                     </div>
                   </div>
@@ -1458,6 +1586,7 @@ export function ProjectManagement() {
                       })
                     }
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
 
@@ -1504,6 +1633,7 @@ export function ProjectManagement() {
                       }
                       placeholder="0"
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
                   <div className="grid gap-2">
@@ -1522,6 +1652,7 @@ export function ProjectManagement() {
                       }
                       placeholder="0"
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
                 </div>
@@ -1536,6 +1667,7 @@ export function ProjectManagement() {
                         status: value as any,
                       })
                     }
+                    disabled={isSubmitting}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -1549,7 +1681,9 @@ export function ProjectManagement() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit">Update Project</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Updating Project..." : "Update Project"}
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -1571,6 +1705,7 @@ export function ProjectManagement() {
             <AlertDialogAction
               onClick={confirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isSubmitting}
             >
               Delete
             </AlertDialogAction>
@@ -1580,3 +1715,6 @@ export function ProjectManagement() {
     </div>
   );
 }
+
+// Empty export to ensure this file is treated as a module
+export {};

@@ -179,6 +179,105 @@ export function UsersPage() {
       return;
     }
 
+    // Required field validation
+    if (!formData.name.trim()) {
+      showToast('Full name is required', 'error');
+      return;
+    }
+    if (!formData.email.trim()) {
+      showToast('Email address is required', 'error');
+      return;
+    }
+    if (!formData.username.trim()) {
+      showToast('Username is required', 'error');
+      return;
+    }
+    if (!formData.role) {
+      showToast('Role is required', 'error');
+      return;
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      showToast('Please enter a valid email address', 'error');
+      return;
+    }
+
+    // Username validation (length and characters)
+    if (formData.username.length < 3) {
+      showToast('Username must be at least 3 characters long', 'error');
+      return;
+    }
+    if (formData.username.length > 50) {
+      showToast('Username must be 50 characters or less', 'error');
+      return;
+    }
+    
+    // Check for special characters in username (allow only alphanumeric, underscore, hyphen, period)
+    const usernameRegex = /^[a-zA-Z0-9._-]+$/;
+    if (!usernameRegex.test(formData.username)) {
+      showToast('Username can only contain letters, numbers, underscore, hyphen, and period', 'error');
+      return;
+    }
+
+    // Name validation (length)
+    if (formData.name.length > 255) {
+      showToast('Full name must be 255 characters or less', 'error');
+      return;
+    }
+
+    // Email validation (length)
+    if (formData.email.length > 255) {
+      showToast('Email address must be 255 characters or less', 'error');
+      return;
+    }
+
+    // Department validation (length)
+    if (formData.department && formData.department.length > 100) {
+      showToast('Department must be 100 characters or less', 'error');
+      return;
+    }
+
+    // Phone number validation (length)
+    if (formData.phone_number && formData.phone_number.length > 20) {
+      showToast('Phone number must be 20 characters or less', 'error');
+      return;
+    }
+
+    // Check for duplicate email (exclude current user when editing)
+    const existingEmailUser = users.find(user => 
+      user.email.toLowerCase() === formData.email.toLowerCase() && 
+      (!editingUser || user.id !== editingUser.id)
+    );
+    if (existingEmailUser) {
+      showToast('Email address is already in use', 'error');
+      return;
+    }
+
+    // Check for duplicate username (exclude current user when editing)
+    const existingUsernameUser = users.find(user => 
+      user.username.toLowerCase() === formData.username.toLowerCase() && 
+      (!editingUser || user.id !== editingUser.id)
+    );
+    if (existingUsernameUser) {
+      showToast('Username is already taken', 'error');
+      return;
+    }
+
+    // Role validation - check if role exists in the allowed roles
+    const validRoles = USER_ROLES.map(role => role.value);
+    if (!validRoles.includes(formData.role)) {
+      showToast('Please select a valid role', 'error');
+      return;
+    }
+
+    // Status validation
+    if (!['active', 'inactive'].includes(formData.status)) {
+      showToast('Please select a valid status', 'error');
+      return;
+    }
+
     // Password validation
     if (!editingUser) {
       // For new users, password is required
@@ -256,7 +355,33 @@ export function UsersPage() {
 
         if (error) {
           console.error('Error adding user:', error);
-          showToast('Error adding user', 'error');
+          console.error('Error details:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          });
+          
+          // Handle specific error cases
+          if (error.code === '23505') {
+            if (error.message.includes('users_email_key')) {
+              showToast('Email address is already in use', 'error');
+            } else if (error.message.includes('users_username_key')) {
+              showToast('Username is already taken', 'error');
+            } else {
+              showToast('A user with this information already exists', 'error');
+            }
+          } else if (error.code === '23514') {
+            if (error.message.includes('users_role_check')) {
+              showToast('Invalid role selected', 'error');
+            } else if (error.message.includes('users_status_check')) {
+              showToast('Invalid status selected', 'error');
+            } else {
+              showToast('Invalid data provided', 'error');
+            }
+          } else {
+            showToast(`Error adding user: ${error.message}`, 'error');
+          }
           return;
         }
 

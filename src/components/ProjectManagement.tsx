@@ -1152,24 +1152,7 @@ export function ProjectManagement() {
                       </div>
                     </div>
                   )}
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="location">Location</Label>
-                    <Input
-                      id="location"
-                      value={formData.location}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          location: e.target.value,
-                        })
-                      }
-                      required
-                      disabled={isSubmitting}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
+<div className="grid grid-cols-2 gap-4">
                     <DateInput
                       id="startDate"
                       label="Start Date"
@@ -1194,6 +1177,23 @@ export function ProjectManagement() {
                       }
                     />
                   </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="location">Location</Label>
+                    <Input
+                      id="location"
+                      value={formData.location}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          location: e.target.value,
+                        })
+                      }
+                      required
+                      disabled={isSubmitting}
+                    />
+                  </div>
+
+                  
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">

@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { FacadeModalTrigger } from "../FacadeModal";
+import { useAuth } from "../../contexts/AuthContext";
+import { hasPermission, UserRole } from "../../utils/rolePermissions";
 
 interface FacadeData {
   id: string;
@@ -47,11 +49,13 @@ export function FacadesSection({
   buildingId,
   buildingName,
 }: FacadesSectionProps) {
+  const { user: currentUser } = useAuth();
   const [facades, setFacades] = useState<FacadeData[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [buildingFilter, setBuildingFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+  const canCreateFacades = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'facades', 'canCreate') : false;
 
   // Map database status (integer) to UI status
   const statusMap: { [key: number]: string } = {
@@ -268,6 +272,7 @@ export function FacadesSection({
           onSubmit={handleAddFacade}
           currentProject={currentProject}
           currentBuilding={currentBuilding}
+          disabled={!canCreateFacades}
         />
       </div>
 

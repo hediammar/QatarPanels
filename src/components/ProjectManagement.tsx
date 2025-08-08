@@ -67,7 +67,7 @@ import { useToastContext } from "../contexts/ToastContext";
 import { DateInput } from "./ui/date-input";
 import { crudOperations } from "../utils/userTracking";
 import { useAuth } from "../contexts/AuthContext";
-import { isCustomerRole, UserRole } from "../utils/rolePermissions";
+import { hasPermission, isCustomerRole, UserRole } from "../utils/rolePermissions";
 
 interface Customer {
   id: string;
@@ -121,6 +121,10 @@ export function ProjectManagement() {
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
+  // RBAC - page-level permissions
+  const canCreateProjects = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'projects', 'canCreate') : false;
+  const canUpdateProjects = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'projects', 'canUpdate') : false;
+  const canDeleteProjects = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'projects', 'canDelete') : false;
 
   const [formData, setFormData] = useState({
     name: "",
@@ -1037,7 +1041,7 @@ export function ProjectManagement() {
         <div className="flex items-center gap-2">
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button disabled={!canCreateProjects}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Project
               </Button>
@@ -1255,7 +1259,7 @@ export function ProjectManagement() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button type="submit" disabled={isSubmitting}>
+                  <Button type="submit" disabled={isSubmitting || !canCreateProjects}>
                     {isSubmitting ? "Adding Project..." : "Add Project"}
                   </Button>
                 </DialogFooter>
@@ -1592,8 +1596,9 @@ export function ProjectManagement() {
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 pt-2 border-t border-border/50">
-                      <Button
+          <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+            {canUpdateProjects && (
+            <Button
                         variant="outline"
                         size="sm"
                         onClick={(e) => {
@@ -1606,7 +1611,9 @@ export function ProjectManagement() {
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
                       </Button>
-                      <Button
+            )}
+            {canDeleteProjects && (
+            <Button
                         variant="outline"
                         size="sm"
                         onClick={(e) => {
@@ -1619,6 +1626,7 @@ export function ProjectManagement() {
                         <Trash2 className="mr-2 h-4 w-4" />
                         Delete
                       </Button>
+            )}
                     </div>
                   </div>
                 </CardContent>

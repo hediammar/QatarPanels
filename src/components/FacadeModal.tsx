@@ -460,8 +460,9 @@ export function FacadeModalTrigger({
   currentProjectName,
   currentBuildingId,
   currentBuildingName,
+  disabled,
   ...props 
-}: Omit<FacadeModalProps, "isOpen" | "onOpenChange" | "trigger">) {
+}: Omit<FacadeModalProps, "isOpen" | "onOpenChange" | "trigger"> & { disabled?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -477,7 +478,7 @@ export function FacadeModalTrigger({
       currentBuildingId={currentBuildingId}
       currentBuildingName={currentBuildingName}
       trigger={
-        <Button className="gap-2">
+        <Button className="gap-2" disabled={disabled}>
           <Plus className="h-4 w-4" />
           {editingFacade ? 'Edit Facade' : 'Add Facade'}
         </Button>

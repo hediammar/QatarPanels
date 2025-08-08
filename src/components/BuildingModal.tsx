@@ -461,8 +461,9 @@ export function BuildingModalTrigger({
   currentProject,
   currentProjectId,
   currentProjectName,
+  disabled,
   ...props 
-}: Omit<BuildingModalProps, "isOpen" | "onOpenChange" | "trigger">) {
+}: Omit<BuildingModalProps, "isOpen" | "onOpenChange" | "trigger"> & { disabled?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -475,7 +476,7 @@ export function BuildingModalTrigger({
       currentProjectId={currentProjectId}
       currentProjectName={currentProjectName}
       trigger={
-        <Button className="gap-2">
+        <Button className="gap-2" disabled={disabled}>
           <Plus className="h-4 w-4" />
           {editingBuilding ? 'Edit Building' : 'Add Building'}
         </Button>

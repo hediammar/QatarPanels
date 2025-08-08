@@ -22,6 +22,8 @@ import {
 } from "../ui/select";
 import { supabase } from '../../lib/supabase';
 import { BuildingModalTrigger } from '../BuildingModal';
+import { useAuth } from '../../contexts/AuthContext';
+import { hasPermission, UserRole } from '../../utils/rolePermissions';
 
 
 interface BuildingModel {
@@ -43,10 +45,12 @@ export function BuildingsSection({
   projectId,
   projectName,
 }: BuildingsSectionProps) {
+  const { user: currentUser } = useAuth();
   const [buildings, setBuildings] = useState<BuildingModel[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+  const canCreateBuildings = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'buildings', 'canCreate') : false;
 
   // Map database status (integer) to UI status
   const statusMap: { [key: number]: string } = {
@@ -212,10 +216,13 @@ export function BuildingsSection({
             </span>
           )}
         </div>
-        <BuildingModalTrigger 
-          onSubmit={handleAddBuilding}
-          currentProject={currentProject}
-        />
+        <div>
+          <BuildingModalTrigger 
+            onSubmit={handleAddBuilding}
+            currentProject={currentProject}
+            disabled={!canCreateBuildings}
+          />
+        </div>
       </div>
 
       {/* Filters & Search */}
@@ -385,6 +392,7 @@ export function BuildingsSection({
             <BuildingModalTrigger 
               onSubmit={handleAddBuilding}
               currentProject={currentProject}
+              disabled={!canCreateBuildings}
             />
           )}
         </div>

@@ -221,6 +221,7 @@ export function PanelsPage() {
   const canDeletePanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canDelete') : false;
   const canBulkImportPanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canBulkImport') : false;
   const canChangePanelStatus = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canChangeStatus') : false;
+  const canCreatePanelGroups = currentUser?.role ? hasPermission(currentUser.role as any, 'panelGroups', 'canCreate') : false;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const itemsPerPage = 10;
@@ -1056,7 +1057,7 @@ export function PanelsPage() {
             </>
           )}
           {canCreatePanels && (
-            <Button onClick={() => setIsAddPanelDialogOpen(true)}>
+            <Button onClick={() => setIsAddPanelDialogOpen(true)} disabled={!canCreatePanels}>
               <Plus className="h-4 w-4 mr-2" />
               Add Panel
             </Button>
@@ -1292,7 +1293,7 @@ export function PanelsPage() {
                           >
                             <History className="h-4 w-4" />
                           </Button>
-                          {canUpdatePanels && (
+                           {canUpdatePanels && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1305,7 +1306,7 @@ export function PanelsPage() {
                               <Edit className="h-4 w-4" />
                             </Button>
                           )}
-                          {canDeletePanels && (
+                           {canDeletePanels && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1658,7 +1659,7 @@ export function PanelsPage() {
             >
               Cancel
             </Button>
-            <Button onClick={handleSavePanel}>Add Panel</Button>
+            <Button onClick={handleSavePanel} disabled={!canCreatePanels}>Add Panel</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

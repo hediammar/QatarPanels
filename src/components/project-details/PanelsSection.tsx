@@ -87,6 +87,8 @@ import { useToastContext } from "../../contexts/ToastContext";
 import { DateInput } from "../ui/date-input";
 import { crudOperations } from "../../utils/userTracking";
 import { StatusChangeDialog } from "../StatusChangeDialog";
+import { useAuth } from "../../contexts/AuthContext";
+import { hasPermission, UserRole } from "../../utils/rolePermissions";
 
 const PANEL_STATUSES = [
   "Issued For Production",
@@ -180,6 +182,7 @@ interface QRCodeModalProps {
 }
 
 export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
+  const { user: currentUser } = useAuth();
   const { showToast } = useToastContext();
   const [panels, setPanels] = useState<PanelModel[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
@@ -222,6 +225,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
   const [bulkStatusValue, setBulkStatusValue] = useState<number>(0);
   const [isStatusChangeDialogOpen, setIsStatusChangeDialogOpen] = useState(false);
   const [selectedPanelForStatusChange, setSelectedPanelForStatusChange] = useState<PanelModel | null>(null);
+  const canCreatePanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canCreate') : false;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const itemsPerPage = 10;
@@ -1525,7 +1529,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
               <Upload className="h-4 w-4 mr-2" />
               Bulk Import
             </Button>
-            <Button onClick={() => setIsAddPanelDialogOpen(true)}>
+            <Button onClick={() => setIsAddPanelDialogOpen(true)} disabled={!canCreatePanels}>
               <Plus className="h-4 w-4 mr-2" />
               Add Panel
             </Button>
@@ -1655,7 +1659,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                 </p>
                 {!searchTerm && statusFilter === "all" && typeFilter === "all" && buildingFilter === "all" && facadeFilter === "all" && (
                   <div className="flex items-center justify-center gap-2">
-                    <Button onClick={() => setIsAddPanelDialogOpen(true)}>
+                    <Button onClick={() => setIsAddPanelDialogOpen(true)} disabled={!canCreatePanels}>
                       <Plus className="mr-2 h-4 w-4" />
                       Add Panel
                     </Button>
@@ -2113,7 +2117,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
             >
               Cancel
             </Button>
-            <Button onClick={handleSavePanel}>Add Panel</Button>
+            <Button onClick={handleSavePanel} disabled={!canCreatePanels}>Add Panel</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

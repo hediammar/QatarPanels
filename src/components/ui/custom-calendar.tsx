@@ -155,6 +155,7 @@ export function CustomCalendar({
             className
           )}
           disabled={disabled}
+          type="button"
         >
           <Calendar className="mr-2 h-4 w-4" />
           {formatDisplayDate(selectedDate)}
@@ -167,7 +168,11 @@ export function CustomCalendar({
             <Button
               variant="ghost"
               size="sm"
-              onClick={goToPreviousMonth}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                goToPreviousMonth();
+              }}
               className="h-7 w-7 p-0 hover:bg-accent"
             >
               <ChevronLeft className="h-3 w-3" />
@@ -180,7 +185,11 @@ export function CustomCalendar({
             <Button
               variant="ghost"
               size="sm"
-              onClick={goToNextMonth}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                goToNextMonth();
+              }}
               className="h-7 w-7 p-0 hover:bg-accent"
             >
               <ChevronRight className="h-3 w-3" />
@@ -220,7 +229,10 @@ export function CustomCalendar({
                   justifyContent: 'center',
                   cursor: day ? 'pointer' : 'default'
                 }}
-                onClick={() => day && handleDateSelect(day)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  day && handleDateSelect(day);
+                }}
               >
                 {day ? day.getDate() : ''}
               </div>
@@ -232,7 +244,9 @@ export function CustomCalendar({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
                 setSelectedDate(null);
                 onChange('');
                 setIsOpen(false);
@@ -244,7 +258,11 @@ export function CustomCalendar({
             <Button
               variant="outline"
               size="sm"
-              onClick={goToToday}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                goToToday();
+              }}
               className="hover:bg-accent text-xs px-2 py-1"
             >
               Today

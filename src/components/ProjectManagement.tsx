@@ -104,6 +104,7 @@ export function ProjectManagement() {
   
   // Add form submission protection
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const lastSubmissionTime = useRef<number>(0);
   
   // Filter states
@@ -578,6 +579,8 @@ export function ProjectManagement() {
 
   const confirmDelete = async () => {
     if (deletingProject) {
+      setIsDeleting(true);
+      
       // Check if current user is a customer and implement data filtering
       const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
       
@@ -586,11 +589,209 @@ export function ProjectManagement() {
         if (deletingProject.customer_id !== currentUser.customer_id) {
           showToast('You can only delete your own projects', 'error');
           setDeletingProject(null);
+          setIsDeleting(false);
           return;
         }
       }
       
       try {
+        // Check for all dependencies in the correct order
+        console.log('Checking project dependencies...');
+        
+        // 1. Check for panels
+        let panelQuery = supabase
+          .from('panels')
+          .select('id', { count: 'exact', head: true })
+          .eq('project_id', deletingProject.id);
+        
+        if (isCustomer && currentUser?.customer_id) {
+          panelQuery = panelQuery.eq('customer_id', currentUser.customer_id);
+        }
+        
+        const { count: panelCount, error: panelError } = await panelQuery;
+        
+        if (panelError) {
+          console.error('Error checking for panels:', panelError);
+          showToast('Error checking project dependencies', 'error');
+          return;
+        }
+        
+        // 2. Check for facades (through buildings)
+        // First get building IDs for this project
+        let buildingIdsForCountQuery = supabase
+          .from('buildings')
+          .select('id')
+          .eq('project_id', deletingProject.id);
+        
+        if (isCustomer && currentUser?.customer_id) {
+          buildingIdsForCountQuery = buildingIdsForCountQuery.eq('customer_id', currentUser.customer_id);
+        }
+        
+        const { data: buildingIdsForCount, error: buildingIdsForCountError } = await buildingIdsForCountQuery;
+        
+        if (buildingIdsForCountError) {
+          console.error('Error checking for facades:', buildingIdsForCountError);
+          showToast('Error checking project dependencies', 'error');
+          return;
+        }
+        
+        let facadeCount = 0;
+        if (buildingIdsForCount && buildingIdsForCount.length > 0) {
+          let facadeQuery = supabase
+            .from('facades')
+            .select('id', { count: 'exact', head: true })
+            .in('building_id', buildingIdsForCount.map(b => b.id));
+          
+          if (isCustomer && currentUser?.customer_id) {
+            facadeQuery = facadeQuery.eq('customer_id', currentUser.customer_id);
+          }
+          
+          const { count: facadeCountResult, error: facadeError } = await facadeQuery;
+          
+          if (facadeError) {
+            console.error('Error checking for facades:', facadeError);
+            showToast('Error checking project dependencies', 'error');
+            return;
+          }
+          
+          facadeCount = facadeCountResult || 0;
+        }
+        
+        // 3. Check for buildings
+        let buildingQuery = supabase
+          .from('buildings')
+          .select('id', { count: 'exact', head: true })
+          .eq('project_id', deletingProject.id);
+        
+        if (isCustomer && currentUser?.customer_id) {
+          buildingQuery = buildingQuery.eq('customer_id', currentUser.customer_id);
+        }
+        
+        const { count: buildingCount, error: buildingError } = await buildingQuery;
+        
+        if (buildingError) {
+          console.error('Error checking for buildings:', buildingError);
+          showToast('Error checking project dependencies', 'error');
+          return;
+        }
+        
+        // Show warning if project has dependencies
+        const totalDependencies = (panelCount || 0) + (facadeCount || 0) + (buildingCount || 0);
+        
+        if (totalDependencies > 0) {
+          const dependencyDetails = [
+            panelCount ? `${panelCount} panel(s)` : null,
+            facadeCount ? `${facadeCount} facade(s)` : null,
+            buildingCount ? `${buildingCount} building(s)` : null
+          ].filter(Boolean).join(', ');
+          
+          const confirmed = window.confirm(
+            `This project has ${dependencyDetails} associated with it. Deleting the project will also delete all associated data. Are you sure you want to continue?`
+          );
+          
+          if (!confirmed) {
+            setDeletingProject(null);
+            return;
+          }
+          
+          console.log(`Deleting dependencies for project ${deletingProject.id}: ${dependencyDetails}`);
+          
+          // Delete in the correct order: Panels → Facades → Buildings → Project
+          
+          // 1. Delete panels
+          if (panelCount && panelCount > 0) {
+            console.log(`Deleting ${panelCount} panels...`);
+            let deletePanelsQuery = supabase
+              .from('panels')
+              .delete()
+              .eq('project_id', deletingProject.id);
+            
+            if (isCustomer && currentUser?.customer_id) {
+              deletePanelsQuery = deletePanelsQuery.eq('customer_id', currentUser.customer_id);
+            }
+            
+            const { error: deletePanelsError } = await deletePanelsQuery;
+            
+            if (deletePanelsError) {
+              console.error('Error deleting panels:', deletePanelsError);
+              showToast('Error deleting project panels', 'error');
+              return;
+            }
+            
+            console.log('Panels deleted successfully');
+          }
+          
+          // 2. Delete facades
+          if (facadeCount && facadeCount > 0) {
+            console.log(`Deleting ${facadeCount} facades...`);
+            
+            // First, get all building IDs for this project
+            let buildingIdsQuery = supabase
+              .from('buildings')
+              .select('id')
+              .eq('project_id', deletingProject.id);
+            
+            if (isCustomer && currentUser?.customer_id) {
+              buildingIdsQuery = buildingIdsQuery.eq('customer_id', currentUser.customer_id);
+            }
+            
+            const { data: buildingIds, error: buildingIdsError } = await buildingIdsQuery;
+            
+            if (buildingIdsError) {
+              console.error('Error getting building IDs:', buildingIdsError);
+              showToast('Error deleting project facades', 'error');
+              return;
+            }
+            
+            if (buildingIds && buildingIds.length > 0) {
+              // Delete facades that belong to these buildings
+              let deleteFacadesQuery = supabase
+                .from('facades')
+                .delete()
+                .in('building_id', buildingIds.map(b => b.id));
+              
+              if (isCustomer && currentUser?.customer_id) {
+                deleteFacadesQuery = deleteFacadesQuery.eq('customer_id', currentUser.customer_id);
+              }
+              
+              const { error: deleteFacadesError } = await deleteFacadesQuery;
+              
+              if (deleteFacadesError) {
+                console.error('Error deleting facades:', deleteFacadesError);
+                showToast('Error deleting project facades', 'error');
+                return;
+              }
+              
+              console.log('Facades deleted successfully');
+            }
+          }
+          
+          // 3. Delete buildings
+          if (buildingCount && buildingCount > 0) {
+            console.log(`Deleting ${buildingCount} buildings...`);
+            let deleteBuildingsQuery = supabase
+              .from('buildings')
+              .delete()
+              .eq('project_id', deletingProject.id);
+            
+            if (isCustomer && currentUser?.customer_id) {
+              deleteBuildingsQuery = deleteBuildingsQuery.eq('customer_id', currentUser.customer_id);
+            }
+            
+            const { error: deleteBuildingsError } = await deleteBuildingsQuery;
+            
+            if (deleteBuildingsError) {
+              console.error('Error deleting buildings:', deleteBuildingsError);
+              showToast('Error deleting project buildings', 'error');
+              return;
+            }
+            
+            console.log('Buildings deleted successfully');
+          }
+        }
+        
+        // Now delete the project
+        console.log('Deleting project...');
         await crudOperations.delete('projects', deletingProject.id);
         
         showToast('Project deleted successfully', 'success');
@@ -598,7 +799,15 @@ export function ProjectManagement() {
         await fetchProjects();
       } catch (error) {
         console.error('Error deleting project:', error);
-        showToast('Error deleting project', 'error');
+        
+        // Check if it's a foreign key constraint error
+        if (error instanceof Error && error.message.includes('409')) {
+          showToast('Cannot delete project: It has associated data. Please delete all associated data first.', 'error');
+        } else {
+          showToast('Error deleting project', 'error');
+        }
+      } finally {
+        setIsDeleting(false);
       }
     }
   };
@@ -1694,10 +1903,27 @@ export function ProjectManagement() {
       <AlertDialog open={!!deletingProject} onOpenChange={() => setDeletingProject(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Project</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the project "
-              {deletingProject?.name}" and all associated data.
+              <div className="space-y-2">
+                <p>
+                  This action cannot be undone. This will permanently delete the project "
+                  <strong>{deletingProject?.name}</strong>".
+                </p>
+                {deletingProject && (
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <p>• Project ID: {deletingProject.id}</p>
+                    <p>• Location: {deletingProject.location}</p>
+                    <p>• Customer: {deletingProject.customer_name}</p>
+                    <p>• Current Panels: {deletingProject.actual_panels}</p>
+                    {deletingProject.actual_panels > 0 && (
+                      <p className="text-destructive font-medium">
+                        ⚠️ This project has {deletingProject.actual_panels} panel(s) that will also be deleted.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1705,9 +1931,9 @@ export function ProjectManagement() {
             <AlertDialogAction
               onClick={confirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={isSubmitting}
+              disabled={isDeleting}
             >
-              Delete
+              {isDeleting ? "Deleting..." : "Delete Project"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

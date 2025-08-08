@@ -140,6 +140,7 @@ export interface PanelModel {
   ifp_qty_area_sm?: number;
   ifp_qty_nos?: number;
   weight?: number;
+  dimension?: string;
   issued_for_production_date?: string;
 }
 
@@ -160,6 +161,7 @@ interface ImportedPanel {
   ifp_qty_area_sm?: number;
   ifp_qty_nos?: number;
   weight?: number;
+  dimension?: string;
   issued_for_production_date?: string;
   isValid: boolean;
   errors: string[];
@@ -241,6 +243,7 @@ export function PanelsPage() {
     ifp_qty_area_sm: undefined as number | undefined,
     ifp_qty_nos: undefined as number | undefined,
     weight: undefined as number | undefined,
+    dimension: undefined as string | undefined,
     issued_for_production_date: undefined as string | undefined,
   });
   const [newPanelGroupModel, setNewPanelGroupModel] = useState({
@@ -510,6 +513,7 @@ export function PanelsPage() {
       ifp_qty_area_sm: panel.ifp_qty_area_sm,
       ifp_qty_nos: panel.ifp_qty_nos,
       weight: panel.weight,
+      dimension: panel.dimension,
       issued_for_production_date: panel.issued_for_production_date,
     });
     setIsEditDialogOpen(true);
@@ -567,6 +571,7 @@ export function PanelsPage() {
       ifp_qty_area_sm: newPanelModel.ifp_qty_area_sm || null,
       ifp_qty_nos: newPanelModel.ifp_qty_nos || null,
       weight: newPanelModel.weight || null,
+      dimension: newPanelModel.dimension || null,
       issued_for_production_date: newPanelModel.issued_for_production_date || null,
     };
 
@@ -640,6 +645,7 @@ export function PanelsPage() {
                     ifp_qty_nos: validatedPanelData.ifp_qty_nos || undefined,
                     weight: validatedPanelData.weight || undefined,
                     issued_for_production_date: validatedPanelData.issued_for_production_date || undefined,
+                    dimension: validatedPanelData.dimension || undefined, 
                   }
                 : p
             )
@@ -721,6 +727,7 @@ export function PanelsPage() {
       ifp_qty_area_sm: undefined,
       ifp_qty_nos: undefined,
       weight: undefined,
+      dimension: undefined,
       issued_for_production_date: undefined,
     });
   };
@@ -802,6 +809,7 @@ export function PanelsPage() {
           ifp_qty_area_sm: parseFloat(row["IFP Qty Area SM"] || row["ifp_qty_area_sm"] || "0") || undefined,
           ifp_qty_nos: parseInt(row["IFP Qty Nos"] || row["ifp_qty_nos"] || "0") || undefined,
           weight: parseFloat(row["Weight"] || row["weight"] || "0") || undefined,
+          dimension: row["Dimension"] || row["dimension"] || undefined,
           issued_for_production_date: row["Issued for Production Date"] || row["IssuedForProductionDate"] || row["issued_for_production_date"] || undefined,
           isValid: true,
           errors: [],
@@ -861,6 +869,7 @@ export function PanelsPage() {
         ifp_qty_area_sm: p.ifp_qty_area_sm || null,
         ifp_qty_nos: p.ifp_qty_nos || null,
         weight: p.weight || null,
+        dimension: p.dimension || null,
         issued_for_production_date: p.issued_for_production_date || null,
       }));
 
@@ -1115,7 +1124,7 @@ export function PanelsPage() {
                   <SelectTrigger>
                     <SelectValue placeholder="All buildings" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60">
                     <SelectItem value="all">All buildings</SelectItem>
                     {buildings.map((building) => (
                       <SelectItem key={building.id} value={building.name}>
@@ -1131,7 +1140,7 @@ export function PanelsPage() {
                   <SelectTrigger>
                     <SelectValue placeholder="All facades" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60">
                     <SelectItem value="all">All facades</SelectItem>
                     {facades.map((facade) => (
                       <SelectItem key={facade.id} value={facade.name}>
@@ -1451,7 +1460,7 @@ export function PanelsPage() {
                 <SelectTrigger>
                   <SelectValue placeholder="Select a project" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60">
                   {projects.map((project) => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.name}
@@ -1524,7 +1533,7 @@ export function PanelsPage() {
                 <SelectTrigger>
                   <SelectValue placeholder="Select building" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60">
                   {buildings.map((building) => (
                     <SelectItem key={building.id} value={building.id}>
                       {building.name}
@@ -1542,7 +1551,7 @@ export function PanelsPage() {
                 <SelectTrigger>
                   <SelectValue placeholder="Select facade" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60">
                   {facades.map((facade) => (
                     <SelectItem key={facade.id} value={facade.id}>
                       {facade.name}
@@ -1614,6 +1623,15 @@ export function PanelsPage() {
                 placeholder="Enter weight in kg"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="dimension">Dimension</Label>
+              <Input
+                id="dimension"
+                value={newPanelModel.dimension || ""}
+                onChange={(e) => setNewPanelModel({ ...newPanelModel, dimension: e.target.value || undefined })}
+                placeholder="Enter dimension (e.g., 2.5m x 1.2m)"
+              />
+            </div>
             
           </div>
           <DialogFooter>
@@ -1633,6 +1651,7 @@ export function PanelsPage() {
                   ifp_qty_area_sm: undefined,
                   ifp_qty_nos: undefined,
                   weight: undefined,
+                  dimension: undefined,
                   issued_for_production_date: undefined,
                 });
               }}
@@ -1660,7 +1679,7 @@ export function PanelsPage() {
                 <SelectTrigger>
                   <SelectValue placeholder="Select a project" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60">
                   {projects.map((project) => (
                     <SelectItem key={project.id} value={project.id}>
                       {project.name}
@@ -1733,7 +1752,7 @@ export function PanelsPage() {
                 <SelectTrigger>
                   <SelectValue placeholder="Select building" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60">
                   {buildings.map((building) => (
                     <SelectItem key={building.id} value={building.id}>
                       {building.name}
@@ -1751,7 +1770,7 @@ export function PanelsPage() {
                 <SelectTrigger>
                   <SelectValue placeholder="Select facade" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60">
                   {facades.map((facade) => (
                     <SelectItem key={facade.id} value={facade.id}>
                       {facade.name}
@@ -1823,6 +1842,15 @@ export function PanelsPage() {
                 placeholder="Enter weight in kg"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-dimension">Dimension</Label>
+              <Input
+                id="edit-dimension"
+                value={newPanelModel.dimension || ""}
+                onChange={(e) => setNewPanelModel({ ...newPanelModel, dimension: e.target.value || undefined })}
+                placeholder="Enter dimension (e.g., 2.5m x 1.2m)"
+              />
+            </div>
             
           </div>
           <DialogFooter>
@@ -1843,6 +1871,7 @@ export function PanelsPage() {
                   ifp_qty_area_sm: undefined,
                   ifp_qty_nos: undefined,
                   weight: undefined,
+                  dimension: undefined,
                   issued_for_production_date: undefined,
                 });
               }}

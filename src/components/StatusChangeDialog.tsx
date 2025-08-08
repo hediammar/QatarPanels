@@ -47,6 +47,7 @@ interface PanelModel {
   ifp_qty_area_sm?: number;
   ifp_qty_nos?: number;
   weight?: number;
+  dimension?: string;
   issued_for_production_date?: string;
 }
 

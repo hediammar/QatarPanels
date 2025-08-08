@@ -139,6 +139,7 @@ export interface PanelModel {
   ifp_qty_area_sm?: number;
   ifp_qty_nos?: number;
   weight?: number;
+  dimension?: string;
   issued_for_production_date?: string;
 }
 
@@ -159,6 +160,7 @@ interface ImportedPanel {
   ifp_qty_area_sm?: number;
   ifp_qty_nos?: number;
   weight?: number;
+  dimension?: string;
   issued_for_production_date?: string;
   isValid: boolean;
   errors: string[];
@@ -241,6 +243,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
     ifp_qty_area_sm: undefined as number | undefined,
     ifp_qty_nos: undefined as number | undefined,
     weight: undefined as number | undefined,
+    dimension: undefined as string | undefined,
     issued_for_production_date: undefined as string | undefined,
   });
   const [newPanelGroupModel, setNewPanelGroupModel] = useState({
@@ -460,6 +463,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       ifp_qty_nos: panel.ifp_qty_nos,
       weight: panel.weight,
       issued_for_production_date: panel.issued_for_production_date,
+      dimension: panel.dimension,
     });
     setIsEditDialogOpen(true);
   };
@@ -483,6 +487,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       ifp_qty_area_sm: newPanelModel.ifp_qty_area_sm || null,
       ifp_qty_nos: newPanelModel.ifp_qty_nos || null,
       weight: newPanelModel.weight || null,
+      dimension: newPanelModel.dimension || null,
       issued_for_production_date: newPanelModel.issued_for_production_date || null,
     };
 
@@ -526,6 +531,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                   ifp_qty_nos: panelData.ifp_qty_nos || undefined,
                   weight: panelData.weight || undefined,
                   issued_for_production_date: panelData.issued_for_production_date || undefined,
+                  dimension: panelData.dimension || undefined,
                 }
               : p
           )
@@ -586,6 +592,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       ifp_qty_area_sm: undefined,
       ifp_qty_nos: undefined,
       weight: undefined,
+      dimension: undefined,
       issued_for_production_date: undefined,
     });
   };
@@ -667,6 +674,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
           ifp_qty_area_sm: parseFloat(row["IFP Qty Area SM"] || row["ifp_qty_area_sm"] || "0") || undefined,
           ifp_qty_nos: parseInt(row["IFP Qty Nos"] || row["ifp_qty_nos"] || "0") || undefined,
           weight: parseFloat(row["Weight"] || row["weight"] || "0") || undefined,
+          dimension: row["Dimension"] || row["dimension"] || undefined,
           issued_for_production_date: row["Issued for Production Date"] || row["issued_for_production_date"] || undefined,
           isValid: true,
           errors: [],
@@ -721,6 +729,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
         ifp_qty_area_sm: p.ifp_qty_area_sm || null,
         ifp_qty_nos: p.ifp_qty_nos || null,
         weight: p.weight || null,
+        dimension: p.dimension || null,
         issued_for_production_date: p.issued_for_production_date || null,
       }));
 
@@ -2048,6 +2057,15 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                 placeholder="Enter weight in kg"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="dimension">Dimension</Label>
+              <Input
+                id="dimension"
+                value={newPanelModel.dimension || ""}
+                onChange={(e) => setNewPanelModel({ ...newPanelModel, dimension: e.target.value || undefined })}
+                placeholder="Enter dimension (e.g., 2.5m x 1.2m)"
+              />
+            </div>
             
           </div>
           <DialogFooter>
@@ -2067,6 +2085,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                   ifp_qty_area_sm: undefined,
                   ifp_qty_nos: undefined,
                   weight: undefined,
+                  dimension: undefined,
                   issued_for_production_date: undefined,
                 });
               }}
@@ -2230,6 +2249,15 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                 placeholder="Enter weight in kg"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-dimension">Dimension</Label>
+              <Input
+                id="edit-dimension"
+                value={newPanelModel.dimension || ""}
+                onChange={(e) => setNewPanelModel({ ...newPanelModel, dimension: e.target.value || undefined })}
+                placeholder="Enter dimension (e.g., 2.5m x 1.2m)"
+              />
+            </div>
             <DateInput
               id="edit-issued_for_production_date"
               label="Issued for Production Date"
@@ -2256,6 +2284,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                   ifp_qty_area_sm: undefined,
                   ifp_qty_nos: undefined,
                   weight: undefined,
+                  dimension: undefined,
                   issued_for_production_date: undefined,
                 });
               }}

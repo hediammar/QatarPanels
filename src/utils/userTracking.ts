@@ -323,6 +323,11 @@ export const crudOperations = {
           preparedData.issued_for_production_date = new Date(preparedData.issued_for_production_date).toISOString().split('T')[0];
         }
         
+        // Handle dimension field - ensure it's a string or null
+        if (preparedData.dimension !== null && preparedData.dimension !== undefined) {
+          preparedData.dimension = String(preparedData.dimension);
+        }
+        
         // Validate required fields
         if (!preparedData.name) {
           throw new Error('Panel name is required');

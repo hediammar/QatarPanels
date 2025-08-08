@@ -37,6 +37,7 @@ interface PanelImportData {
   unit_qty: string;
   ifp_qty_nos: string;
   ifp_qty: string;
+  dimension: string;
 }
 
 interface ValidationResult {
@@ -242,7 +243,8 @@ export function BulkImportPanelsPage() {
                 panel_tag: row[8]?.toString().trim() || '',
                 unit_qty: row[9]?.toString().trim() || '',
                 ifp_qty_nos: row[10]?.toString().trim() || '',
-                ifp_qty: row[11]?.toString().trim() || ''
+                ifp_qty: row[11]?.toString().trim() || '',
+                dimension: row[12]?.toString().trim() || ''
               });
             }
           }
@@ -632,6 +634,7 @@ export function BulkImportPanelsPage() {
           unit_rate_qr_m2: row.unit_qty?.trim() ? parseFloat(row.unit_qty) : null,
           ifp_qty_area_sm: row.ifp_qty?.trim() ? parseFloat(row.ifp_qty) : null,
           ifp_qty_nos: row.ifp_qty_nos?.trim() ? parseInt(row.ifp_qty_nos) : null,
+          dimension: row.dimension?.trim() || null,
           issued_for_production_date: row.date?.trim() ? (() => {
             const parsedDate = parseDate(row.date);
             if (!parsedDate) return null;

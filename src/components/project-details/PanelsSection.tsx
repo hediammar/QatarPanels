@@ -188,6 +188,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [buildingFilter, setBuildingFilter] = useState<string>("all");
+  const [facadeFilter, setFacadeFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [isAddPanelDialogOpen, setIsAddPanelDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -382,12 +383,14 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       searchTerm === "" ||
       panel.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (panel.building_name?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+      (panel.facade_name?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
       (panel.drawing_number?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
       (panel.issue_transmittal_no?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
     const matchesStatus = statusFilter === "all" || statusMap[panel.status] === statusFilter;
     const matchesType = typeFilter === "all" || typeMap[panel.type] === typeFilter;
     const matchesBuilding = buildingFilter === "all" || panel.building_name === buildingFilter;
-    return matchesSearch && matchesStatus && matchesType && matchesBuilding;
+    const matchesFacade = facadeFilter === "all" || panel.facade_name === facadeFilter;
+    return matchesSearch && matchesStatus && matchesType && matchesBuilding && matchesFacade;
   });
 
   const totalPages = Math.ceil(filteredPanels.length / itemsPerPage);
@@ -399,6 +402,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
     statusFilter !== "all",
     typeFilter !== "all",
     buildingFilter !== "all",
+    facadeFilter !== "all",
   ].filter(Boolean).length;
 
   const clearFilters = () => {
@@ -406,6 +410,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
     setStatusFilter("all");
     setTypeFilter("all");
     setBuildingFilter("all");
+    setFacadeFilter("all");
     setCurrentPage(1);
   };
 
@@ -1537,7 +1542,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               <div className="space-y-2">
                 <Label>Search</Label>
                 <div className="relative">
@@ -1598,6 +1603,22 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label>Facade</Label>
+                <Select value={facadeFilter} onValueChange={setFacadeFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All facades" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All facades</SelectItem>
+                    {facades.map((facade) => (
+                      <SelectItem key={facade.id} value={facade.name}>
+                        {facade.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
@@ -1623,16 +1644,16 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
               <div className="text-center py-12">
                 <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium mb-2">
-                  {searchTerm || statusFilter !== "all" || typeFilter !== "all" || buildingFilter !== "all"
+                  {searchTerm || statusFilter !== "all" || typeFilter !== "all" || buildingFilter !== "all" || facadeFilter !== "all"
                     ? "No panels match your search criteria"
                     : "No panels found"}
                 </h3>
                 <p className="text-muted-foreground mb-4">
-                  {searchTerm || statusFilter !== "all" || typeFilter !== "all" || buildingFilter !== "all"
+                  {searchTerm || statusFilter !== "all" || typeFilter !== "all" || buildingFilter !== "all" || facadeFilter !== "all"
                     ? "Try adjusting your filters to see more results."
                     : "Get started by adding your first panel."}
                 </p>
-                {!searchTerm && statusFilter === "all" && typeFilter === "all" && buildingFilter === "all" && (
+                {!searchTerm && statusFilter === "all" && typeFilter === "all" && buildingFilter === "all" && facadeFilter === "all" && (
                   <div className="flex items-center justify-center gap-2">
                     <Button onClick={() => setIsAddPanelDialogOpen(true)}>
                       <Plus className="mr-2 h-4 w-4" />

@@ -347,14 +347,15 @@ export function PanelsPage() {
           setSelectedProjectId(projectData[0].id);
         }
       }
+      const accessibleProjectIds = (projectData || []).map((p: any) => p.id);
 
       // Fetch buildings with customer filtering
       let buildingQuery = supabase
         .from("buildings")
         .select("id, name, project_id");
-      
-      if (isCustomer && currentUser?.customer_id) {
-        buildingQuery = buildingQuery.eq('customer_id', currentUser.customer_id);
+      // For customer users, restrict buildings to their accessible projects
+      if (isCustomer && accessibleProjectIds.length > 0) {
+        buildingQuery = buildingQuery.in('project_id', accessibleProjectIds);
       }
       
       const { data: buildingData, error: buildingError } = await buildingQuery;
@@ -372,9 +373,9 @@ export function PanelsPage() {
           name,
           buildings!inner(project_id)
         `);
-      
-      if (isCustomer && currentUser?.customer_id) {
-        facadeQuery = facadeQuery.eq('customer_id', currentUser.customer_id);
+      // For customer users, restrict facades to their accessible projects via buildings join
+      if (isCustomer && accessibleProjectIds.length > 0) {
+        facadeQuery = facadeQuery.in('buildings.project_id', accessibleProjectIds);
       }
       
       const { data: facadeData, error: facadeError } = await facadeQuery;
@@ -389,14 +390,13 @@ export function PanelsPage() {
         .from("panels")
         .select(`
           *,
-          projects!inner(name),
+          projects!inner(name, customer_id),
           buildings(name),
           facades(name)
         `);
-      
+      // For customer users, restrict panels to projects they own via join filter
       if (isCustomer && currentUser?.customer_id) {
-        panelQuery = panelQuery.eq('customer_id', currentUser.customer_id);
-        console.log('Filtering panels for customer:', currentUser.customer_id);
+        panelQuery = panelQuery.eq('projects.customer_id', currentUser.customer_id);
       }
 
       const { data, error } = await panelQuery;
@@ -416,7 +416,7 @@ export function PanelsPage() {
     }
 
     fetchData();
-  }, [selectedProjectId]);
+  }, [currentUser?.customer_id]);
 
   // Filter panels
   const filteredPanels = panels.filter((panel) => {

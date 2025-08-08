@@ -127,7 +127,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       projects: true,
       buildings: false,
       facades: false,
-      panels: false,
+      panels: true,
       customers: false,
       panelGroups: false,
       users: false,

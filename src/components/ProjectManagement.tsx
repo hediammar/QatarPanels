@@ -274,15 +274,10 @@ export function ProjectManagement() {
     // Fetch actual panel counts for each project
     const projectsWithPanelCounts = await Promise.all(
       data?.map(async (project) => {
-        let panelQuery = supabase
+        const panelQuery = supabase
           .from('panels')
           .select('*', { count: 'exact', head: true })
           .eq('project_id', project.id);
-        
-        // If user is a customer, also filter panels by customer_id
-        if (isCustomer && currentUser?.customer_id) {
-          panelQuery = panelQuery.eq('customer_id', currentUser.customer_id);
-        }
         
         const { count: panelCount, error: panelError } = await panelQuery;
         

@@ -1221,7 +1221,7 @@ export function ProjectManagement() {
                         type="number"
                         min="0"
                         step="1"
-                        value={formData.estimated_panels}
+                        value={formData.estimated_panels || 1}  
                         onChange={(e) =>
                           setFormData({
                             ...formData,

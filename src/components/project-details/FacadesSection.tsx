@@ -120,8 +120,10 @@ export function FacadesSection({
         .from('facades')
         .select(`
           *,
-          buildings (
+          buildings!inner (
+            id,
             name,
+            project_id,
             projects (
               name
             )

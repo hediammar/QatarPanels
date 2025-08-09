@@ -222,7 +222,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const [selectedPanelForTimeline, setSelectedPanelForTimeline] = useState<PanelModel | null>(null);
   const [isBulkStatusDialogOpen, setIsBulkStatusDialogOpen] = useState(false);
-  const [bulkStatusValue, setBulkStatusValue] = useState<number>(0);
+  const [bulkStatusValue, setBulkStatusValue] = useState<number | null>(null);
   const [isStatusChangeDialogOpen, setIsStatusChangeDialogOpen] = useState(false);
   const [selectedPanelForStatusChange, setSelectedPanelForStatusChange] = useState<PanelModel | null>(null);
   const canCreatePanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canCreate') : false;
@@ -254,7 +254,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
   const [newPanelGroupModel, setNewPanelGroupModel] = useState({
     name: "",
     description: "",
-    status: 1,
+    status: 0,
   });
 
   const handleCreateGroup = async () => {
@@ -279,10 +279,10 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
         return;
       }
 
-      setNewPanelGroupModel({
+                setNewPanelGroupModel({
         name: "",
         description: "",
-        status: 1,
+                  status: 0,
       });
       setIsCreateGroupDialogOpen(false);
 
@@ -305,14 +305,14 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       // Update each panel individually to track user changes
       for (const panelId of panelIds) {
         console.log('Bulk updating panel:', panelId, 'with status:', bulkStatusValue);
-        await crudOperations.update("panels", panelId, { status: bulkStatusValue });
+        await crudOperations.update("panels", panelId, { status: bulkStatusValue as number });
         // Database triggers will automatically add status history
       }
 
       // Update local state
       setPanels(panels.map(panel => 
         selectedPanels.has(panel.id) 
-          ? { ...panel, status: bulkStatusValue }
+           ? { ...panel, status: bulkStatusValue as number }
           : panel
       ));
 
@@ -320,7 +320,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       setIsBulkStatusDialogOpen(false);
       setSelectedPanels(new Set());
       setIsSelectionMode(false);
-      setBulkStatusValue(0);
+      setBulkStatusValue(null);
     } catch (error) {
       console.error("Unexpected error:", error);
       showToast("An unexpected error occurred", "error");
@@ -592,7 +592,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
     setNewPanelModel({
       name: "",
       type: 0,
-      status: 1,
+      status: 0,
       building_id: undefined,
       facade_id: undefined,
       issue_transmittal_no: undefined,
@@ -607,31 +607,34 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
   };
 
   const normalizeType = (type: string): number => {
-    const normalized = type.toLowerCase().trim();
-    if (normalized.includes("wall")) return 0;
-    if (normalized.includes("facade")) return 1;
-    if (normalized.includes("stair")) return 2;
-    if (normalized.includes("column")) return 3;
-    if (normalized.includes("beam")) return 4;
-    if (normalized.includes("slab")) return 5;
+    if (!type) return 0;
+    const normalized = type.trim().toUpperCase().replace(/\./g, "");
+    // Match against PANEL_TYPES exactly or common variants
+    if (normalized === "GRC") return PANEL_TYPES.indexOf("GRC");
+    if (normalized === "GRG") return PANEL_TYPES.indexOf("GRG");
+    if (normalized === "GRP") return PANEL_TYPES.indexOf("GRP");
+    if (normalized === "EIFS") return PANEL_TYPES.indexOf("EIFS");
+    if (normalized === "UHPC") return PANEL_TYPES.indexOf("UHPC");
+    // Fallback to first type
     return 0;
   };
 
   const normalizeStatus = (status: string): number => {
+    if (!status) return 0;
     const normalized = status.toLowerCase().trim();
 
     if (normalized.includes("issued for production")) return PANEL_STATUSES.indexOf("Issued For Production");
-    if (normalized.includes("produce")) return PANEL_STATUSES.indexOf("Produced");
+    if (normalized.includes("manufactur") || normalized.includes("produce")) return PANEL_STATUSES.indexOf("Produced");
     if (normalized.includes("inspect")) return PANEL_STATUSES.indexOf("Inspected");
     if (normalized.includes("approved final")) return PANEL_STATUSES.indexOf("Approved Final");
-    if (normalized.includes("approved material") || normalized.includes("approve")) return PANEL_STATUSES.indexOf("Approved Material");
+    if (normalized.includes("approved material") || (normalized.includes("approve") && !normalized.includes("final"))) return PANEL_STATUSES.indexOf("Approved Material");
     if (normalized.includes("reject")) return PANEL_STATUSES.indexOf("Rejected Material");
-    if (normalized.includes("issue")) return PANEL_STATUSES.indexOf("Issued");
+    if (normalized === "issued" || normalized.includes("issue")) return PANEL_STATUSES.indexOf("Issued");
     if (normalized.includes("proceed")) return PANEL_STATUSES.indexOf("Proceed for Delivery");
     if (normalized.includes("deliver")) return PANEL_STATUSES.indexOf("Delivered");
     if (normalized.includes("install")) return PANEL_STATUSES.indexOf("Installed");
     if (normalized.includes("broken")) return PANEL_STATUSES.indexOf("Broken at Site");
-    if (normalized.includes("on hold")) return PANEL_STATUSES.indexOf("On Hold");
+    if (normalized.includes("on hold") || normalized === "hold") return PANEL_STATUSES.indexOf("On Hold");
     if (normalized.includes("cancel")) return PANEL_STATUSES.indexOf("Cancelled");
 
     return 0;
@@ -644,8 +647,53 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
     if (panel.unit_rate_qr_m2 && panel.unit_rate_qr_m2 < 0) errors.push("Unit rate cannot be negative");
     if (panel.ifp_qty_area_sm && panel.ifp_qty_area_sm < 0) errors.push("IFP qty area cannot be negative");
     if (panel.ifp_qty_nos && panel.ifp_qty_nos < 0) errors.push("IFP qty nos cannot be negative");
+    if (panel.building_name && !panel.building_id) errors.push("Building name not found in this project");
+    if (panel.facade_name && !panel.facade_id) errors.push("Facade name not found in this project");
     panel.errors = errors;
     panel.isValid = errors.length === 0;
+  };
+
+  const normalizeName = (value?: string) => (value || "").trim().toLowerCase();
+
+  const findBuildingIdByName = (name?: string): string | undefined => {
+    if (!name) return undefined;
+    const target = normalizeName(name);
+    const match = buildings.find((b) => normalizeName(b.name) === target);
+    return match?.id;
+  };
+
+  const findFacadeIdByName = (name?: string): string | undefined => {
+    if (!name) return undefined;
+    const target = normalizeName(name);
+    const match = facades.find((f) => normalizeName(f.name) === target);
+    return match?.id;
+  };
+
+  const formatDateToISO = (d: Date) => {
+    const year = d.getFullYear();
+    const month = `${d.getMonth() + 1}`.padStart(2, "0");
+    const day = `${d.getDate()}`.padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const parseExcelDateToISO = (value: any): string | undefined => {
+    if (!value) return undefined;
+    if (value instanceof Date) return formatDateToISO(value);
+    if (typeof value === "number") {
+      try {
+        const parsed = (XLSX as any).SSF?.parse_date_code?.(value);
+        if (parsed && parsed.y && parsed.m && parsed.d) {
+          return formatDateToISO(new Date(parsed.y, parsed.m - 1, parsed.d));
+        }
+      } catch (_) {
+        // ignore parsing errors
+      }
+    }
+    if (typeof value === "string") {
+      const d = new Date(value);
+      if (!isNaN(d.getTime())) return formatDateToISO(d);
+    }
+    return undefined;
   };
 
   const handleFileUpload = async (selectedFile: File) => {
@@ -655,7 +703,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       setBulkImportFile(selectedFile);
       setBulkImportErrors([]);
       const data = await selectedFile.arrayBuffer();
-      const workbook = XLSX.read(data);
+      const workbook = XLSX.read(data, { cellDates: true });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(sheet);
@@ -666,17 +714,23 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       }
 
       const parsedPanels: ImportedPanel[] = jsonData.map((row: any, index: number) => {
+        const buildingNameFromRow = row["Building Name"] || row["building_name"] || undefined;
+        const facadeNameFromRow = row["Facade Name"] || row["facade_name"] || undefined;
+        const resolvedBuildingId = row["Building ID"] || row["building_id"] || findBuildingIdByName(buildingNameFromRow);
+        const resolvedFacadeId = row["Facade ID"] || row["facade_id"] || findFacadeIdByName(facadeNameFromRow);
+        const issuedForProductionRaw = row["Issued for Production Date"] || row["issued_for_production_date"] || undefined;
+        const issuedForProductionISO = parseExcelDateToISO(issuedForProductionRaw);
         const panel: ImportedPanel = {
           id: `import-${Date.now()}-${index}`,
           name: row["Panel Name"] || row["Name"] || row["panel_name"] || "",
           type: normalizeType(row["Type"] || row["Panel Type"] || row["type"] || "GRC"),
-          status: normalizeStatus(row["Status"] || row["status"] || "Manufactured"),
+          status: normalizeStatus(row["Status"] || row["status"] || "Issued For Production"),
           project_id: projectId,
           project_name: projectName,
-          building_id: row["Building ID"] || row["building_id"] || undefined,
-          building_name: row["Building Name"] || row["building_name"] || undefined,
-          facade_id: row["Facade ID"] || row["facade_id"] || undefined,
-          facade_name: row["Facade Name"] || row["facade_name"] || undefined,
+          building_id: resolvedBuildingId || undefined,
+          building_name: buildingNameFromRow,
+          facade_id: resolvedFacadeId || undefined,
+          facade_name: facadeNameFromRow,
           issue_transmittal_no: row["Issue Transmittal No"] || row["IssueTransmittalNo"] || row["issue_transmittal_no"] || undefined,
           drawing_number: row["Drawing Number"] || row["DrawingNumber"] || row["drawing_number"] || undefined,
           unit_rate_qr_m2: parseFloat(row["Unit Rate QR/m2"] || row["unit_rate_qr_m2"] || "0") || undefined,
@@ -684,7 +738,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
           ifp_qty_nos: parseInt(row["IFP Qty Nos"] || row["ifp_qty_nos"] || "0") || undefined,
           weight: parseFloat(row["Weight"] || row["weight"] || "0") || undefined,
           dimension: row["Dimension"] || row["dimension"] || undefined,
-          issued_for_production_date: row["Issued for Production Date"] || row["issued_for_production_date"] || undefined,
+          issued_for_production_date: issuedForProductionISO,
           isValid: true,
           errors: [],
         };
@@ -797,7 +851,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       {
         "Panel Name": "Sample Panel 1",
         "Type": "GRC",
-        "Status": "Manufactured",
+        "Status": "Issued For Production",
         "Building Name": "Sample Building",
         "Facade Name": "Sample Facade",
         "Issue Transmittal No": "T-001",
@@ -806,6 +860,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
         "IFP Qty Area SM": 50.25,
         "IFP Qty Nos": 1,
         "Weight": 25.5,
+        "Dimension": "2.5m x 1.2m",
         "Issued for Production Date": "2024-01-15",
       },
     ];
@@ -1003,11 +1058,11 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                     </div>
                     <div className="flex items-center gap-3">
                       <CheckCircle className="h-5 w-5 text-green-500" />
-                      <span>Panel types: Wall, Facade, Stair, Column, Beam, Slab</span>
+                      <span>Panel types: GRC, GRG, GRP, EIFS, UHPC</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <CheckCircle className="h-5 w-5 text-green-500" />
-                      <span>Panel statuses: Manufactured, Inspected, Delivered, Installed, Rejected</span>
+                      <span>Panel statuses: Issued For Production, Produced, Inspected, Approved Material, Rejected Material, Issued, Proceed for Delivery, Delivered, Installed, Approved Final, Broken at Site, On Hold, Cancelled</span>
                     </div>
                   </div>
                 </CardContent>
@@ -2101,7 +2156,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                 setNewPanelModel({
                   name: "",
                   type: 0,
-                  status: 1,
+                  status: 0,
                   building_id: undefined,
                   facade_id: undefined,
                   issue_transmittal_no: undefined,
@@ -2300,7 +2355,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                 setNewPanelModel({
                   name: "",
                   type: 0,
-                  status: 1,
+                  status: 0,
                   building_id: undefined,
                   facade_id: undefined,
                   issue_transmittal_no: undefined,
@@ -2378,7 +2433,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
             <div className="space-y-2">
               <Label htmlFor="bulk-status">New Status *</Label>
               <Select
-                value={statusMap[bulkStatusValue]}
+                value={bulkStatusValue === null ? undefined : statusMap[bulkStatusValue]}
                 onValueChange={(value) => setBulkStatusValue(statusReverseMap[value])}
               >
                 <SelectTrigger>
@@ -2404,12 +2459,12 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
               variant="outline"
               onClick={() => {
                 setIsBulkStatusDialogOpen(false);
-                setBulkStatusValue(0);
+                setBulkStatusValue(null);
               }}
             >
               Cancel
             </Button>
-            <Button onClick={handleBulkStatusUpdate} disabled={bulkStatusValue === 0}>
+            <Button onClick={handleBulkStatusUpdate} disabled={bulkStatusValue === null}>
               Update Status
             </Button>
           </DialogFooter>

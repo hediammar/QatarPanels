@@ -43,8 +43,8 @@ export const getCurrentUserSession = async () => {
   }
 };
 
-// Tables that support user tracking
-const TABLES_WITH_USER_TRACKING = ['panels', 'projects', 'buildings', 'customers', 'facades'];
+// Tables that support user tracking (exclude 'customers' to avoid FK 409s on create)
+const TABLES_WITH_USER_TRACKING = ['panels', 'projects', 'buildings', 'facades'];
 
 // Add user tracking to any data object
 export const addUserTracking = (data: any): any => {
@@ -266,12 +266,51 @@ export const crudOperations = {
           preparedData.id = generateUUID();
         }
         
+        // Normalize inputs
+        if (preparedData.name && typeof preparedData.name === 'string') {
+          preparedData.name = preparedData.name.trim();
+        }
+        if (preparedData.email && typeof preparedData.email === 'string') {
+          preparedData.email = preparedData.email.trim().toLowerCase();
+        }
+        if (preparedData.phone && typeof preparedData.phone === 'string') {
+          preparedData.phone = preparedData.phone.trim();
+        }
+        
         // Validate required fields
         if (!preparedData.name) {
           throw new Error('Customer name is required');
         }
         if (!preparedData.email) {
           throw new Error('Customer email is required');
+        }
+        
+        // Check for duplicate email (case-insensitive)
+        console.log('Checking for existing customer with same email (case-insensitive)...');
+        const { data: existingCustomers, error: checkError } = await supabase
+          .from('customers')
+          .select('id, name, email')
+          .ilike('email', preparedData.email);
+        
+        if (checkError) {
+          console.error('Error checking for existing customers:', checkError);
+        } else if (existingCustomers && existingCustomers.length > 0) {
+          console.log('Found existing customers with same email:', existingCustomers);
+          throw new Error(`A customer with the email "${preparedData.email}" already exists. Please use a different email address.`);
+        }
+        
+        // Check for duplicate name (case-insensitive)
+        console.log('Checking for existing customer with same name (case-insensitive)...');
+        const { data: existingCustomersByName, error: checkNameError } = await supabase
+          .from('customers')
+          .select('id, name, email')
+          .ilike('name', preparedData.name);
+        
+        if (checkNameError) {
+          console.error('Error checking for existing customers by name:', checkNameError);
+        } else if (existingCustomersByName && existingCustomersByName.length > 0) {
+          console.log('Found existing customers with same name:', existingCustomersByName);
+          throw new Error(`A customer with the name "${preparedData.name}" already exists. Please use a different name.`);
         }
         
         console.log('Prepared customer data:', preparedData);
@@ -447,6 +486,14 @@ export const crudOperations = {
           // Unique constraint violation
           if (table === 'projects') {
             throw new Error(`A project with this name already exists. Please choose a different name.`);
+          } else if (table === 'customers') {
+            if (error.message.includes('email')) {
+              throw new Error(`A customer with this email already exists. Please use a different email address.`);
+            } else if (error.message.includes('name')) {
+              throw new Error(`A customer with this name already exists. Please use a different name.`);
+            } else {
+              throw new Error(`A customer with these details already exists. Please check your input and try again.`);
+            }
           } else {
             throw new Error(`A record with these details already exists. Please check your input and try again.`);
           }
@@ -456,6 +503,13 @@ export const crudOperations = {
             throw new Error(`The selected customer does not exist. Please choose a valid customer.`);
           } else {
             throw new Error(`Referenced record does not exist. Please check your selection.`);
+          }
+        } else if (error.code === '409') {
+          // Conflict error (usually unique constraint violation)
+          if (table === 'customers') {
+            throw new Error(`A customer with these details already exists. Please check the email and name for duplicates.`);
+          } else {
+            throw new Error(`A record with these details already exists. Please check your input and try again.`);
           }
         } else {
           throw new Error(`Failed to create ${table}: ${error.message}`);
@@ -552,6 +606,269 @@ export const crudOperations = {
       }
     } catch (error: any) {
       console.error(`Error deleting ${table}:`, error);
+      throw error;
+    }
+  },
+
+  // Specialized customer delete with cascade handling
+  async deleteCustomer(customerId: string) {
+    try {
+      console.log(`Starting cascade delete for customer: ${customerId}`);
+      
+      // Step 1: Get the customer to find the associated user_id
+      const { data: customer, error: customerError } = await supabase
+        .from('customers')
+        .select('id, user_id')
+        .eq('id', customerId)
+        .single();
+
+      if (customerError) {
+        console.error('Error fetching customer:', customerError);
+        throw customerError;
+      }
+
+      if (!customer) {
+        throw new Error('Customer not found');
+      }
+
+      // Step 2: Set customer_id to NULL in projects table
+      console.log('Setting customer_id to NULL in projects table...');
+      const { error: projectsError } = await supabase
+        .from('projects')
+        .update({ customer_id: null })
+        .eq('customer_id', customerId);
+
+      if (projectsError) {
+        console.error('Error updating projects:', projectsError);
+        throw projectsError;
+      }
+
+    // Step 3: Unlink all references and delete users that have this customer_id
+    // (these are separate users linked to the customer, not the customer's own user account)
+    console.log('Finding users linked to this customer...');
+    const { data: usersToDelete, error: usersFetchError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('customer_id', customerId)
+      .neq('id', customer.user_id || '00000000-0000-0000-0000-000000000000');
+
+    if (usersFetchError) {
+      console.error('Error fetching users linked to customer:', usersFetchError);
+      throw usersFetchError;
+    }
+
+    const userIdsToDelete = (usersToDelete || []).map((u: any) => u.id);
+    console.log('User IDs linked to this customer that will be deleted:', userIdsToDelete);
+
+    if (userIdsToDelete.length > 0) {
+      // Unlink references in all tables that reference users
+      console.log('Unlinking references for linked users in projects...');
+      const { error: unlinkProjectsForLinkedUsersError } = await supabase
+        .from('projects')
+        .update({ user_id: null })
+        .in('user_id', userIdsToDelete);
+      if (unlinkProjectsForLinkedUsersError) {
+        console.error('Error unlinking projects for linked users:', unlinkProjectsForLinkedUsersError);
+        throw unlinkProjectsForLinkedUsersError;
+      }
+
+      console.log('Unlinking references for linked users in panels...');
+      const { error: unlinkPanelsForLinkedUsersError } = await supabase
+        .from('panels')
+        .update({ user_id: null })
+        .in('user_id', userIdsToDelete);
+      if (unlinkPanelsForLinkedUsersError) {
+        console.error('Error unlinking panels for linked users:', unlinkPanelsForLinkedUsersError);
+        throw unlinkPanelsForLinkedUsersError;
+      }
+
+      console.log('Unlinking references for linked users in facades...');
+      const { error: unlinkFacadesForLinkedUsersError } = await supabase
+        .from('facades')
+        .update({ user_id: null })
+        .in('user_id', userIdsToDelete);
+      if (unlinkFacadesForLinkedUsersError) {
+        console.error('Error unlinking facades for linked users:', unlinkFacadesForLinkedUsersError);
+        throw unlinkFacadesForLinkedUsersError;
+      }
+
+      console.log('Unlinking references for linked users in buildings...');
+      const { error: unlinkBuildingsForLinkedUsersError } = await supabase
+        .from('buildings')
+        .update({ user_id: null })
+        .in('user_id', userIdsToDelete);
+      if (unlinkBuildingsForLinkedUsersError) {
+        console.error('Error unlinking buildings for linked users:', unlinkBuildingsForLinkedUsersError);
+        throw unlinkBuildingsForLinkedUsersError;
+      }
+
+      console.log('Unlinking references for linked users in panel_status_histories...');
+      const { error: unlinkHistoriesForLinkedUsersError } = await supabase
+        .from('panel_status_histories')
+        .update({ user_id: null })
+        .in('user_id', userIdsToDelete);
+      if (unlinkHistoriesForLinkedUsersError) {
+        console.error('Error unlinking panel_status_histories for linked users:', unlinkHistoriesForLinkedUsersError);
+        throw unlinkHistoriesForLinkedUsersError;
+      }
+
+      // Now delete the linked users
+      console.log('Deleting users linked to this customer...');
+      const { error: deleteLinkedUsersError } = await supabase
+        .from('users')
+        .delete()
+        .in('id', userIdsToDelete);
+      if (deleteLinkedUsersError) {
+        console.error('Error deleting users linked to customer:', deleteLinkedUsersError);
+        throw deleteLinkedUsersError;
+      }
+    } else {
+      console.log('No additional linked users to delete for this customer.');
+    }
+
+                                  // Step 4: Set user_id to NULL in all tables that reference users
+           if (customer.user_id) {
+             // Set user_id to NULL in projects table
+             console.log('Setting user_id to NULL in projects table...');
+             const { error: projectsUserError } = await supabase
+               .from('projects')
+               .update({ user_id: null })
+               .eq('user_id', customer.user_id);
+
+             if (projectsUserError) {
+               console.error('Error updating projects user_id:', projectsUserError);
+               throw projectsUserError;
+             }
+
+             // Set user_id to NULL in panels table
+             console.log('Setting user_id to NULL in panels table...');
+             const { error: panelsError } = await supabase
+               .from('panels')
+               .update({ user_id: null })
+               .eq('user_id', customer.user_id);
+
+             if (panelsError) {
+               console.error('Error updating panels:', panelsError);
+               throw panelsError;
+             }
+
+             // Set user_id to NULL in facades table
+             console.log('Setting user_id to NULL in facades table...');
+             const { error: facadesError } = await supabase
+               .from('facades')
+               .update({ user_id: null })
+               .eq('user_id', customer.user_id);
+
+             if (facadesError) {
+               console.error('Error updating facades:', facadesError);
+               throw facadesError;
+             }
+
+             // Set user_id to NULL in buildings table
+             console.log('Setting user_id to NULL in buildings table...');
+             const { error: buildingsError } = await supabase
+               .from('buildings')
+               .update({ user_id: null })
+               .eq('user_id', customer.user_id);
+
+             if (buildingsError) {
+               console.error('Error updating buildings:', buildingsError);
+               throw buildingsError;
+             }
+
+             // Set user_id to NULL in panel_status_histories table
+             console.log('Setting user_id to NULL in panel_status_histories table...');
+             const { error: panelHistoriesError } = await supabase
+               .from('panel_status_histories')
+               .update({ user_id: null })
+               .eq('user_id', customer.user_id);
+
+             if (panelHistoriesError) {
+               console.error('Error updating panel_status_histories:', panelHistoriesError);
+               throw panelHistoriesError;
+             }
+           }
+
+    // Step 5: Delete the associated user if it exists (after unlinking references)
+           if (customer.user_id) {
+             console.log(`Deleting associated user: ${customer.user_id}`);
+      // Unlink references first
+      console.log('Unlinking references for associated user in projects...');
+      const { error: unlinkProjectsError } = await supabase
+        .from('projects')
+        .update({ user_id: null })
+        .eq('user_id', customer.user_id);
+      if (unlinkProjectsError) {
+        console.error('Error unlinking projects for associated user:', unlinkProjectsError);
+        throw unlinkProjectsError;
+      }
+
+      console.log('Unlinking references for associated user in panels...');
+      const { error: unlinkPanelsError } = await supabase
+        .from('panels')
+        .update({ user_id: null })
+        .eq('user_id', customer.user_id);
+      if (unlinkPanelsError) {
+        console.error('Error unlinking panels for associated user:', unlinkPanelsError);
+        throw unlinkPanelsError;
+      }
+
+      console.log('Unlinking references for associated user in facades...');
+      const { error: unlinkFacadesError } = await supabase
+        .from('facades')
+        .update({ user_id: null })
+        .eq('user_id', customer.user_id);
+      if (unlinkFacadesError) {
+        console.error('Error unlinking facades for associated user:', unlinkFacadesError);
+        throw unlinkFacadesError;
+      }
+
+      console.log('Unlinking references for associated user in buildings...');
+      const { error: unlinkBuildingsError } = await supabase
+        .from('buildings')
+        .update({ user_id: null })
+        .eq('user_id', customer.user_id);
+      if (unlinkBuildingsError) {
+        console.error('Error unlinking buildings for associated user:', unlinkBuildingsError);
+        throw unlinkBuildingsError;
+      }
+
+      console.log('Unlinking references for associated user in panel_status_histories...');
+      const { error: unlinkHistoriesError } = await supabase
+        .from('panel_status_histories')
+        .update({ user_id: null })
+        .eq('user_id', customer.user_id);
+      if (unlinkHistoriesError) {
+        console.error('Error unlinking panel_status_histories for associated user:', unlinkHistoriesError);
+        throw unlinkHistoriesError;
+      }
+
+             const { error: deleteUserError } = await supabase
+               .from('users')
+               .delete()
+               .eq('id', customer.user_id);
+
+             if (deleteUserError) {
+               console.error('Error deleting associated user:', deleteUserError);
+               throw deleteUserError;
+             }
+           }
+
+                 // Step 6: Finally delete the customer
+      console.log('Deleting customer...');
+      const { error: deleteCustomerError } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', customerId);
+
+      if (deleteCustomerError) {
+        console.error('Error deleting customer:', deleteCustomerError);
+        throw deleteCustomerError;
+      }
+
+      console.log('Customer cascade delete completed successfully');
+    } catch (error: any) {
+      console.error('Error in customer cascade delete:', error);
       throw error;
     }
   },

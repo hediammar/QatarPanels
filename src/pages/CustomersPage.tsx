@@ -157,7 +157,7 @@ export function CustomersPage() {
   const confirmDelete = async () => {
     if (deletingCustomer) {
       try {
-        await crudOperations.delete('customers', deletingCustomer.id);
+        await crudOperations.deleteCustomer(deletingCustomer.id);
 
         setCustomers(customers.filter(c => c.id !== deletingCustomer.id));
         setDeletingCustomer(null);
@@ -721,7 +721,8 @@ export function CustomersPage() {
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the customer
-              "{deletingCustomer?.name}" and all associated projects and panels.
+              "{deletingCustomer?.name}" and their associated user account. 
+              All projects linked to this customer will be unlinked (customer_id set to NULL).
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-0">

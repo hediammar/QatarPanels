@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popove
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Avatar, AvatarFallback } from "../components/ui/avatar";
-import { Plus, Edit, Trash2, MoreHorizontal, UserPlus, Search, Filter, Users, Shield, Clock, Mail, Phone, Calendar, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Users2, Loader2 } from "lucide-react";
+import { Plus, Edit, Trash2, MoreHorizontal, UserPlus, Search, Filter, Users, Shield, Clock, Mail, Phone, Calendar, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Users2, Loader2, Building2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToastContext } from "../contexts/ToastContext";
@@ -31,6 +31,13 @@ const USER_ROLES = [
 
 type UserRole = typeof USER_ROLES[number]['value'];
 
+interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+}
+
 interface User {
   id: string;
   username: string;
@@ -43,15 +50,17 @@ interface User {
   created_at: string;
   updated_at: string;
   department?: string;
+  customer_id?: string;
+  customer?: Customer;
 }
-
-
 
 export function UsersPage() {
   const { user: currentUser } = useAuth();
   const { showToast } = useToastContext();
   const [users, setUsers] = useState<User[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [customersLoading, setCustomersLoading] = useState(false);
   
   // RBAC Permission checks
   const canManageUsersPermission = currentUser?.role ? canManageUsers(currentUser.role as UserRole) : false;
@@ -62,6 +71,11 @@ export function UsersPage() {
   // Fetch users from Supabase
   useEffect(() => {
     fetchUsers();
+  }, []);
+
+  // Fetch customers when component mounts
+  useEffect(() => {
+    fetchCustomers();
   }, []);
 
   const fetchUsers = async () => {
@@ -78,12 +92,66 @@ export function UsersPage() {
         return;
       }
 
+      // If we have users with customer_id, fetch customer data separately
+      if (data && data.length > 0) {
+        const usersWithCustomerIds = data.filter(user => user.customer_id);
+        if (usersWithCustomerIds.length > 0) {
+          const customerIds = usersWithCustomerIds.map(user => user.customer_id);
+          const { data: customerData, error: customerError } = await supabase
+            .from('customers')
+            .select('id, name, email, phone')
+            .in('id', customerIds);
+
+          if (customerError) {
+            console.error('Error fetching customers for users:', customerError);
+          } else {
+            // Create a map of customer data
+            const customerMap = new Map();
+            customerData?.forEach(customer => {
+              customerMap.set(customer.id, customer);
+            });
+
+            // Attach customer data to users
+            const usersWithCustomers = data.map(user => ({
+              ...user,
+              customer: user.customer_id ? customerMap.get(user.customer_id) : null
+            }));
+
+            setUsers(usersWithCustomers);
+            return;
+          }
+        }
+      }
+
       setUsers(data || []);
     } catch (error) {
       console.error('Error fetching users:', error);
       showToast('Error fetching users', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCustomers = async () => {
+    try {
+      setCustomersLoading(true);
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, name, email, phone')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching customers:', error);
+        showToast('Error fetching customers', 'error');
+        return;
+      }
+
+      setCustomers(data || []);
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      showToast('Error fetching customers', 'error');
+    } finally {
+      setCustomersLoading(false);
     }
   };
 
@@ -116,6 +184,7 @@ export function UsersPage() {
     department: string;
     password: string;
     confirmPassword: string;
+    customer_id: string;
   }>({
     username: '',
     name: '',
@@ -125,7 +194,8 @@ export function UsersPage() {
     status: 'active',
     department: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    customer_id: ''
   });
 
   // Get unique values for filters
@@ -141,7 +211,8 @@ export function UsersPage() {
       status: 'active',
       department: '',
       password: '',
-      confirmPassword: ''
+      confirmPassword: '',
+      customer_id: ''
     });
   };
 
@@ -278,6 +349,12 @@ export function UsersPage() {
       return;
     }
 
+    // Customer validation for Customer role
+    if (formData.role === 'Customer' && !formData.customer_id) {
+      showToast('Customer selection is required for Customer role', 'error');
+      return;
+    }
+
     // Password validation
     if (!editingUser) {
       // For new users, password is required
@@ -316,6 +393,7 @@ export function UsersPage() {
           role: formData.role,
           status: formData.status,
           department: formData.department || null,
+          customer_id: formData.customer_id || null,
           updated_at: new Date().toISOString()
         };
 
@@ -350,6 +428,7 @@ export function UsersPage() {
             role: formData.role,
             status: formData.status,
             department: formData.department || null,
+            customer_id: formData.customer_id || null,
             password_hash: formData.password // In production, this should be hashed
           });
 
@@ -409,7 +488,8 @@ export function UsersPage() {
       status: user.status,
       department: user.department || '',
       password: '',
-      confirmPassword: ''
+      confirmPassword: '',
+      customer_id: user.customer_id || ''
     });
   };
 
@@ -706,6 +786,37 @@ export function UsersPage() {
                   </Select>
                 </div>
 
+                {formData.role === 'Customer' && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="customer">Customer</Label>
+                    <Select
+                      value={formData.customer_id}
+                      onValueChange={(value) => setFormData({ ...formData, customer_id: value })}
+                      disabled={customersLoading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a customer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customersLoading ? (
+                          <SelectItem value="" disabled>Loading customers...</SelectItem>
+                        ) : customers.length === 0 ? (
+                          <SelectItem value="" disabled>No customers found</SelectItem>
+                        ) : (
+                          customers.map((customer) => (
+                            <SelectItem key={customer.id} value={customer.id}>
+                              <div className="flex items-center gap-2">
+                                <Building2 className="h-4 w-4" />
+                                {customer.name}
+                              </div>
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 <div className="grid gap-2">
                   <Label htmlFor="password">Password</Label>
                   <Input
@@ -963,6 +1074,7 @@ export function UsersPage() {
                     <TableHead className="w-[250px]">User</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Department</TableHead>
+                    <TableHead>Customer</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Last Login</TableHead>
                     <TableHead>Login Count</TableHead>
@@ -972,7 +1084,7 @@ export function UsersPage() {
                 <TableBody>
                   {paginatedUsers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
+                      <TableCell colSpan={8} className="text-center py-8">
                         <div className="flex flex-col items-center gap-2">
                           <Users className="h-8 w-8 text-muted-foreground" />
                           <p className="text-muted-foreground">
@@ -1018,6 +1130,11 @@ export function UsersPage() {
                         </TableCell>
                         <TableCell>
                           <span className="text-sm">{user.department || '—'}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm">
+                            {user.customer?.name || '—'}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -1214,6 +1331,37 @@ export function UsersPage() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                                 {formData.role === 'Customer' && (
+                   <div className="grid gap-2">
+                     <Label htmlFor="edit-customer">Customer</Label>
+                     <Select
+                       value={formData.customer_id}
+                       onValueChange={(value) => setFormData({ ...formData, customer_id: value })}
+                       disabled={customersLoading}
+                     >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a customer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customersLoading ? (
+                          <SelectItem value="" disabled>Loading customers...</SelectItem>
+                        ) : customers.length === 0 ? (
+                          <SelectItem value="" disabled>No customers found</SelectItem>
+                        ) : (
+                          customers.map((customer) => (
+                            <SelectItem key={customer.id} value={customer.id}>
+                              <div className="flex items-center gap-2">
+                                <Building2 className="h-4 w-4" />
+                                {customer.name}
+                              </div>
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 <div className="grid gap-2">
                   <Label htmlFor="edit-password">Password (leave blank to keep current)</Label>

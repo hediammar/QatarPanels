@@ -206,7 +206,7 @@ export function Dashboard({ customers, projects, panels }: DashboardProps) {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1>Dashboard</h1>
+        
         <p className="text-muted-foreground">Overview of your CRM and precast panel operations</p>
       </div>
 
@@ -1637,9 +1637,9 @@ export function HomePage({ customers = [], projects = [], panels = [] }: HomePag
         <div>
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold">Dashboard</h1>
-            <Button onClick={() => setCurrentView('bulk-import')}>
+            {/* <Button onClick={() => setCurrentView('bulk-import')}>
               Bulk Import Projects
-            </Button>
+            </Button> */}
           </div>
           <Dashboard customers={customers} projects={projects} panels={panels} />
         </div>

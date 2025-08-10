@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { supabase } from '../../lib/supabase';
+import { crudOperations } from '../../utils/userTracking';
 import { BuildingModalTrigger } from '../BuildingModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { hasPermission, UserRole } from '../../utils/rolePermissions';
@@ -135,18 +136,14 @@ export function BuildingsSection({
   }, [projectId]);
 
   const handleDelete = async (building: BuildingModel) => {
-    if (window.confirm('Are you sure you want to delete this building?')) {
-      const { error } = await supabase
-        .from('buildings')
-        .delete()
-        .eq('id', building.id);
-
-      if (error) {
-        console.error('Error deleting building:', error);
-        return;
-      }
-
+    if (!window.confirm('Are you sure you want to delete this building? This will delete its facades and unlink its panels.')) {
+      return;
+    }
+    try {
+      await crudOperations.deleteBuilding(building.id);
       setBuildings(buildings.filter(b => b.id !== building.id));
+    } catch (error) {
+      console.error('Error deleting building:', error);
     }
   };
 

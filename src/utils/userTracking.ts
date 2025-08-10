@@ -610,6 +610,80 @@ export const crudOperations = {
     }
   },
 
+  // Specialized building delete with cascade handling
+  async deleteBuilding(buildingId: string) {
+    try {
+      console.log(`Starting cascade delete for building: ${buildingId}`);
+
+      // Step 1: Set building_id to NULL in panels that reference this building
+      console.log('Setting building_id to NULL in panels table...');
+      const { error: panelsUnlinkError } = await supabase
+        .from('panels')
+        .update({ building_id: null })
+        .eq('building_id', buildingId);
+      if (panelsUnlinkError) {
+        console.error('Error unlinking panels from building:', panelsUnlinkError);
+        throw panelsUnlinkError;
+      }
+
+      // Step 2: Fetch facades linked to this building
+      console.log('Fetching facades linked to this building...');
+      const { data: facades, error: facadesFetchError } = await supabase
+        .from('facades')
+        .select('id')
+        .eq('building_id', buildingId);
+      if (facadesFetchError) {
+        console.error('Error fetching facades:', facadesFetchError);
+        throw facadesFetchError;
+      }
+
+      const facadeIds = (facades || []).map((f: any) => f.id);
+      console.log('Facade IDs to delete:', facadeIds);
+
+      if (facadeIds.length > 0) {
+        // Step 3: Set facade_id to NULL in panels referencing these facades
+        console.log('Setting facade_id to NULL in panels referencing these facades...');
+        const { error: panelsUnlinkFacadesError } = await supabase
+          .from('panels')
+          .update({ facade_id: null })
+          .in('facade_id', facadeIds);
+        if (panelsUnlinkFacadesError) {
+          console.error('Error unlinking panels from facades:', panelsUnlinkFacadesError);
+          throw panelsUnlinkFacadesError;
+        }
+
+        // Step 4: Delete facades linked to this building
+        console.log('Deleting facades linked to this building...');
+        const { error: deleteFacadesError } = await supabase
+          .from('facades')
+          .delete()
+          .eq('building_id', buildingId);
+        if (deleteFacadesError) {
+          console.error('Error deleting facades:', deleteFacadesError);
+          throw deleteFacadesError;
+        }
+      } else {
+        console.log('No facades to delete for this building.');
+      }
+
+      // Step 5: Finally delete the building
+      console.log('Deleting building...');
+      const { error: deleteBuildingError } = await supabase
+        .from('buildings')
+        .delete()
+        .eq('id', buildingId);
+      if (deleteBuildingError) {
+        console.error('Error deleting building:', deleteBuildingError);
+        throw deleteBuildingError;
+      }
+
+      console.log('Building cascade delete completed successfully');
+    } catch (error: any) {
+      console.error('Error in building cascade delete:', error);
+      throw error;
+    }
+  },
+
   // Specialized customer delete with cascade handling
   async deleteCustomer(customerId: string) {
     try {

@@ -65,7 +65,7 @@ export function Timeline({ panel }: TimelineProps) {
             user_id,
             notes,
             image_url,
-            users!user_id(id, name, username)
+            users!panel_status_histories_user_id_fkey(id, name, username)
           `)
           .eq('panel_id', panel.id)
           .order('created_at', { ascending: false });

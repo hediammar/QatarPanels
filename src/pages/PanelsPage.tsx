@@ -321,101 +321,102 @@ export function PanelsPage() {
       showToast("An unexpected error occurred", "error");
     }
   };
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
+  // Shared data fetcher so we can reuse after CRUD/status changes
+  const fetchData = async () => {
+    setLoading(true);
 
-      // Check if current user is a customer and implement data filtering
-      const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
+    // Check if current user is a customer and implement data filtering
+    const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
 
-      // Fetch projects with customer filtering
-      let projectQuery = supabase
-        .from("projects")
-        .select("id, name, customer_id");
-      
-      if (isCustomer && currentUser?.customer_id) {
-        projectQuery = projectQuery.eq('customer_id', currentUser.customer_id);
-        console.log('Filtering projects for customer:', currentUser.customer_id);
+    // Fetch projects with customer filtering
+    let projectQuery = supabase
+      .from("projects")
+      .select("id, name, customer_id");
+    
+    if (isCustomer && currentUser?.customer_id) {
+      projectQuery = projectQuery.eq('customer_id', currentUser.customer_id);
+      console.log('Filtering projects for customer:', currentUser.customer_id);
+    }
+    
+    const { data: projectData, error: projectError } = await projectQuery;
+    if (projectError) {
+      console.error("Error fetching projects:", projectError);
+    } else {
+      setProjects(projectData || []);
+      // Set first project as default if available
+      if (projectData && projectData.length > 0 && !selectedProjectId) {
+        setSelectedProjectId(projectData[0].id);
       }
-      
-      const { data: projectData, error: projectError } = await projectQuery;
-      if (projectError) {
-        console.error("Error fetching projects:", projectError);
-      } else {
-        setProjects(projectData || []);
-        // Set first project as default if available
-        if (projectData && projectData.length > 0 && !selectedProjectId) {
-          setSelectedProjectId(projectData[0].id);
-        }
-      }
-      const accessibleProjectIds = (projectData || []).map((p: any) => p.id);
+    }
+    const accessibleProjectIds = (projectData || []).map((p: any) => p.id);
 
-      // Fetch buildings with customer filtering
-      let buildingQuery = supabase
-        .from("buildings")
-        .select("id, name, project_id");
-      // For customer users, restrict buildings to their accessible projects
-      if (isCustomer && accessibleProjectIds.length > 0) {
-        buildingQuery = buildingQuery.in('project_id', accessibleProjectIds);
-      }
-      
-      const { data: buildingData, error: buildingError } = await buildingQuery;
-      if (buildingError) {
-        console.error("Error fetching buildings:", buildingError);
-      } else {
-        setBuildings(buildingData || []);
-      }
-
-      // Fetch facades with customer filtering
-      let facadeQuery = supabase
-        .from("facades")
-        .select(`
-          id,
-          name,
-          buildings!inner(project_id)
-        `);
-      // For customer users, restrict facades to their accessible projects via buildings join
-      if (isCustomer && accessibleProjectIds.length > 0) {
-        facadeQuery = facadeQuery.in('buildings.project_id', accessibleProjectIds);
-      }
-      
-      const { data: facadeData, error: facadeError } = await facadeQuery;
-      if (facadeError) {
-        console.error("Error fetching facades:", facadeError);
-      } else {
-        setFacades(facadeData || []);
-      }
-
-      // Fetch panels with customer filtering
-      let panelQuery = supabase
-        .from("panels")
-        .select(`
-          *,
-          projects!inner(name, customer_id),
-          buildings(name),
-          facades(name)
-        `);
-      // For customer users, restrict panels to projects they own via join filter
-      if (isCustomer && currentUser?.customer_id) {
-        panelQuery = panelQuery.eq('projects.customer_id', currentUser.customer_id);
-      }
-
-      const { data, error } = await panelQuery;
-
-      if (error) {
-        console.error("Error fetching panels:", error);
-      } else {
-        const formattedData = data?.map((panel) => ({
-          ...panel,
-          project_name: panel.projects?.name,
-          building_name: panel.buildings?.name,
-          facade_name: panel.facades?.name,
-        })) || [];
-        setPanels(formattedData);
-      }
-      setLoading(false);
+    // Fetch buildings with customer filtering
+    let buildingQuery = supabase
+      .from("buildings")
+      .select("id, name, project_id");
+    // For customer users, restrict buildings to their accessible projects
+    if (isCustomer && accessibleProjectIds.length > 0) {
+      buildingQuery = buildingQuery.in('project_id', accessibleProjectIds);
+    }
+    
+    const { data: buildingData, error: buildingError } = await buildingQuery;
+    if (buildingError) {
+      console.error("Error fetching buildings:", buildingError);
+    } else {
+      setBuildings(buildingData || []);
     }
 
+    // Fetch facades with customer filtering
+    let facadeQuery = supabase
+      .from("facades")
+      .select(`
+        id,
+        name,
+        buildings!inner(project_id)
+      `);
+    // For customer users, restrict facades to their accessible projects via buildings join
+    if (isCustomer && accessibleProjectIds.length > 0) {
+      facadeQuery = facadeQuery.in('buildings.project_id', accessibleProjectIds);
+    }
+    
+    const { data: facadeData, error: facadeError } = await facadeQuery;
+    if (facadeError) {
+      console.error("Error fetching facades:", facadeError);
+    } else {
+      setFacades(facadeData || []);
+    }
+
+    // Fetch panels with customer filtering
+    let panelQuery = supabase
+      .from("panels")
+      .select(`
+        *,
+        projects!inner(name, customer_id),
+        buildings(name),
+        facades(name)
+      `);
+    // For customer users, restrict panels to projects they own via join filter
+    if (isCustomer && currentUser?.customer_id) {
+      panelQuery = panelQuery.eq('projects.customer_id', currentUser.customer_id);
+    }
+
+    const { data, error } = await panelQuery;
+
+    if (error) {
+      console.error("Error fetching panels:", error);
+    } else {
+      const formattedData = data?.map((panel) => ({
+        ...panel,
+        project_name: panel.projects?.name,
+        building_name: panel.buildings?.name,
+        facade_name: panel.facades?.name,
+      })) || [];
+      setPanels(formattedData);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
     fetchData();
   }, [currentUser?.customer_id]);
 
@@ -476,11 +477,8 @@ export function PanelsPage() {
   };
 
   const handleStatusChanged = () => {
-    // Refresh the panels data by triggering a re-fetch
-    // This will trigger the useEffect to re-run
-    setLoading(true);
-    // Force a re-render by updating a state that triggers the useEffect
-    setCurrentPage(currentPage);
+    // Explicitly refresh data to ensure UI reflects latest status
+    fetchData();
   };
 
   const confirmDeletePanel = async () => {

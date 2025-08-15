@@ -23,6 +23,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { hasPermission, UserRole } from '../utils/rolePermissions';
 import * as XLSX from 'xlsx';
+import { crudOperations } from '../utils/userTracking';
 
 interface PanelImportData {
   project_name: string;
@@ -37,7 +38,10 @@ interface PanelImportData {
   unit_qty: string;
   ifp_qty_nos: string;
   ifp_qty: string;
-  dimension: string;
+  dimension?: string;
+  building_name?: string;
+  facade_name?: string;
+  customer_name?: string;
 }
 
 interface ValidationResult {
@@ -53,6 +57,18 @@ interface ImportResult {
   errors?: string[];
 }
 
+interface Building {
+  id: string;
+  name: string;
+  project_id: string;
+}
+
+interface Facade {
+  id: string;
+  name: string;
+  building_id?: string;
+}
+
 export function BulkImportPanelsPage() {
   const { user: currentUser } = useAuth();
   const [file, setFile] = useState<File | null>(null);
@@ -62,6 +78,9 @@ export function BulkImportPanelsPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
+  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [facades, setFacades] = useState<Facade[]>([]);
+  const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,6 +89,9 @@ export function BulkImportPanelsPage() {
 
   useEffect(() => {
     fetchProjects();
+    fetchBuildings();
+    fetchFacades();
+    fetchCustomers();
   }, []);
 
   const fetchProjects = async () => {
@@ -84,6 +106,273 @@ export function BulkImportPanelsPage() {
     } catch (err: any) {
       setError('Failed to fetch projects: ' + err.message);
     }
+  };
+
+  const fetchBuildings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('buildings')
+        .select('id, name, project_id')
+        .order('name');
+
+      if (error) throw error;
+      setBuildings(data || []);
+    } catch (err: any) {
+      console.error('Failed to fetch buildings:', err);
+    }
+  };
+
+  const fetchFacades = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('facades')
+        .select('id, name, building_id')
+        .order('name');
+
+      if (error) throw error;
+      setFacades(data || []);
+    } catch (err: any) {
+      console.error('Failed to fetch facades:', err);
+    }
+  };
+
+  const fetchCustomers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id, name')
+        .order('name');
+
+      if (error) throw error;
+      setCustomers(data || []);
+    } catch (err: any) {
+      console.error('Failed to fetch customers:', err);
+    }
+  };
+
+  // Helper functions for finding and creating projects, buildings, and facades
+  const normalizeName = (value?: string) => (value || "").trim().toLowerCase();
+
+  const findProjectIdByName = (name?: string): string | undefined => {
+    if (!name) return undefined;
+    const target = normalizeName(name);
+    const match = projects.find((p) => normalizeName(p.name) === target);
+    return match?.id;
+  };
+
+  const findBuildingIdByName = (name?: string, projectId?: string): string | undefined => {
+    if (!name || !projectId) return undefined;
+    const target = normalizeName(name);
+    const match = buildings.find((b) => normalizeName(b.name) === target && b.project_id === projectId);
+    return match?.id;
+  };
+
+  const findFacadeIdByName = (name?: string, buildingId?: string): string | undefined => {
+    if (!name || !buildingId) return undefined;
+    const target = normalizeName(name);
+    const match = facades.find((f) => normalizeName(f.name) === target && f.building_id === buildingId);
+    return match?.id;
+  };
+
+  const createProjectIfNotExists = async (projectName: string, customerId: string): Promise<string | null> => {
+    if (!projectName) return null;
+    
+    // First check if project already exists
+    const existingProjectId = findProjectIdByName(projectName);
+    if (existingProjectId) {
+      return existingProjectId;
+    }
+
+    // Create new project with default values
+    try {
+      const projectData = {
+        name: projectName,
+        customer_id: customerId, // Set the customer_id
+        location: 'Unknown Location',
+        status: 'active',
+        start_date: new Date().toISOString().split('T')[0], // Default to today
+      };
+
+      console.log('Creating new project:', projectData);
+      const newProject = await crudOperations.create("projects", projectData);
+      
+      // Add to local state
+      setProjects(prev => [...prev, { id: newProject.id, name: projectName }]);
+      
+      console.log('Project created successfully:', newProject.id);
+      return newProject.id;
+    } catch (error) {
+      console.error('Error creating project:', error);
+      throw new Error(`Failed to create project "${projectName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const createBuildingIfNotExists = async (buildingName: string, projectId: string): Promise<string | null> => {
+    if (!buildingName || !projectId) return null;
+    
+    // First check if building already exists in this project
+    const existingBuildingId = findBuildingIdByName(buildingName, projectId);
+    if (existingBuildingId) {
+      return existingBuildingId;
+    }
+
+    // Create new building
+    try {
+      const buildingData = {
+        name: buildingName,
+        project_id: projectId,
+        status: 0, // Default status
+        description: `Building created during bulk import for project ${projectId}`,
+      };
+
+      console.log('Creating new building:', buildingData);
+      const newBuilding = await crudOperations.create("buildings", buildingData);
+      
+      // Add to local state
+      setBuildings(prev => [...prev, { id: newBuilding.id, name: buildingName, project_id: projectId }]);
+      
+      console.log('Building created successfully:', newBuilding.id);
+      return newBuilding.id;
+    } catch (error) {
+      console.error('Error creating building:', error);
+      throw new Error(`Failed to create building "${buildingName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const createFacadeIfNotExists = async (facadeName: string, buildingId: string): Promise<string | null> => {
+    if (!facadeName || !buildingId) return null;
+    
+    // First check if facade already exists in this building
+    const existingFacadeId = findFacadeIdByName(facadeName, buildingId);
+    if (existingFacadeId) {
+      return existingFacadeId;
+    }
+
+    // Create new facade
+    try {
+      const facadeData = {
+        name: facadeName,
+        building_id: buildingId,
+        status: 0, // Default status
+        description: `Facade created during bulk import for building ${buildingId}`,
+      };
+
+      console.log('Creating new facade:', facadeData);
+      const newFacade = await crudOperations.create("facades", facadeData);
+      
+      // Add to local state
+      setFacades(prev => [...prev, { id: newFacade.id, name: facadeName, building_id: buildingId }]);
+      
+      console.log('Facade created successfully:', newFacade.id);
+      return newFacade.id;
+    } catch (error) {
+      console.error('Error creating facade:', error);
+      throw new Error(`Failed to create facade "${facadeName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const findCustomerIdByName = (name?: string): string | undefined => {
+    if (!name) return undefined;
+    const target = normalizeName(name);
+    const match = customers.find((c) => normalizeName(c.name) === target);
+    return match?.id;
+  };
+
+  const createCustomerIfNotExists = async (customerName: string): Promise<string | null> => {
+    if (!customerName) return null;
+    
+    // First check if customer already exists
+    const existingCustomerId = findCustomerIdByName(customerName);
+    if (existingCustomerId) {
+      return existingCustomerId;
+    }
+
+    // Create new customer
+    try {
+      const customerData = {
+        name: customerName,
+        email: `${customerName.toLowerCase().replace(/\s+/g, '.')}@example.com`, // Generate default email
+        phone: '+974-0000-0000', // Default Qatar phone number
+      };
+
+      console.log('Creating new customer:', customerData);
+      const newCustomer = await crudOperations.create("customers", customerData);
+      
+      // Add to local state
+      setCustomers(prev => [...prev, { id: newCustomer.id, name: customerName }]);
+      
+      console.log('Customer created successfully:', newCustomer.id);
+      return newCustomer.id;
+    } catch (error) {
+      console.error('Error creating customer:', error);
+      throw new Error(`Failed to create customer "${customerName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const resolveProjectBuildingAndFacadeIds = async (row: PanelImportData): Promise<{ 
+    project_id?: string, 
+    building_id?: string, 
+    facade_id?: string 
+  }> => {
+    let resolvedProjectId = findProjectIdByName(row.project_name);
+    let resolvedBuildingId: string | undefined;
+    let resolvedFacadeId: string | undefined;
+
+    // If project doesn't exist, create it
+    if (!resolvedProjectId) {
+      try {
+        // First resolve customer if provided, or create a default one
+        let customerId: string | null = null;
+        
+        if (row.customer_name && row.customer_name.trim()) {
+          const customer = await createCustomerIfNotExists(row.customer_name);
+          customerId = customer;
+        } else {
+          // Create a default customer for the project
+          const defaultCustomerName = `${row.project_name} Customer`;
+          const customer = await createCustomerIfNotExists(defaultCustomerName);
+          customerId = customer;
+        }
+
+        if (!customerId) {
+          throw new Error(`Failed to create or find customer for project "${row.project_name}"`);
+        }
+
+        const projectId = await createProjectIfNotExists(row.project_name, customerId);
+        resolvedProjectId = projectId || undefined;
+      } catch (error) {
+        console.error('Error resolving project:', error);
+        throw error;
+      }
+    }
+
+    // If building name is provided, find or create building
+    if (row.building_name && resolvedProjectId) {
+      try {
+        const buildingId = await createBuildingIfNotExists(row.building_name, resolvedProjectId);
+        resolvedBuildingId = buildingId || undefined;
+      } catch (error) {
+        console.error('Error resolving building:', error);
+        throw error;
+      }
+    }
+
+    // If facade name is provided, find or create facade
+    if (row.facade_name && resolvedBuildingId) {
+      try {
+        const facadeId = await createFacadeIfNotExists(row.facade_name, resolvedBuildingId);
+        resolvedFacadeId = facadeId || undefined;
+      } catch (error) {
+        console.error('Error resolving facade:', error);
+        throw error;
+      }
+    }
+
+    return {
+      project_id: resolvedProjectId,
+      building_id: resolvedBuildingId,
+      facade_id: resolvedFacadeId,
+    };
   };
 
   const downloadTemplate = () => {
@@ -101,7 +390,11 @@ export function BulkImportPanelsPage() {
           panel_tag: 'A-001',
           unit_qty: '10.5',
           ifp_qty_nos: '5',
-          ifp_qty: '52.5'
+          ifp_qty: '52.5',
+          dimension: '1000x500x100',
+          building_name: 'Building A',
+          facade_name: 'North Facade',
+          customer_name: 'Al Rayyan Construction'
         },
         {
           project_name: 'Project Beta',
@@ -115,7 +408,11 @@ export function BulkImportPanelsPage() {
           panel_tag: 'B-002',
           unit_qty: '8.0',
           ifp_qty_nos: '3',
-          ifp_qty: '24.0'
+          ifp_qty: '24.0',
+          dimension: '500x300x50',
+          building_name: 'Main Tower',
+          facade_name: 'East Facade',
+          customer_name: 'Qatar Building Solutions'
         },
         {
           project_name: 'Project Gamma',
@@ -129,7 +426,11 @@ export function BulkImportPanelsPage() {
           panel_tag: 'C-003',
           unit_qty: '15.0',
           ifp_qty_nos: '2',
-          ifp_qty: '30.0'
+          ifp_qty: '30.0',
+          dimension: '2000x1000x150',
+          building_name: 'Office Complex',
+          facade_name: 'South Facade',
+          customer_name: 'Doha Development Corp'
         }
      ];
 
@@ -150,7 +451,11 @@ export function BulkImportPanelsPage() {
       'panel_tag',
       'unit_qty',
       'ifp_qty_nos',
-      'ifp_qty'
+      'ifp_qty',
+      'dimension',
+      'building_name',
+      'facade_name',
+      'customer_name'
     ];
 
     // Add headers to the first row
@@ -169,7 +474,11 @@ export function BulkImportPanelsPage() {
       { wch: 12 }, // panel_tag
       { wch: 10 }, // unit_qty
       { wch: 12 }, // ifp_qty_nos
-      { wch: 10 }  // ifp_qty
+      { wch: 10 }, // ifp_qty
+      { wch: 15 }, // dimension
+      { wch: 15 }, // building_name
+      { wch: 15 }, // facade_name
+      { wch: 20 }  // customer_name
     ];
     ws['!cols'] = colWidths;
 
@@ -244,7 +553,10 @@ export function BulkImportPanelsPage() {
                 unit_qty: row[9]?.toString().trim() || '',
                 ifp_qty_nos: row[10]?.toString().trim() || '',
                 ifp_qty: row[11]?.toString().trim() || '',
-                dimension: row[12]?.toString().trim() || ''
+                dimension: row[12]?.toString().trim() || undefined,
+                building_name: row[13]?.toString().trim() || undefined,
+                facade_name: row[14]?.toString().trim() || undefined,
+                customer_name: row[15]?.toString().trim() || undefined,
               });
             }
           }
@@ -269,17 +581,10 @@ export function BulkImportPanelsPage() {
         errors.push('Panel name is required');
       }
 
-      // Project name validation - only validate if provided
-      if (row.project_name && row.project_name.trim()) {
-        const projectExists = projects.find(p => 
-          p.name.toLowerCase() === row.project_name?.toLowerCase()
-        );
-        if (!projectExists) {
-          errors.push(`Project "${row.project_name}" not found in database`);
-        }
-      }
+      // Project name validation - removed since projects will be created automatically
+      // Note: Project validation errors are removed since they will be created automatically during import
 
-             // Date validation - only validate if date is provided
+      // Date validation - only validate if date is provided
        if (row.date && row.date.trim()) {
          const dateStr = row.date.trim();
          
@@ -490,93 +795,101 @@ export function BulkImportPanelsPage() {
     for (let i = 0; i < validData.length; i++) {
       const row = validData[i];
       try {
-        // Find project ID
-        const project = row.project_name && row.project_name.trim() 
-          ? projects.find(p => p.name.toLowerCase() === row.project_name.toLowerCase())
-          : null;
+        // Resolve project, building, and facade IDs
+        const { project_id, building_id, facade_id } = await resolveProjectBuildingAndFacadeIds(row);
 
-                 // Helper function to parse date in different formats
-         const parseDate = (dateStr: string): Date | null => {
-           if (!dateStr.trim()) return null;
-           
-           const str = dateStr.trim();
-           
-           // Handle 0000-00-00 format - convert to earliest valid date
-           if (str === '0000-00-00' || str === '00/00/0000' || str === '00.00.0000') {
-             return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
-           }
-           
-           try {
-             // Try different date formats
-             if (str.includes('/')) {
-               // Format: DD/MM/YYYY
-               const parts = str.split('/');
-               if (parts.length === 3) {
-                 // Check for invalid date parts (00/00/YYYY or DD/00/YYYY or DD/MM/0000)
-                 if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
-                   return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
-                 }
-                 const year = parseInt(parts[2]);
-                 const month = parseInt(parts[1]) - 1;
-                 const day = parseInt(parts[0]);
-                 
-                 // Create date using UTC to avoid timezone issues
-                 const date = new Date(Date.UTC(year, month, day));
-                 if (!isNaN(date.getTime())) {
-                   return date;
-                 }
-               }
-             } else if (str.includes('.')) {
-               // Format: DD.MM.YYYY
-               const parts = str.split('.');
-               if (parts.length === 3) {
-                 // Check for invalid date parts (00.00.YYYY or DD.00.YYYY or DD.MM.0000)
-                 if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
-                   return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
-                 }
-                 const year = parseInt(parts[2]);
-                 const month = parseInt(parts[1]) - 1;
-                 const day = parseInt(parts[0]);
-                 
-                 // Create date using UTC to avoid timezone issues
-                 const date = new Date(Date.UTC(year, month, day));
-                 if (!isNaN(date.getTime())) {
-                   return date;
-                 }
-               }
-             } else if (str.includes('-')) {
-               // Format: YYYY-MM-DD
-               const parts = str.split('-');
-               if (parts.length === 3) {
-                 // Check for invalid date parts (0000-MM-DD or YYYY-00-DD or YYYY-MM-00)
-                 if (parts[0] === '0000' || parts[1] === '00' || parts[2] === '00') {
-                   return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
-                 }
-                 const year = parseInt(parts[0]);
-                 const month = parseInt(parts[1]) - 1;
-                 const day = parseInt(parts[2]);
-                 
-                 // Create date using UTC to avoid timezone issues
-                 const date = new Date(Date.UTC(year, month, day));
-                 if (!isNaN(date.getTime())) {
-                   return date;
-                 }
-               }
-             }
-             
-             // Try parsing as ISO string
-             const parsedDate = new Date(str);
-             if (!isNaN(parsedDate.getTime())) {
-               return parsedDate;
-             }
-             
-             // If all else fails, return 1900-01-01
-             return new Date('1900-01-01T00:00:00.000Z');
-           } catch (error) {
-             // If any error occurs, return 1900-01-01
-             return new Date('1900-01-01T00:00:00.000Z');
-           }
-         };
+        if (!project_id) {
+          results.push({
+            success: false,
+            message: `Failed to resolve project for "${row.name}". Project "${row.project_name}" not found and could not be created.`,
+            errors: [`Project "${row.project_name}" not found.`]
+          });
+          errorCount++;
+          continue;
+        }
+
+        // Helper function to parse date in different formats
+        const parseDate = (dateStr: string): Date | null => {
+          if (!dateStr.trim()) return null;
+          
+          const str = dateStr.trim();
+          
+          // Handle 0000-00-00 format - convert to earliest valid date
+          if (str === '0000-00-00' || str === '00/00/0000' || str === '00.00.0000') {
+            return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+          }
+          
+          try {
+            // Try different date formats
+            if (str.includes('/')) {
+              // Format: DD/MM/YYYY
+              const parts = str.split('/');
+              if (parts.length === 3) {
+                // Check for invalid date parts (00/00/YYYY or DD/00/YYYY or DD/MM/0000)
+                if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
+                  return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+                }
+                const year = parseInt(parts[2]);
+                const month = parseInt(parts[1]) - 1;
+                const day = parseInt(parts[0]);
+                
+                // Create date using UTC to avoid timezone issues
+                const date = new Date(Date.UTC(year, month, day));
+                if (!isNaN(date.getTime())) {
+                  return date;
+                }
+              }
+            } else if (str.includes('.')) {
+              // Format: DD.MM.YYYY
+              const parts = str.split('.');
+              if (parts.length === 3) {
+                // Check for invalid date parts (00.00.YYYY or DD.00.YYYY or DD.MM.0000)
+                if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
+                  return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+                }
+                const year = parseInt(parts[2]);
+                const month = parseInt(parts[1]) - 1;
+                const day = parseInt(parts[0]);
+                
+                // Create date using UTC to avoid timezone issues
+                const date = new Date(Date.UTC(year, month, day));
+                if (!isNaN(date.getTime())) {
+                  return date;
+                }
+              }
+            } else if (str.includes('-')) {
+              // Format: YYYY-MM-DD
+              const parts = str.split('-');
+              if (parts.length === 3) {
+                // Check for invalid date parts (0000-MM-DD or YYYY-00-DD or YYYY-MM-00)
+                if (parts[0] === '0000' || parts[1] === '00' || parts[2] === '00') {
+                  return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+                }
+                const year = parseInt(parts[0]);
+                const month = parseInt(parts[1]) - 1;
+                const day = parseInt(parts[2]);
+                
+                // Create date using UTC to avoid timezone issues
+                const date = new Date(Date.UTC(year, month, day));
+                if (!isNaN(date.getTime())) {
+                  return date;
+                }
+              }
+            }
+            
+            // Try parsing as ISO string
+            const parsedDate = new Date(str);
+            if (!isNaN(parsedDate.getTime())) {
+              return parsedDate;
+            }
+            
+            // If all else fails, return 1900-01-01
+            return new Date('1900-01-01T00:00:00.000Z');
+          } catch (error) {
+            // If any error occurs, return 1900-01-01
+            return new Date('1900-01-01T00:00:00.000Z');
+          }
+        };
 
         // Helper function to map status text to numeric value
         const mapStatusToNumber = (statusText: string): number | null => {
@@ -628,7 +941,9 @@ export function BulkImportPanelsPage() {
           name: row.name.trim(),
           type: row.type?.trim() ? mapTypeToNumber(row.type) : null, // Map text to number
           status: row.status?.trim() ? mapStatusToNumber(row.status) : null,
-          project_id: project?.id || null,
+          project_id: project_id,
+          building_id: building_id || null,
+          facade_id: facade_id || null,
           issue_transmittal_no: row.issue_transmittal_no?.trim() || null,
           drawing_number: row.dwg_no?.trim() || null,
           unit_rate_qr_m2: row.unit_qty?.trim() ? parseFloat(row.unit_qty) : null,
@@ -828,6 +1143,10 @@ export function BulkImportPanelsPage() {
                     <TableHead>unit_qty</TableHead>
                     <TableHead>ifp_qty_nos</TableHead>
                     <TableHead>ifp_qty</TableHead>
+                    <TableHead>dimension</TableHead>
+                    <TableHead>building_name</TableHead>
+                    <TableHead>facade_name</TableHead>
+                    <TableHead>customer_name</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -844,6 +1163,10 @@ export function BulkImportPanelsPage() {
                      <TableCell>10.5</TableCell>
                      <TableCell>5</TableCell>
                      <TableCell>52.5</TableCell>
+                     <TableCell>1000x500x100</TableCell>
+                     <TableCell>Building A</TableCell>
+                     <TableCell>North Facade</TableCell>
+                     <TableCell>Al Rayyan Construction</TableCell>
                    </TableRow>
                 </TableBody>
               </Table>
@@ -855,7 +1178,18 @@ export function BulkImportPanelsPage() {
                </p>
              </div>
              
-                           <div className="mt-4 p-4 bg-yellow-50 rounded-lg">
+             <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+               <p className="text-sm text-blue-800 mb-2">
+                 <strong>Automatic Creation:</strong> 
+                 - Customers will be created automatically if they don't exist
+                 - Projects will be created automatically if they don't exist
+                 - Buildings will be created automatically if they don't exist in the project
+                 - Facades will be created automatically if they don't exist in the building
+                 - All relationships will be properly maintained
+               </p>
+             </div>
+              
+              <div className="mt-4 p-4 bg-yellow-50 rounded-lg">
                 <p className="text-sm text-yellow-800 mb-2">
                   <strong>Available Panel Types:</strong>
                 </p>
@@ -926,6 +1260,9 @@ export function BulkImportPanelsPage() {
                     <TableHead>Row</TableHead>
                     <TableHead>Panel Name</TableHead>
                     <TableHead>Project</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Building</TableHead>
+                    <TableHead>Facade</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Issues</TableHead>
                   </TableRow>
@@ -938,6 +1275,9 @@ export function BulkImportPanelsPage() {
                         <TableCell>{index + 1}</TableCell>
                         <TableCell>{row.name}</TableCell>
                         <TableCell>{row.project_name}</TableCell>
+                        <TableCell>{row.customer_name || '—'}</TableCell>
+                        <TableCell>{row.building_name || '—'}</TableCell>
+                        <TableCell>{row.facade_name || '—'}</TableCell>
                         <TableCell>
                           {validation?.isValid ? (
                             <Badge variant="default" className="flex items-center gap-1">

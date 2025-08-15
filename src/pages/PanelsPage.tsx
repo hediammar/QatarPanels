@@ -88,29 +88,19 @@ import { crudOperations, testDatabaseConnection, checkTableStructure, testMinima
 import { StatusChangeDialog } from "../components/StatusChangeDialog";
 import { useAuth } from "../contexts/AuthContext";
 import { hasPermission, isCustomerRole, UserRole } from "../utils/rolePermissions";
-
-const PANEL_STATUSES = [
-  "Issued For Production",
-  "Produced",
-  "Inspected",
-  "Approved Material",
-  "Rejected Material",
-  "Issued",
-  "Proceed for Delivery",
-  "Delivered",
-  "Installed",
-  "Approved Final",
-  "Broken at Site",
-  "On Hold",
-  "Cancelled",
-] as const;
+import { 
+  PANEL_STATUSES, 
+  PanelStatus,
+  validateStatusTransition, 
+  getValidNextStatuses,
+  isSpecialStatus 
+} from "../utils/statusValidation";
 
 
 const PANEL_TYPES = [
 "GRC","GRG","GRP","EIFS","UHPC"
 ] as const;
 
-type PanelStatus = (typeof PANEL_STATUSES)[number];
 type PanelType = (typeof PANEL_TYPES)[number];
 
 interface Building {
@@ -223,6 +213,20 @@ export function PanelsPage() {
   const canChangePanelStatus = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canChangeStatus') : false;
   const canCreatePanelGroups = currentUser?.role ? hasPermission(currentUser.role as any, 'panelGroups', 'canCreate') : false;
 
+  // Helper function to get valid statuses for a given current status
+  const getValidStatuses = (currentStatus: number) => {
+    const validNextStatuses = getValidNextStatuses(currentStatus);
+    const allStatuses = PANEL_STATUSES.map((_, index) => index);
+    
+    // Include special statuses (On Hold, Cancelled) that can be set from any status
+    const specialStatuses = allStatuses.filter(status => isSpecialStatus(status));
+    
+    // Combine valid next statuses with special statuses, removing duplicates
+    const validStatuses = Array.from(new Set([...validNextStatuses, ...specialStatuses]));
+    
+    return validStatuses.sort((a, b) => a - b);
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const itemsPerPage = 10;
 
@@ -297,6 +301,16 @@ export function PanelsPage() {
 
     try {
       const panelIds = Array.from(selectedPanels);
+      const selectedPanelObjects = panels.filter(panel => selectedPanels.has(panel.id));
+      
+      // Validate status transitions for all selected panels
+      for (const panel of selectedPanelObjects) {
+        const validation = validateStatusTransition(panel.status, bulkStatusValue);
+        if (!validation.isValid) {
+          showToast(`Cannot update panel "${panel.name}": ${validation.error}`, "error");
+          return;
+        }
+      }
       
       // Update each panel individually to track user changes
       for (const panelId of panelIds) {
@@ -555,6 +569,15 @@ export function PanelsPage() {
       // For customer users, we'll rely on the database-level filtering
       // The fetchData function already filters projects by customer_id
       console.log('Customer user creating/editing panel for project:', targetProjectId);
+    }
+
+    // Validate status transition if editing an existing panel
+    if (editingPanel) {
+      const validation = validateStatusTransition(editingPanel.status, newPanelModel.status);
+      if (!validation.isValid) {
+        showToast(validation.error || "Invalid status transition", "error");
+        return;
+      }
     }
 
     const panelData = {
@@ -1515,11 +1538,21 @@ export function PanelsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {PANEL_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
-                  ))}
+                  {PANEL_STATUSES.map((status, index) => {
+                    const isSpecial = isSpecialStatus(index);
+                    return (
+                      <SelectItem key={status} value={status}>
+                        <div className="flex items-center gap-2">
+                          <span>{status}</span>
+                          {isSpecial && (
+                            <Badge variant="outline" className="text-xs">
+                              Special
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -1734,11 +1767,36 @@ export function PanelsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {PANEL_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
-                  ))}
+                  {editingPanel ? getValidStatuses(editingPanel.status).map((statusIndex) => {
+                    const statusName = statusMap[statusIndex];
+                    const isSpecial = isSpecialStatus(statusIndex);
+                    return (
+                      <SelectItem key={statusIndex} value={statusName}>
+                        <div className="flex items-center gap-2">
+                          <span>{statusName}</span>
+                          {isSpecial && (
+                            <Badge variant="outline" className="text-xs">
+                              Special
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  }) : PANEL_STATUSES.map((status, index) => {
+                    const isSpecial = isSpecialStatus(index);
+                    return (
+                      <SelectItem key={status} value={status}>
+                        <div className="flex items-center gap-2">
+                          <span>{status}</span>
+                          {isSpecial && (
+                            <Badge variant="outline" className="text-xs">
+                              Special
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -1946,17 +2004,29 @@ export function PanelsPage() {
                   <SelectValue placeholder="Select new status" />
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px] overflow-y-auto">
-                  {PANEL_STATUSES.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
-                  ))}
+                  {PANEL_STATUSES.map((status, index) => {
+                    const isSpecial = isSpecialStatus(index);
+                    return (
+                      <SelectItem key={status} value={status}>
+                        <div className="flex items-center gap-2">
+                          <span>{status}</span>
+                          {isSpecial && (
+                            <Badge variant="outline" className="text-xs">
+                              Special
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
             <div className="bg-muted/25 p-3 rounded-lg">
               <p className="text-sm text-muted-foreground">
                 This will update the status of {selectedPanels.size} selected panel(s) to the new status.
+                <br />
+                <strong>Note:</strong> Only valid status transitions will be allowed for each panel.
               </p>
             </div>
           </div>

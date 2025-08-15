@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Label } from './ui/label';
@@ -11,22 +11,12 @@ import { supabase } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { crudOperations } from '../utils/userTracking';
-
-const PANEL_STATUSES = [
-  "Issued For Production",
-  "Produced",
-  "Inspected",
-  "Approved Material",
-  "Rejected Material",
-  "Issued",
-  "Proceed for Delivery",
-  "Delivered",
-  "Installed",
-  "Approved Final",
-  "Broken at Site",
-          "On Hold",
-        "Cancelled",
-      ] as const;
+import { 
+  PANEL_STATUSES, 
+  validateStatusTransition, 
+  getValidNextStatuses,
+  isSpecialStatus 
+} from '../utils/statusValidation';
 
 type PanelStatus = (typeof PANEL_STATUSES)[number];
 
@@ -66,11 +56,46 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationError, setValidationError] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Map database integers to UI strings
   const statusMap: { [key: number]: PanelStatus } = PANEL_STATUSES.reduce((acc, status, index) => ({ ...acc, [index]: status }), {});
   const statusReverseMap = Object.fromEntries(Object.entries(statusMap).map(([k, v]) => [v, parseInt(k)]));
+
+  // Get valid next statuses for the current panel status
+  const getValidStatuses = () => {
+    if (!panel) return [];
+    
+    const validNextStatuses = getValidNextStatuses(panel.status);
+    const allStatuses = PANEL_STATUSES.map((_, index) => index);
+    
+    // Include special statuses (On Hold, Cancelled) that can be set from any status
+    const specialStatuses = allStatuses.filter(status => isSpecialStatus(status));
+    
+    // Combine valid next statuses with special statuses, removing duplicates
+    const validStatuses = Array.from(new Set([...validNextStatuses, ...specialStatuses]));
+    
+    return validStatuses.sort((a, b) => a - b);
+  };
+
+  // Validate status transition when newStatus changes
+  useEffect(() => {
+    if (panel && newStatus !== panel.status) {
+      const validation = validateStatusTransition(panel.status, newStatus);
+      setValidationError(validation.error || '');
+    } else {
+      setValidationError('');
+    }
+  }, [panel, newStatus]);
+
+  // Reset form when panel changes
+  useEffect(() => {
+    if (panel) {
+      setNewStatus(panel.status);
+      setValidationError('');
+    }
+  }, [panel]);
 
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -150,8 +175,10 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
   const handleSubmit = async () => {
     if (!panel) return;
 
-    if (newStatus === panel.status) {
-      showToast('Please select a different status', 'error');
+    // Validate status transition
+    const validation = validateStatusTransition(panel.status, newStatus);
+    if (!validation.isValid) {
+      showToast(validation.error || 'Invalid status transition', 'error');
       return;
     }
 
@@ -169,25 +196,40 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
       }
 
       // Update panel status with user tracking
+      // The database trigger will automatically insert a record into panel_status_histories
       await crudOperations.update("panels", panel.id, { 
         status: newStatus 
       });
 
-      // Insert status history with image and notes
-      const { error: historyError } = await supabase
-        .from('panel_status_histories')
-        .insert({
-          panel_id: panel.id,
-          status: newStatus,
-          user_id: currentUser?.id,
-          notes: notes.trim() || null,
-          image_url: imageUrl,
-          created_at: new Date().toISOString()
-        });
+      // If we have additional data (notes or image), update the most recent history record
+      if (notes.trim() || imageUrl) {
+        const { data: historyData, error: historyFetchError } = await supabase
+          .from('panel_status_histories')
+          .select('id')
+          .eq('panel_id', panel.id)
+          .eq('status', newStatus)
+          .order('created_at', { ascending: false })
+          .limit(1);
 
-      if (historyError) {
-        console.error('Error inserting status history:', historyError);
-        showToast('Status updated but failed to save history', 'error');
+        if (!historyFetchError && historyData && historyData.length > 0) {
+          const updateData: any = {};
+          if (notes.trim()) updateData.notes = notes.trim();
+          if (imageUrl) updateData.image_url = imageUrl;
+
+          const { error: historyUpdateError } = await supabase
+            .from('panel_status_histories')
+            .update(updateData)
+            .eq('id', historyData[0].id);
+
+          if (historyUpdateError) {
+            console.error('Error updating status history with additional data:', historyUpdateError);
+            showToast('Status updated but failed to save additional data', 'error');
+          } else {
+            showToast('Panel status updated successfully', 'success');
+          }
+        } else {
+          showToast('Panel status updated successfully', 'success');
+        }
       } else {
         showToast('Panel status updated successfully', 'success');
       }
@@ -197,6 +239,7 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
       setNotes('');
       setSelectedImage(null);
       setImagePreview(null);
+      setValidationError('');
       
       onStatusChanged();
       onClose();
@@ -213,8 +256,11 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
     setNotes('');
     setSelectedImage(null);
     setImagePreview(null);
+    setValidationError('');
     onClose();
   };
+
+  const validStatuses = getValidStatuses();
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -246,14 +292,37 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
                 <SelectValue placeholder="Select new status" />
               </SelectTrigger>
               <SelectContent>
-                {PANEL_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status}
-                  </SelectItem>
-                ))}
+                {validStatuses.map((statusIndex) => {
+                  const statusName = statusMap[statusIndex];
+                  const isSpecial = isSpecialStatus(statusIndex);
+                  return (
+                    <SelectItem key={statusIndex} value={statusName}>
+                      <div className="flex items-center gap-2">
+                        <span>{statusName}</span>
+                        {isSpecial && (
+                          <Badge variant="outline" className="text-xs">
+                            Special
+                          </Badge>
+                        )}
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
+            {validStatuses.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No valid status transitions available for current status.
+              </p>
+            )}
           </div>
+
+          {validationError && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/15 border border-destructive/20 text-destructive rounded-lg">
+              <AlertCircle className="h-4 w-4" />
+              <span className="text-sm">{validationError}</span>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="notes">Notes (Optional)</Label>
@@ -305,15 +374,6 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
               />
             </div>
           </div>
-
-          {newStatus === panel?.status && (
-            <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <AlertCircle className="h-4 w-4 text-yellow-600" />
-              <span className="text-sm text-yellow-800">
-                Please select a different status to update
-              </span>
-            </div>
-          )}
         </div>
 
         <DialogFooter>
@@ -322,7 +382,7 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
           </Button>
           <Button 
             onClick={handleSubmit} 
-            disabled={isSubmitting || newStatus === panel?.status}
+            disabled={isSubmitting || newStatus === panel?.status || !!validationError}
           >
             {isSubmitting ? 'Updating...' : 'Update Status'}
           </Button>

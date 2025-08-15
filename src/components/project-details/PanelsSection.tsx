@@ -122,6 +122,7 @@ interface Building {
 interface Facade {
   id: string;
   name: string;
+  building_id?: string;
 }
 
 export interface PanelModel {
@@ -647,8 +648,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
     if (panel.unit_rate_qr_m2 && panel.unit_rate_qr_m2 < 0) errors.push("Unit rate cannot be negative");
     if (panel.ifp_qty_area_sm && panel.ifp_qty_area_sm < 0) errors.push("IFP qty area cannot be negative");
     if (panel.ifp_qty_nos && panel.ifp_qty_nos < 0) errors.push("IFP qty nos cannot be negative");
-    if (panel.building_name && !panel.building_id) errors.push("Building name not found in this project");
-    if (panel.facade_name && !panel.facade_id) errors.push("Facade name not found in this project");
+    // Note: Building and facade validation errors are removed since they will be created automatically during import
     panel.errors = errors;
     panel.isValid = errors.length === 0;
   };
@@ -667,6 +667,111 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
     const target = normalizeName(name);
     const match = facades.find((f) => normalizeName(f.name) === target);
     return match?.id;
+  };
+
+  // New helper functions for creating buildings and facades
+  const createBuildingIfNotExists = async (buildingName: string): Promise<string | null> => {
+    if (!buildingName) return null;
+    
+    // First check if building already exists
+    const existingBuildingId = findBuildingIdByName(buildingName);
+    if (existingBuildingId) {
+      return existingBuildingId;
+    }
+
+    // Create new building
+    try {
+      const buildingData = {
+        name: buildingName,
+        project_id: projectId,
+        status: 0, // Default status
+        description: `Building created during bulk import for ${projectName}`,
+      };
+
+      console.log('Creating new building:', buildingData);
+      const newBuilding = await crudOperations.create("buildings", buildingData);
+      
+      // Add to local state
+      setBuildings(prev => [...prev, { id: newBuilding.id, name: buildingName }]);
+      
+      console.log('Building created successfully:', newBuilding.id);
+      return newBuilding.id;
+    } catch (error) {
+      console.error('Error creating building:', error);
+      throw new Error(`Failed to create building "${buildingName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const createFacadeIfNotExists = async (facadeName: string, buildingId: string): Promise<string | null> => {
+    if (!facadeName || !buildingId) return null;
+    
+    // First check if facade already exists in this building
+    const existingFacadeId = findFacadeIdByName(facadeName);
+    if (existingFacadeId) {
+      // Verify it belongs to the correct building
+      const facade = facades.find(f => f.id === existingFacadeId);
+      if (facade && facade.building_id === buildingId) {
+        return existingFacadeId;
+      }
+    }
+
+    // Create new facade
+    try {
+      const facadeData = {
+        name: facadeName,
+        building_id: buildingId,
+        status: 0, // Default status
+        description: `Facade created during bulk import for building ${buildingId}`,
+      };
+
+      console.log('Creating new facade:', facadeData);
+      const newFacade = await crudOperations.create("facades", facadeData);
+      
+      // Add to local state
+      setFacades(prev => [...prev, { id: newFacade.id, name: facadeName, building_id: buildingId }]);
+      
+      console.log('Facade created successfully:', newFacade.id);
+      return newFacade.id;
+    } catch (error) {
+      console.error('Error creating facade:', error);
+      throw new Error(`Failed to create facade "${facadeName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const resolveBuildingAndFacadeIds = async (panel: ImportedPanel): Promise<{ building_id?: string, facade_id?: string }> => {
+    let resolvedBuildingId = panel.building_id;
+    let resolvedFacadeId = panel.facade_id;
+
+    // If building name is provided but no building ID, try to find or create building
+    if (panel.building_name && !resolvedBuildingId) {
+      try {
+        const buildingId = await createBuildingIfNotExists(panel.building_name);
+        resolvedBuildingId = buildingId || undefined;
+      } catch (error) {
+        console.error('Error resolving building:', error);
+        throw error;
+      }
+    }
+
+    // If facade name is provided but no facade ID, try to find or create facade
+    if (panel.facade_name && !resolvedFacadeId) {
+      if (!resolvedBuildingId) {
+        throw new Error(`Cannot create facade "${panel.facade_name}" without a building`);
+      }
+      
+      try {
+        const facadeId = await createFacadeIfNotExists(panel.facade_name, resolvedBuildingId);
+        resolvedFacadeId = facadeId || undefined;
+      } catch (error) {
+        console.error('Error resolving facade:', error);
+        throw error;
+      }
+    }
+
+    return {
+      building_id: resolvedBuildingId,
+      facade_id: resolvedFacadeId,
+    };
   };
 
   const formatDateToISO = (d: Date) => {
@@ -779,64 +884,80 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       setBulkImportStep("importing");
       setImportProgress(0);
 
-      const newPanels = validPanels.map((p) => ({
-        name: p.name,
-        type: p.type,
-        status: p.status,
-        project_id: projectId,
-        building_id: p.building_id || null,
-        facade_id: p.facade_id || null,
-        issue_transmittal_no: p.issue_transmittal_no || null,
-        drawing_number: p.drawing_number || null,
-        unit_rate_qr_m2: p.unit_rate_qr_m2 || null,
-        ifp_qty_area_sm: p.ifp_qty_area_sm || null,
-        ifp_qty_nos: p.ifp_qty_nos || null,
-        weight: p.weight || null,
-        dimension: p.dimension || null,
-        issued_for_production_date: p.issued_for_production_date || null,
-      }));
-
       // Import panels with user tracking
       const importedPanels = [];
-      for (const panelData of newPanels) {
+      let processedCount = 0;
+      
+      for (const panel of validPanels) {
         try {
+          console.log('Processing panel:', panel.name);
+          
+          // Resolve building and facade IDs (create if they don't exist)
+          const { building_id, facade_id } = await resolveBuildingAndFacadeIds(panel);
+          
+          const panelData = {
+            name: panel.name,
+            type: panel.type,
+            status: panel.status,
+            project_id: projectId,
+            building_id: building_id || null,
+            facade_id: facade_id || null,
+            issue_transmittal_no: panel.issue_transmittal_no || null,
+            drawing_number: panel.drawing_number || null,
+            unit_rate_qr_m2: panel.unit_rate_qr_m2 || null,
+            ifp_qty_area_sm: panel.ifp_qty_area_sm || null,
+            ifp_qty_nos: panel.ifp_qty_nos || null,
+            weight: panel.weight || null,
+            dimension: panel.dimension || null,
+            issued_for_production_date: panel.issued_for_production_date || null,
+          };
+
           console.log('Importing panel with data:', panelData);
           const newPanel = await crudOperations.create("panels", panelData);
           // Database triggers will automatically add status history
           importedPanels.push(newPanel);
+          
+          // Update progress
+          processedCount++;
+          setImportProgress((processedCount / validPanels.length) * 100);
+          
         } catch (error) {
           console.error("Error importing panel:", error);
           // Continue with other panels even if one fails
+          processedCount++;
+          setImportProgress((processedCount / validPanels.length) * 100);
         }
       }
 
       // Fetch complete data for imported panels
       const panelIds = importedPanels.map(p => p.id);
-      const { data, error } = await supabase
-        .from("panels")
-        .select(`
-          *,
-          projects!inner(name),
-          buildings(name),
-          facades(name)
-        `)
-        .in("id", panelIds);
+      if (panelIds.length > 0) {
+        const { data, error } = await supabase
+          .from("panels")
+          .select(`
+            *,
+            projects!inner(name),
+            buildings(name),
+            facades(name)
+          `)
+          .in("id", panelIds);
 
-      if (error) {
-        console.error("Error fetching imported panels:", error);
+        if (error) {
+          console.error("Error fetching imported panels:", error);
+        } else {
+          setPanels([
+            ...panels,
+            ...(data?.map((panel) => ({
+              ...panel,
+              project_name: panel.projects?.name,
+              building_name: panel.buildings?.name,
+              facade_name: panel.facades?.name,
+            })) || []),
+          ]);
+        }
       }
 
-      setPanels([
-        ...panels,
-        ...(data?.map((panel) => ({
-          ...panel,
-          project_name: panel.projects?.name,
-          building_name: panel.buildings?.name,
-          facade_name: panel.facades?.name,
-        })) || []),
-      ]);
-
-      setImportResults({ successful: validPanels.length, failed: 0 });
+      setImportResults({ successful: importedPanels.length, failed: validPanels.length - importedPanels.length });
       setBulkImportStep("complete");
     } catch (error) {
       console.error("Bulk import error:", error);
@@ -1063,6 +1184,10 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                     <div className="flex items-center gap-3">
                       <CheckCircle className="h-5 w-5 text-green-500" />
                       <span>Panel statuses: Issued For Production, Produced, Inspected, Approved Material, Rejected Material, Issued, Proceed for Delivery, Delivered, Installed, Approved Final, Broken at Site, On Hold, Cancelled</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <span>Buildings and facades will be created automatically if they don't exist</span>
                     </div>
                   </div>
                 </CardContent>

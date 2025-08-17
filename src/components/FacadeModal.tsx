@@ -20,6 +20,7 @@ import {
 import { Plus } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
+import { useToastContext } from "../contexts/ToastContext";
 
 interface Project {
   id: string;
@@ -86,6 +87,7 @@ export function FacadeModal({
   const [projects, setProjects] = useState<Project[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const { user: currentUser } = useAuth();
+  const { showToast } = useToastContext();
 
   // Map database integer to UI status display
   const statusDisplay: { [key: number]: string } = {
@@ -230,6 +232,10 @@ export function FacadeModal({
       description: formData.description
     });
     
+    // Show success toast
+    const action = editingFacade ? 'updated' : 'created';
+    showToast(`Facade "${formData.name}" ${action} successfully!`, 'success');
+    
     // Reset form and close modal
     setFormData({
       name: "",
@@ -295,48 +301,7 @@ export function FacadeModal({
               />
             </div>
             
-            <div className="space-y-2 flex flex-col items-start">
-              <Label htmlFor="project" className="text-card-foreground">Project *</Label>
-              {isProjectPredefined ? (
-                <Input
-                  id="project"
-                  value={`${effectiveProject.name}${effectiveProject.customer ? ` - ${effectiveProject.customer}` : ''}`}
-                  disabled
-                  className="bg-input/50 border-border text-muted-foreground cursor-not-allowed"
-                />
-              ) : (
-                <Select 
-                  value={formData.building_id ? buildings.find(b => b.id === formData.building_id)?.project_id || "" : ""} 
-                  onValueChange={(value) => setFormData({ ...formData, building_id: "" })}
-                >
-                  <SelectTrigger className="bg-input border-border text-foreground">
-                    <SelectValue placeholder="Select project" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover border-border">
-                    {projects.length === 0 ? (
-                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                        No projects available
-                      </div>
-                    ) : (
-                      projects.map((project) => (
-                        <SelectItem 
-                          key={project.id} 
-                          value={project.id} 
-                          className="text-popover-foreground"
-                        >
-                          {project.name} {project.customer ? `- ${project.customer}` : ''}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              )}
-              {isProjectPredefined && (
-                <p className="text-xs text-muted-foreground">
-                  This facade will be added to the current project
-                </p>
-              )}
-            </div>
+            
             
             <div className="space-y-2 flex flex-col items-start">
               <Label htmlFor="building" className="text-card-foreground">Building *</Label>

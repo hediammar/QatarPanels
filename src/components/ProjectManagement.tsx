@@ -1260,7 +1260,14 @@ export function ProjectManagement() {
                 </div>
                 <DialogFooter>
                   <Button type="submit" disabled={isSubmitting || !canCreateProjects}>
-                    {isSubmitting ? "Adding Project..." : "Add Project"}
+                    {isSubmitting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Adding Project...
+                      </>
+                    ) : (
+                      "Add Project"
+                    )}
                   </Button>
                 </DialogFooter>
               </form>
@@ -1894,7 +1901,14 @@ export function ProjectManagement() {
               </div>
               <DialogFooter>
                 <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Updating Project..." : "Update Project"}
+                  {isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Updating Project...
+                    </>
+                  ) : (
+                    "Update Project"
+                  )}
                 </Button>
               </DialogFooter>
             </form>
@@ -1936,7 +1950,14 @@ export function ProjectManagement() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={isDeleting}
             >
-              {isDeleting ? "Deleting..." : "Delete Project"}
+              {isDeleting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Deleting...
+                </>
+              ) : (
+                "Delete Project"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

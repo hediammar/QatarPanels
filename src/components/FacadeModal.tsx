@@ -86,6 +86,7 @@ export function FacadeModal({
   });
   const [projects, setProjects] = useState<Project[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { user: currentUser } = useAuth();
   const { showToast } = useToastContext();
 
@@ -202,8 +203,10 @@ export function FacadeModal({
     }
   }, [editingFacade, isOpen, effectiveBuilding]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (isSubmitting) return; // Prevent double submission
     
     if (!currentUser?.id) {
       console.error('User not authenticated');
@@ -225,25 +228,34 @@ export function FacadeModal({
       return;
     }
 
-    onSubmit({
-      name: formData.name,
-      building_id: formData.building_id,
-      status: formData.status,
-      description: formData.description
-    });
+    setIsSubmitting(true);
     
-    // Show success toast
-    const action = editingFacade ? 'updated' : 'created';
-    showToast(`Facade "${formData.name}" ${action} successfully!`, 'success');
-    
-    // Reset form and close modal
-    setFormData({
-      name: "",
-      building_id: effectiveBuilding?.id || "",
-      status: 1,
-      description: ""
-    });
-    onOpenChange(false);
+    try {
+      await onSubmit({
+        name: formData.name,
+        building_id: formData.building_id,
+        status: formData.status,
+        description: formData.description
+      });
+      
+      // Show success toast
+      const action = editingFacade ? 'updated' : 'created';
+      showToast(`Facade "${formData.name}" ${action} successfully!`, 'success');
+      
+      // Reset form and close modal
+      setFormData({
+        name: "",
+        building_id: effectiveBuilding?.id || "",
+        status: 1,
+        description: ""
+      });
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error submitting facade:', error);
+      showToast('Failed to save facade', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCancel = () => {
@@ -398,14 +410,23 @@ export function FacadeModal({
             <Button 
               type="submit" 
               className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
+              disabled={isSubmitting}
             >
-              {editingFacade ? 'Update Facade' : 'Create Facade'}
+              {isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  {editingFacade ? 'Updating...' : 'Creating...'}
+                </>
+              ) : (
+                editingFacade ? 'Update Facade' : 'Create Facade'
+              )}
             </Button>
             <Button 
               type="button" 
               variant="outline" 
               onClick={handleCancel} 
               className="border-border text-foreground hover:bg-accent"
+              disabled={isSubmitting}
             >
               Cancel
             </Button>

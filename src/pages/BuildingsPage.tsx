@@ -69,6 +69,15 @@ export function BuildingsPage({
 
 
   const getStatusBadge = (status: number) => {
+    // Handle null/undefined status values
+    if (status === null || status === undefined) {
+      return (
+        <Badge className="text-xs bg-secondary text-secondary-foreground">
+          Unknown
+        </Badge>
+      );
+    }
+    
     const statusString = statusMap[status] || "inactive";
     const statusConfig = {
       active: {
@@ -223,13 +232,19 @@ export function BuildingsPage({
   };
 
   const filteredBuildings = buildings.filter((building) => {
-    const matchesSearch = searchTerm === "" || 
-      building.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      building.address.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === "all" || statusMap[building.status] === statusFilter;
-    
-    return matchesSearch && matchesStatus;
+    try {
+      const matchesSearch = searchTerm === "" || 
+        (building.name && building.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (building.address && building.address.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      const matchesStatus = statusFilter === "all" || 
+        (building.status !== null && building.status !== undefined && statusMap[building.status] === statusFilter);
+      
+      return matchesSearch && matchesStatus;
+    } catch (error) {
+      console.error('Error filtering building:', building, error);
+      return false;
+    }
   });
 
   const activeBuildingFiltersCount = [
@@ -297,7 +312,14 @@ export function BuildingsPage({
                   <Input
                     placeholder="Search buildings..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => {
+                      try {
+                        setSearchTerm(e.target.value || "");
+                      } catch (error) {
+                        console.error('Error updating search term:', error);
+                        setSearchTerm("");
+                      }
+                    }}
                     className="pl-8"
                   />
                 </div>

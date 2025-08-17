@@ -73,6 +73,7 @@ export function BuildingModal({
 }: BuildingModalProps) {
   const { user: currentUser } = useAuth();
   const { showToast } = useToastContext();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     project_id: "",
@@ -189,6 +190,8 @@ export function BuildingModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (isSubmitting) return; // Prevent double submission
+    
     if (!currentUser?.id) {
       showToast('You must be logged in to perform this action', 'error');
       return;
@@ -209,6 +212,8 @@ export function BuildingModal({
       showToast('Building address is required', 'error');
       return;
     }
+
+    setIsSubmitting(true);
 
     // Verify the user exists in the database
     try {
@@ -238,7 +243,7 @@ export function BuildingModal({
         description: formData.description.trim()
       };
       
-      onSubmit(buildingData);
+      await onSubmit(buildingData);
       
       // Reset form and close modal
       setFormData({
@@ -252,6 +257,8 @@ export function BuildingModal({
     } catch (error) {
       console.error('Error submitting building:', error);
       showToast('Failed to save building', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -435,16 +442,23 @@ export function BuildingModal({
             <Button 
               type="submit" 
               className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
-              disabled={loading || projectsLoading || projects.length === 0}
+              disabled={loading || projectsLoading || projects.length === 0 || isSubmitting}
             >
-              {editingBuilding ? 'Update Building' : 'Create Building'}
+              {isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  {editingBuilding ? 'Updating...' : 'Creating...'}
+                </>
+              ) : (
+                editingBuilding ? 'Update Building' : 'Create Building'
+              )}
             </Button>
             <Button 
               type="button" 
               variant="outline" 
               onClick={handleCancel} 
               className="border-border text-foreground hover:bg-accent"
-              disabled={loading}
+              disabled={loading || isSubmitting}
             >
               Cancel
             </Button>

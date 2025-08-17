@@ -217,6 +217,10 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
   const [bulkStatusValue, setBulkStatusValue] = useState<number | null>(null);
   const [isStatusChangeDialogOpen, setIsStatusChangeDialogOpen] = useState(false);
   const [selectedPanelForStatusChange, setSelectedPanelForStatusChange] = useState<PanelModel | null>(null);
+  const [isSavingPanel, setIsSavingPanel] = useState(false);
+  const [isBulkStatusUpdating, setIsBulkStatusUpdating] = useState(false);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [isImportingPanels, setIsImportingPanels] = useState(false);
   const canCreatePanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canCreate') : false;
 
   // Helper function to get valid statuses for a given current status
@@ -264,11 +268,15 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
   });
 
   const handleCreateGroup = async () => {
+    if (isCreatingGroup) return; // Prevent double submission
+    
     try {
       if (!newPanelGroupModel.name.trim()) {
         alert("Group name is required");
         return;
       }
+
+      setIsCreatingGroup(true);
 
       const panelIds = Array.from(selectedPanels);
 
@@ -285,10 +293,10 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
         return;
       }
 
-                setNewPanelGroupModel({
+      setNewPanelGroupModel({
         name: "",
         description: "",
-                  status: 0,
+        status: 0,
       });
       setIsCreateGroupDialogOpen(false);
 
@@ -296,10 +304,14 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
     } catch (err) {
       console.error('Unexpected error:', err);
       alert('An unexpected error occurred');
+    } finally {
+      setIsCreatingGroup(false);
     }
   };
 
   const handleBulkStatusUpdate = async () => {
+    if (isBulkStatusUpdating) return; // Prevent double submission
+    
     if (selectedPanels.size === 0) {
       showToast("No panels selected", "error");
       return;
@@ -309,6 +321,8 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       showToast("Please select a status", "error");
       return;
     }
+
+    setIsBulkStatusUpdating(true);
 
     try {
       const panelIds = Array.from(selectedPanels);
@@ -345,6 +359,8 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
     } catch (error) {
       console.error("Unexpected error:", error);
       showToast("An unexpected error occurred", "error");
+    } finally {
+      setIsBulkStatusUpdating(false);
     }
   };
   const fetchData = async () => {
@@ -513,6 +529,8 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
   };
 
   const handleSavePanel = async () => {
+    if (isSavingPanel) return; // Prevent double submission
+    
     if (newPanelModel.name.trim() === "") {
       showToast("Panel name is required", "error");
       return;
@@ -526,6 +544,8 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
         return;
       }
     }
+
+    setIsSavingPanel(true);
 
     const panelData = {
       name: newPanelModel.name,
@@ -628,28 +648,29 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
     } catch (error) {
       console.error("Error saving panel:", error);
       showToast("Error saving panel", "error");
+    } finally {
+      setIsSavingPanel(false);
+      setIsAddPanelDialogOpen(false);
+      setIsEditDialogOpen(false);
+      setEditingPanel(null);
+      setNewPanelModel({
+        name: "",
+        type: 0,
+        status: 0,
+        building_id: undefined,
+        facade_id: undefined,
+        issue_transmittal_no: undefined,
+        drawing_number: undefined,
+        unit_rate_qr_m2: undefined,
+        ifp_qty_area_sm: undefined,
+        ifp_qty_nos: undefined,
+        weight: undefined,
+        dimension: undefined,
+        issued_for_production_date: undefined,
+      });
+      // Reset facades to show all
+      setFacades(allFacades);
     }
-
-    setIsAddPanelDialogOpen(false);
-    setIsEditDialogOpen(false);
-    setEditingPanel(null);
-    setNewPanelModel({
-      name: "",
-      type: 0,
-      status: 0,
-      building_id: undefined,
-      facade_id: undefined,
-      issue_transmittal_no: undefined,
-      drawing_number: undefined,
-      unit_rate_qr_m2: undefined,
-      ifp_qty_area_sm: undefined,
-      ifp_qty_nos: undefined,
-      weight: undefined,
-      dimension: undefined,
-      issued_for_production_date: undefined,
-    });
-    // Reset facades to show all
-    setFacades(allFacades);
   };
 
   const normalizeType = (type: string): number => {
@@ -919,11 +940,15 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
   };
 
   const handleImportPanels = async () => {
+    if (isImportingPanels) return; // Prevent double submission
+    
     const validPanels = importedPanels.filter((p) => p.isValid);
     if (validPanels.length === 0) {
       setBulkImportErrors(["No valid panels to import. Please fix the errors and try again."]);
       return;
     }
+
+    setIsImportingPanels(true);
 
     try {
       setBulkImportStep("importing");
@@ -1009,6 +1034,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       setBulkImportErrors(["Failed to import panels. Please try again."]);
     } finally {
       setImportProgress(100);
+      setIsImportingPanels(false);
     }
   };
 
@@ -1596,8 +1622,15 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                 >
                   Cancel Import
                 </Button>
-                <Button onClick={handleImportPanels} disabled={validPanelsCount === 0}>
-                  Import {validPanelsCount} Panel{validPanelsCount !== 1 ? "s" : ""}
+                <Button onClick={handleImportPanels} disabled={validPanelsCount === 0 || isImportingPanels}>
+                  {isImportingPanels ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Importing...
+                    </>
+                  ) : (
+                    `Import ${validPanelsCount} Panel${validPanelsCount !== 1 ? "s" : ""}`
+                  )}
                 </Button>
               </div>
             </div>
@@ -2361,7 +2394,16 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
             >
               Cancel
             </Button>
-            <Button onClick={handleSavePanel} disabled={!canCreatePanels}>Add Panel</Button>
+            <Button onClick={handleSavePanel} disabled={!canCreatePanels || isSavingPanel}>
+              {isSavingPanel ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Adding...
+                </>
+              ) : (
+                'Add Panel'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2594,7 +2636,16 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
             >
               Cancel
             </Button>
-            <Button onClick={handleSavePanel}>Save Changes</Button>
+            <Button onClick={handleSavePanel} disabled={isSavingPanel}>
+              {isSavingPanel ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2699,8 +2750,15 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
             >
               Cancel
             </Button>
-            <Button onClick={handleBulkStatusUpdate} disabled={bulkStatusValue === null}>
-              Update Status
+            <Button onClick={handleBulkStatusUpdate} disabled={bulkStatusValue === null || isBulkStatusUpdating}>
+              {isBulkStatusUpdating ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Updating...
+                </>
+              ) : (
+                'Update Status'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2786,7 +2844,16 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
           >
             Cancel
           </Button>
-          <Button onClick={handleCreateGroup}>Create Group</Button>
+          <Button onClick={handleCreateGroup} disabled={isCreatingGroup}>
+            {isCreatingGroup ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Creating...
+              </>
+            ) : (
+              'Create Group'
+            )}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -18,7 +18,9 @@ import {
   Building,
   Calendar,
   Hash,
-  Loader2
+  Loader2,
+  Edit,
+  Plus
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { hasPermission, UserRole } from '../utils/rolePermissions';
@@ -83,6 +85,7 @@ export function BulkImportPanelsPage() {
   const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [existingPanels, setExistingPanels] = useState<{ [key: string]: any }>({});
 
   // RBAC Permission check
   const canCreatePanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canCreate') : false;
@@ -172,6 +175,37 @@ export function BulkImportPanelsPage() {
     const target = normalizeName(name);
     const match = facades.find((f) => normalizeName(f.name) === target && f.building_id === buildingId);
     return match?.id;
+  };
+
+  // New function to find existing panel by name
+  const findExistingPanelByName = async (panelName: string): Promise<any | null> => {
+    if (!panelName?.trim()) return null;
+    
+    try {
+      const { data, error } = await supabase
+        .from('panels')
+        .select(`
+          *,
+          projects!inner(name, customer_id),
+          buildings(name),
+          facades(name)
+        `)
+        .eq('name', panelName.trim())
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No rows returned - panel doesn't exist
+          return null;
+        }
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error finding existing panel:', error);
+      return null;
+    }
   };
 
   const createProjectIfNotExists = async (projectName: string, customerId: string): Promise<string | null> => {
@@ -761,10 +795,24 @@ export function BulkImportPanelsPage() {
     setParsedData([]);
     setValidationResults([]);
     setImportResults([]);
+    setExistingPanels({});
 
     try {
       const data = await parseExcel(file);
       setParsedData(data);
+      
+      // Check for existing panels
+      const existingPanelsMap: { [key: string]: any } = {};
+      for (const row of data) {
+        if (row.name?.trim()) {
+          const existingPanel = await findExistingPanelByName(row.name);
+          if (existingPanel) {
+            existingPanelsMap[row.name.trim()] = existingPanel;
+          }
+        }
+      }
+      setExistingPanels(existingPanelsMap);
+      
       const validation = validateData(data);
       setValidationResults(validation);
     } catch (err: any) {
@@ -936,53 +984,107 @@ export function BulkImportPanelsPage() {
           return typeMap[type] || null;
         };
 
-        // Prepare panel data
-        const panelData = {
-          name: row.name.trim(),
-          type: row.type?.trim() ? mapTypeToNumber(row.type) : null, // Map text to number
-          status: row.status?.trim() ? mapStatusToNumber(row.status) : null,
-          project_id: project_id,
-          building_id: building_id || null,
-          facade_id: facade_id || null,
-          issue_transmittal_no: row.issue_transmittal_no?.trim() || null,
-          drawing_number: row.dwg_no?.trim() || null,
-          unit_rate_qr_m2: row.unit_qty?.trim() ? parseFloat(row.unit_qty) : null,
-          ifp_qty_area_sm: row.ifp_qty?.trim() ? parseFloat(row.ifp_qty) : null,
-          ifp_qty_nos: row.ifp_qty_nos?.trim() ? parseInt(row.ifp_qty_nos) : null,
-          dimension: row.dimension?.trim() || null,
-          issued_for_production_date: row.date?.trim() ? (() => {
-            const parsedDate = parseDate(row.date);
-            if (!parsedDate) return null;
-            // Format as YYYY-MM-DD string for Supabase
-            const year = parsedDate.getUTCFullYear();
-            const month = String(parsedDate.getUTCMonth() + 1).padStart(2, '0');
-            const day = String(parsedDate.getUTCDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
-          })() : null,
-          user_id: currentUser?.id || null
-        };
+        // Check if panel already exists
+        const existingPanel = await findExistingPanelByName(row.name);
 
-        // Insert panel
-        const { data: newPanel, error } = await supabase
-          .from('panels')
-          .insert(panelData)
-          .select()
-          .single();
+        if (existingPanel) {
+          console.log(`Panel "${row.name}" already exists. Updating...`);
+                     const updateData = {
+             name: row.name.trim(),
+             type: row.type?.trim() ? mapTypeToNumber(row.type) : null,
+             status: row.status?.trim() ? mapStatusToNumber(row.status) : null,
+             project_id: project_id,
+             building_id: building_id || null,
+             facade_id: facade_id || null,
+             issue_transmittal_no: row.issue_transmittal_no?.trim() || null,
+             drawing_number: row.dwg_no?.trim() || null,
+             unit_rate_qr_m2: row.unit_qty?.trim() ? parseFloat(row.unit_qty) : null,
+             ifp_qty_area_sm: row.ifp_qty?.trim() ? parseFloat(row.ifp_qty) : null,
+             ifp_qty_nos: row.ifp_qty_nos?.trim() ? parseInt(row.ifp_qty_nos) : null,
+             dimension: row.dimension?.trim() || null,
+             issued_for_production_date: row.date?.trim() ? (() => {
+               const parsedDate = parseDate(row.date);
+               if (!parsedDate) return null;
+               // Format as YYYY-MM-DD string for Supabase
+               const year = parsedDate.getUTCFullYear();
+               const month = String(parsedDate.getUTCMonth() + 1).padStart(2, '0');
+               const day = String(parsedDate.getUTCDate()).padStart(2, '0');
+               return `${year}-${month}-${day}`;
+             })() : null,
+             user_id: currentUser?.id || null
+           };
 
-        if (error) {
-          results.push({
-            success: false,
-            message: `Failed to import "${row.name}"`,
-            errors: [error.message]
-          });
-          errorCount++;
+          const { data: updatedPanel, error: updateError } = await supabase
+            .from('panels')
+            .update(updateData)
+            .eq('id', existingPanel.id)
+            .select()
+            .single();
+
+          if (updateError) {
+            results.push({
+              success: false,
+              message: `Failed to update panel "${row.name}". ${updateError.message}`,
+              errors: [updateError.message]
+            });
+            errorCount++;
+          } else {
+            results.push({
+              success: true,
+              message: `Successfully updated panel "${row.name}"`,
+              data: updatedPanel
+            });
+            successCount++;
+          }
         } else {
-          results.push({
-            success: true,
-            message: `Successfully imported "${row.name}"`,
-            data: newPanel
-          });
-          successCount++;
+          // Prepare panel data for new panel
+          const panelData = {
+            name: row.name.trim(),
+            type: row.type?.trim() ? mapTypeToNumber(row.type) : null, // Map text to number
+            status: row.status?.trim() ? mapStatusToNumber(row.status) : null,
+            project_id: project_id,
+            building_id: building_id || null,
+            facade_id: facade_id || null,
+            issue_transmittal_no: row.issue_transmittal_no?.trim() || null,
+            drawing_number: row.dwg_no?.trim() || null,
+            unit_rate_qr_m2: row.unit_qty?.trim() ? parseFloat(row.unit_qty) : null,
+            ifp_qty_area_sm: row.ifp_qty?.trim() ? parseFloat(row.ifp_qty) : null,
+            ifp_qty_nos: row.ifp_qty_nos?.trim() ? parseInt(row.ifp_qty_nos) : null,
+            dimension: row.dimension?.trim() || null,
+            issued_for_production_date: row.date?.trim() ? (() => {
+              const parsedDate = parseDate(row.date);
+              if (!parsedDate) return null;
+              // Format as YYYY-MM-DD string for Supabase
+              const year = parsedDate.getUTCFullYear();
+              const month = String(parsedDate.getUTCMonth() + 1).padStart(2, '0');
+              const day = String(parsedDate.getUTCDate()).padStart(2, '0');
+              return `${year}-${month}-${day}`;
+            })() : null,
+            user_id: currentUser?.id || null
+          };
+
+          // Insert panel
+          const { data: newPanel, error } = await supabase
+            .from('panels')
+            .insert(panelData)
+            .select()
+            .single();
+
+          if (error) {
+            results.push({
+              success: false,
+              message: `Failed to import "${row.name}"`,
+              errors: [error.message]
+            });
+            errorCount++;
+          } else {
+            results.push({
+              success: true,
+              message: `Successfully imported "${row.name}"`,
+              data: newPanel
+            });
+            successCount++;
+          }
         }
       } catch (err: any) {
         results.push({
@@ -1021,6 +1123,8 @@ export function BulkImportPanelsPage() {
   const totalRows = parsedData.length;
   const validRows = validationResults.filter(r => r.isValid).length;
   const invalidRows = totalRows - validRows;
+  const existingPanelsCount = Object.keys(existingPanels).length;
+  const newPanelsCount = validRows - existingPanelsCount;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -1028,7 +1132,8 @@ export function BulkImportPanelsPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Bulk Import Panels</h1>
           <p className="text-gray-600 mt-2">
-            Import multiple panels from an Excel file. Each field is in a separate column for easy editing.
+            Import multiple panels from an Excel file. Each field is in a separate column for easy editing. 
+            Existing panels with the same name will be updated automatically.
           </p>
         </div>
       </div>
@@ -1180,12 +1285,15 @@ export function BulkImportPanelsPage() {
              
              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
                <p className="text-sm text-blue-800 mb-2">
-                 <strong>Automatic Creation:</strong> 
+                 <strong>Automatic Creation & Updates:</strong> 
+                 - Existing panels with the same name will be updated automatically
+                 - New panels will be created if they don't exist
                  - Customers will be created automatically if they don't exist
                  - Projects will be created automatically if they don't exist
                  - Buildings will be created automatically if they don't exist in the project
                  - Facades will be created automatically if they don't exist in the building
                  - All relationships will be properly maintained
+                 - Panel status history will be preserved during updates
                </p>
              </div>
               
@@ -1252,6 +1360,18 @@ export function BulkImportPanelsPage() {
                     {invalidRows} Invalid
                   </Badge>
                 )}
+                {newPanelsCount > 0 && (
+                  <Badge variant="default" className="flex items-center gap-1">
+                    <Plus className="h-3 w-3" />
+                    {newPanelsCount} New
+                  </Badge>
+                )}
+                {existingPanelsCount > 0 && (
+                  <Badge variant="secondary" className="flex items-center gap-1">
+                    <Edit className="h-3 w-3" />
+                    {existingPanelsCount} Update
+                  </Badge>
+                )}
               </div>
 
               <Table>
@@ -1263,6 +1383,7 @@ export function BulkImportPanelsPage() {
                     <TableHead>Customer</TableHead>
                     <TableHead>Building</TableHead>
                     <TableHead>Facade</TableHead>
+                    <TableHead>Action</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Issues</TableHead>
                   </TableRow>
@@ -1270,6 +1391,7 @@ export function BulkImportPanelsPage() {
                 <TableBody>
                   {parsedData.map((row, index) => {
                     const validation = validationResults[index];
+                    const isExisting = existingPanels[row.name?.trim() || ''];
                     return (
                       <TableRow key={index}>
                         <TableCell>{index + 1}</TableCell>
@@ -1278,6 +1400,19 @@ export function BulkImportPanelsPage() {
                         <TableCell>{row.customer_name || '—'}</TableCell>
                         <TableCell>{row.building_name || '—'}</TableCell>
                         <TableCell>{row.facade_name || '—'}</TableCell>
+                        <TableCell>
+                          {isExisting ? (
+                            <Badge variant="secondary" className="flex items-center gap-1">
+                              <Edit className="h-3 w-3" />
+                              Update
+                            </Badge>
+                          ) : (
+                            <Badge variant="default" className="flex items-center gap-1">
+                              <Plus className="h-3 w-3" />
+                              Create
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell>
                           {validation?.isValid ? (
                             <Badge variant="default" className="flex items-center gap-1">
@@ -1317,7 +1452,7 @@ export function BulkImportPanelsPage() {
           <CardHeader>
             <CardTitle>Import Actions</CardTitle>
             <CardDescription>
-              Import {validRows} valid panels to the database.
+              Import {validRows} valid panels to the database. Existing panels with the same name will be updated.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1343,7 +1478,7 @@ export function BulkImportPanelsPage() {
                   ) : (
                     <Upload className="h-4 w-4" />
                   )}
-                  Import {validRows} Panels
+                  Import/Update {validRows} Panels
                 </Button>
                 <Button variant="outline" onClick={resetForm}>
                   Reset

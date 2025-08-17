@@ -178,6 +178,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
   const [panels, setPanels] = useState<PanelModel[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [facades, setFacades] = useState<Facade[]>([]);
+  const [allFacades, setAllFacades] = useState<Facade[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -364,12 +365,14 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       .select(`
         id,
         name,
+        building_id,
         buildings!inner(project_id)
       `)
       .eq("buildings.project_id", projectId)
       if (facadeError) {
         console.error("Error fetching facades:", facadeError);
       } else {
+        setAllFacades(facadeData || []);
         setFacades(facadeData || []);
       }
 
@@ -428,6 +431,16 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
     buildingFilter !== "all",
     facadeFilter !== "all",
   ].filter(Boolean).length;
+
+  // Function to filter facades based on selected building
+  const filterFacadesByBuilding = (buildingId: string | undefined) => {
+    if (!buildingId) {
+      setFacades(allFacades);
+      return;
+    }
+    const filteredFacades = allFacades.filter(facade => facade.building_id === buildingId);
+    setFacades(filteredFacades);
+  };
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -494,6 +507,8 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       issued_for_production_date: panel.issued_for_production_date,
       dimension: panel.dimension,
     });
+    // Filter facades based on the panel's building
+    filterFacadesByBuilding(panel.building_id);
     setIsEditDialogOpen(true);
   };
 
@@ -503,8 +518,8 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       return;
     }
 
-    // Validate status transition if editing an existing panel
-    if (editingPanel) {
+    // Validate status transition if editing an existing panel and status has changed
+    if (editingPanel && editingPanel.status !== newPanelModel.status) {
       const validation = validateStatusTransition(editingPanel.status, newPanelModel.status);
       if (!validation.isValid) {
         showToast(validation.error || "Invalid status transition", "error");
@@ -633,6 +648,8 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       dimension: undefined,
       issued_for_production_date: undefined,
     });
+    // Reset facades to show all
+    setFacades(allFacades);
   };
 
   const normalizeType = (type: string): number => {
@@ -2205,7 +2222,14 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
               <Label htmlFor="building_id">Building</Label>
               <Select
                 value={newPanelModel.building_id || ""}
-                onValueChange={(value) => setNewPanelModel({ ...newPanelModel, building_id: value || undefined })}
+                onValueChange={(value) => {
+                  setNewPanelModel({ 
+                    ...newPanelModel, 
+                    building_id: value || undefined,
+                    facade_id: undefined // Clear facade when building changes
+                  });
+                  filterFacadesByBuilding(value || undefined);
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select building" />
@@ -2331,6 +2355,8 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                   dimension: undefined,
                   issued_for_production_date: undefined,
                 });
+                // Reset facades to show all
+                setFacades(allFacades);
               }}
             >
               Cancel
@@ -2422,7 +2448,14 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
               <Label htmlFor="edit-building_id">Building</Label>
               <Select
                 value={newPanelModel.building_id || ""}
-                onValueChange={(value) => setNewPanelModel({ ...newPanelModel, building_id: value || undefined })}
+                onValueChange={(value) => {
+                  setNewPanelModel({ 
+                    ...newPanelModel, 
+                    building_id: value || undefined,
+                    facade_id: undefined // Clear facade when building changes
+                  });
+                  filterFacadesByBuilding(value || undefined);
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select building" />
@@ -2555,6 +2588,8 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                   dimension: undefined,
                   issued_for_production_date: undefined,
                 });
+                // Reset facades to show all
+                setFacades(allFacades);
               }}
             >
               Cancel

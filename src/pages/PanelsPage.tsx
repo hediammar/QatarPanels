@@ -111,6 +111,7 @@ interface Building {
 interface Facade {
   id: string;
   name: string;
+  building_id?: string;
 }
 
 export interface PanelModel {
@@ -164,6 +165,7 @@ export function PanelsPage() {
   const [panels, setPanels] = useState<PanelModel[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [facades, setFacades] = useState<Facade[]>([]);
+  const [allFacades, setAllFacades] = useState<Facade[]>([]);
   const [projects, setProjects] = useState<Array<{id: string, name: string, customer_id?: string}>>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -386,6 +388,7 @@ export function PanelsPage() {
       .select(`
         id,
         name,
+        building_id,
         buildings!inner(project_id)
       `);
     // For customer users, restrict facades to their accessible projects via buildings join
@@ -397,6 +400,7 @@ export function PanelsPage() {
     if (facadeError) {
       console.error("Error fetching facades:", facadeError);
     } else {
+      setAllFacades(facadeData || []);
       setFacades(facadeData || []);
     }
 
@@ -461,6 +465,16 @@ export function PanelsPage() {
     buildingFilter !== "all",
     facadeFilter !== "all",
   ].filter(Boolean).length;
+
+  // Function to filter facades based on selected building
+  const filterFacadesByBuilding = (buildingId: string | undefined) => {
+    if (!buildingId) {
+      setFacades(allFacades);
+      return;
+    }
+    const filteredFacades = allFacades.filter(facade => facade.building_id === buildingId);
+    setFacades(filteredFacades);
+  };
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -529,6 +543,8 @@ export function PanelsPage() {
       dimension: panel.dimension,
       issued_for_production_date: panel.issued_for_production_date,
     });
+    // Filter facades based on the panel's building
+    filterFacadesByBuilding(panel.building_id);
     setIsEditDialogOpen(true);
   };
 
@@ -571,8 +587,8 @@ export function PanelsPage() {
       console.log('Customer user creating/editing panel for project:', targetProjectId);
     }
 
-    // Validate status transition if editing an existing panel
-    if (editingPanel) {
+    // Validate status transition if editing an existing panel and status has changed
+    if (editingPanel && editingPanel.status !== newPanelModel.status) {
       const validation = validateStatusTransition(editingPanel.status, newPanelModel.status);
       if (!validation.isValid) {
         showToast(validation.error || "Invalid status transition", "error");
@@ -752,6 +768,8 @@ export function PanelsPage() {
       dimension: undefined,
       issued_for_production_date: undefined,
     });
+    // Reset facades to show all
+    setFacades(allFacades);
   };
 
   const normalizeType = (type: string): number => {
@@ -1560,7 +1578,14 @@ export function PanelsPage() {
               <Label htmlFor="building_id">Building</Label>
               <Select
                 value={newPanelModel.building_id || ""}
-                onValueChange={(value) => setNewPanelModel({ ...newPanelModel, building_id: value || undefined })}
+                onValueChange={(value) => {
+                  setNewPanelModel({ 
+                    ...newPanelModel, 
+                    building_id: value || undefined,
+                    facade_id: undefined // Clear facade when building changes
+                  });
+                  filterFacadesByBuilding(value || undefined);
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select building" />
@@ -1686,6 +1711,8 @@ export function PanelsPage() {
                   dimension: undefined,
                   issued_for_production_date: undefined,
                 });
+                // Reset facades to show all
+                setFacades(allFacades);
               }}
             >
               Cancel
@@ -1804,7 +1831,14 @@ export function PanelsPage() {
               <Label htmlFor="edit-building_id">Building</Label>
               <Select
                 value={newPanelModel.building_id || ""}
-                onValueChange={(value) => setNewPanelModel({ ...newPanelModel, building_id: value || undefined })}
+                onValueChange={(value) => {
+                  setNewPanelModel({ 
+                    ...newPanelModel, 
+                    building_id: value || undefined,
+                    facade_id: undefined // Clear facade when building changes
+                  });
+                  filterFacadesByBuilding(value || undefined);
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select building" />

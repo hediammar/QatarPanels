@@ -220,7 +220,10 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
   const [isSavingPanel, setIsSavingPanel] = useState(false);
   const [isBulkStatusUpdating, setIsBulkStatusUpdating] = useState(false);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [isAddingToGroup, setIsAddingToGroup] = useState(false);
   const [isImportingPanels, setIsImportingPanels] = useState(false);
+  const [panelGroups, setPanelGroups] = useState<Array<{id: string, name: string, description: string}>>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const canCreatePanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canCreate') : false;
 
   // Helper function to get valid statuses for a given current status
@@ -264,7 +267,6 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
   const [newPanelGroupModel, setNewPanelGroupModel] = useState({
     name: "",
     description: "",
-    status: 0,
   });
 
   const handleCreateGroup = async () => {
@@ -284,7 +286,6 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
         panel_ids: panelIds,
         name: newPanelGroupModel.name || null,
         description: newPanelGroupModel.description || null,
-        status: newPanelGroupModel.status,
       });
 
       if (error) {
@@ -296,16 +297,77 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       setNewPanelGroupModel({
         name: "",
         description: "",
-        status: 0,
       });
       setIsCreateGroupDialogOpen(false);
 
       console.log('New panel group created with ID:', data);
+      
+      // Refresh the panels data to reflect the new group
+      await fetchData();
+      setSelectedPanels(new Set());
+      setIsSelectionMode(false);
+      showToast('Panel group created successfully', 'success');
     } catch (err) {
       console.error('Unexpected error:', err);
       alert('An unexpected error occurred');
     } finally {
       setIsCreatingGroup(false);
+    }
+  };
+
+  const fetchPanelGroups = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('panel_groups')
+        .select('id, name, description')
+        .order('name');
+
+      if (error) {
+        console.error('Error fetching panel groups:', error);
+        return;
+      }
+
+      setPanelGroups(data || []);
+    } catch (err) {
+      console.error('Unexpected error:', err);
+    }
+  };
+
+  const handleAddToExistingGroup = async () => {
+    if (isAddingToGroup) return;
+    
+    try {
+      if (!selectedGroupId) {
+        alert("Please select a group");
+        return;
+      }
+
+      setIsAddingToGroup(true);
+      const panelIds = Array.from(selectedPanels);
+
+      const { error } = await supabase.rpc('add_panels_to_group', {
+        group_id: selectedGroupId,
+        panel_ids: panelIds
+      });
+
+      if (error) {
+        console.error('Error adding panels to group:', error);
+        alert('Failed to add panels to group');
+        return;
+      }
+
+      // Refresh the panels data to reflect the changes
+      await fetchData();
+      setSelectedPanels(new Set());
+      setIsSelectionMode(false);
+      setSelectedGroupId("");
+      setIsAddToGroupDialogOpen(false);
+      showToast('Panels added to group successfully', 'success');
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      alert('An unexpected error occurred');
+    } finally {
+      setIsAddingToGroup(false);
     }
   };
 
@@ -418,6 +480,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
 
   useEffect(() => {
     fetchData();
+    fetchPanelGroups();
   }, [projectId]);
 
   // Filter panels
@@ -1742,6 +1805,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
                 <FolderPlus className="h-4 w-4 mr-2" />
                 Create Group
               </Button>
+              
             </>
           )}
          {isSelectionMode && <Button
@@ -2786,29 +2850,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
               required
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="status">Status *</Label>
-            <Select
-              value={statusMap[newPanelGroupModel.status]}
-              onValueChange={(value) =>
-                setNewPanelGroupModel({
-                  ...newPanelGroupModel,
-                  status: statusReverseMap[value],
-                })
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PANEL_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+
           <div className="space-y-2">
             <Label htmlFor="group-description">Description</Label>
             <Textarea
@@ -2838,7 +2880,6 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
               setNewPanelGroupModel({
                 name: "",
                 description: "",
-                status: 1,
               });
             }}
           >
@@ -2857,6 +2898,65 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+      {/* Add to Existing Group Dialog */}
+      <Dialog open={isAddToGroupDialogOpen} onOpenChange={setIsAddToGroupDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add to Existing Panel Group</DialogTitle>
+            <DialogDescription>
+              Add {selectedPanels.size} selected panels to an existing group
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="group-select">Select Group *</Label>
+              <Select
+                value={selectedGroupId}
+                onValueChange={setSelectedGroupId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a panel group" />
+                </SelectTrigger>
+                <SelectContent>
+                  {panelGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name}
+                      {group.description && ` - ${group.description}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="bg-muted/25 p-3 rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                This will add {selectedPanels.size} panels to the selected group. Individual panel statuses will be preserved.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAddToGroupDialogOpen(false);
+                setSelectedGroupId("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleAddToExistingGroup} disabled={isAddingToGroup || !selectedGroupId}>
+              {isAddingToGroup ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Adding...
+                </>
+              ) : (
+                'Add to Group'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Status Change Dialog */}
       <StatusChangeDialog

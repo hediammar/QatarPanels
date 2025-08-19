@@ -203,7 +203,7 @@ export function PanelsPage() {
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const [selectedPanelForTimeline, setSelectedPanelForTimeline] = useState<PanelModel | null>(null);
   const [isBulkStatusDialogOpen, setIsBulkStatusDialogOpen] = useState(false);
-  const [bulkStatusValue, setBulkStatusValue] = useState<number>(0);
+  const [bulkStatusValue, setBulkStatusValue] = useState<number>(0); // Default to "Issued For Production"
   const [isStatusChangeDialogOpen, setIsStatusChangeDialogOpen] = useState(false);
   const [selectedPanelForStatusChange, setSelectedPanelForStatusChange] = useState<PanelModel | null>(null);
 
@@ -241,7 +241,7 @@ export function PanelsPage() {
   const [newPanelModel, setNewPanelModel] = useState({
     name: "",
     type: 0,
-    status: 0,
+    status: 0, // Default to "Issued For Production"
     building_id: undefined as string | undefined,
     facade_id: undefined as string | undefined,
     issue_transmittal_no: undefined as string | undefined,
@@ -256,7 +256,7 @@ export function PanelsPage() {
   const [newPanelGroupModel, setNewPanelGroupModel] = useState({
     name: "",
     description: "",
-    status: 1,
+    status: 0, // Default to "Issued For Production"
   });
 
   const handleCreateGroup = async () => {
@@ -786,19 +786,18 @@ export function PanelsPage() {
   const normalizeStatus = (status: string): number => {
     const normalized = status.toLowerCase().trim();
 
-    if (normalized.includes("produce")) return PANEL_STATUSES.indexOf("Produced");
-    if (normalized.includes("check")) return PANEL_STATUSES.indexOf("Issued For Production");
-    if (normalized.includes("inspect")) return PANEL_STATUSES.indexOf("Inspected");
-    if (normalized.includes("approved final")) return PANEL_STATUSES.indexOf("Approved Final");
-    if (normalized.includes("approved material") || normalized.includes("approve")) return PANEL_STATUSES.indexOf("Approved Material");
-    if (normalized.includes("reject")) return PANEL_STATUSES.indexOf("Rejected Material");
-    if (normalized.includes("issue")) return PANEL_STATUSES.indexOf("Issued");
+    if (normalized.includes("issued for production")) return PANEL_STATUSES.indexOf("Issued For Production");
+    if (normalized.includes("manufactur") || normalized.includes("produce")) return PANEL_STATUSES.indexOf("Produced");
     if (normalized.includes("proceed")) return PANEL_STATUSES.indexOf("Proceed for Delivery");
     if (normalized.includes("deliver")) return PANEL_STATUSES.indexOf("Delivered");
+    if (normalized.includes("approved material") || (normalized.includes("approve") && !normalized.includes("final"))) return PANEL_STATUSES.indexOf("Approved Material");
+    if (normalized.includes("reject")) return PANEL_STATUSES.indexOf("Rejected Material");
     if (normalized.includes("install")) return PANEL_STATUSES.indexOf("Installed");
-    if (normalized.includes("broken")) return PANEL_STATUSES.indexOf("Broken at Site");
-    if (normalized.includes("on hold")) return PANEL_STATUSES.indexOf("On Hold");
+    if (normalized.includes("inspect")) return PANEL_STATUSES.indexOf("Inspected");
+    if (normalized.includes("approved final")) return PANEL_STATUSES.indexOf("Approved Final");
+    if (normalized.includes("on hold") || normalized === "hold") return PANEL_STATUSES.indexOf("On Hold");
     if (normalized.includes("cancel")) return PANEL_STATUSES.indexOf("Cancelled");
+    if (normalized.includes("broken")) return PANEL_STATUSES.indexOf("Broken at Site");
 
     return 0;
   };
@@ -1699,7 +1698,7 @@ export function PanelsPage() {
                 setNewPanelModel({
                   name: "",
                   type: 0,
-                  status: 1,
+                  status: 0, // Default to "Issued For Production"
                   building_id: undefined,
                   facade_id: undefined,
                   issue_transmittal_no: undefined,
@@ -1953,7 +1952,7 @@ export function PanelsPage() {
                 setNewPanelModel({
                   name: "",
                   type: 0,
-                  status: 1,
+                  status: 0, // Default to "Issued For Production"
                   building_id: undefined,
                   facade_id: undefined,
                   issue_transmittal_no: undefined,
@@ -2155,7 +2154,7 @@ export function PanelsPage() {
               setNewPanelGroupModel({
                 name: "",
                 description: "",
-                status: 1,
+                status: 0, // Default to "Issued For Production"
               });
             }}
           >

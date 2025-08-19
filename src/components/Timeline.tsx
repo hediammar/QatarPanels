@@ -25,18 +25,16 @@ interface StatusHistoryEntry {
 const PANEL_STATUSES = [
   'Issued For Production',
   'Produced',
-  'Inspected',
-  'Approved Material',
-  'Rejected Material',
-  'Issued',
   'Proceed for Delivery',
   'Delivered',
+  'Approved Material',
+  'Rejected Material',
   'Installed',
+  'Inspected',
   'Approved Final',
-  'Broken at Site',
   'On Hold',
   'Cancelled',
-  'Deleted',
+  'Broken at Site',
 ] as const;
 
 export function Timeline({ panel }: TimelineProps) {

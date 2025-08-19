@@ -1,40 +1,38 @@
 export const PANEL_STATUSES = [
   "Issued For Production",
   "Produced", 
-  "Inspected",
-  "Approved Material",
-  "Rejected Material",
-  "Issued",
   "Proceed for Delivery",
   "Delivered",
+  "Approved Material",
+  "Rejected Material",
   "Installed",
+  "Inspected",
   "Approved Final",
-  "Broken at Site",
   "On Hold",
   "Cancelled",
+  "Broken at Site",
 ] as const;
 
 export type PanelStatus = (typeof PANEL_STATUSES)[number];
 
 // Define the valid status flow - each status can only move to specific next statuses
 export const STATUS_FLOW: Record<number, number[]> = {
-  0: [1, 11, 12], // Issued For Production -> Produced, On Hold, Cancelled
-  1: [2, 11, 12], // Produced -> Inspected, On Hold, Cancelled
-  2: [3, 4, 11, 12], // Inspected -> Approved Material, Rejected Material, On Hold, Cancelled
-  3: [5, 11, 12], // Approved Material -> Issued, On Hold, Cancelled
-  4: [0, 11, 12], // Rejected Material -> Issued For Production (rework), On Hold, Cancelled
-  5: [6, 11, 12], // Issued -> Proceed for Delivery, On Hold, Cancelled
-  6: [7, 11, 12], // Proceed for Delivery -> Delivered, On Hold, Cancelled
-  7: [8, 11, 12], // Delivered -> Installed, On Hold, Cancelled
-  8: [9, 11, 12], // Installed -> Approved Final, On Hold, Cancelled
-  9: [11, 12], // Approved Final -> On Hold, Cancelled (final status)
-  10: [0, 11, 12], // Broken at Site -> Issued For Production (rework), On Hold, Cancelled
-  11: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12], // On Hold -> can resume to any status except itself, or cancel
-  12: [], // Cancelled -> terminal status, no further transitions
+  0: [1, 9, 10], // Issued For Production -> Produced, On Hold, Cancelled
+  1: [2, 9, 10], // Produced -> Proceed for Delivery, On Hold, Cancelled
+  2: [3, 9, 10], // Proceed for Delivery -> Delivered, On Hold, Cancelled
+  3: [4, 5, 9, 10], // Delivered -> Approved Material, Rejected Material, On Hold, Cancelled
+  4: [6, 9, 10], // Approved Material -> Installed, On Hold, Cancelled
+  5: [0, 9, 10], // Rejected Material -> Issued For Production (rework), On Hold, Cancelled
+  6: [7, 9, 10], // Installed -> Inspected, On Hold, Cancelled
+  7: [8, 9, 10], // Inspected -> Approved Final, On Hold, Cancelled
+  8: [9, 10], // Approved Final -> On Hold, Cancelled (final status)
+  9: [0, 1, 2, 3, 4, 5, 6, 7, 8, 11, 10], // On Hold -> can resume to any status except itself, or cancel
+  10: [], // Cancelled -> terminal status, no further transitions
+  11: [0, 9, 10], // Broken at Site -> Issued For Production (rework), On Hold, Cancelled
 };
 
 // Special statuses that can be set from any status (emergency/administrative)
-export const SPECIAL_STATUSES = [11, 12]; // On Hold, Cancelled
+export const SPECIAL_STATUSES = [9, 10, 11]; // On Hold, Cancelled, Broken at Site
 
 /**
  * Validates if a status transition is allowed

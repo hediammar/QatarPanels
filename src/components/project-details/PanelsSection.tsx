@@ -214,7 +214,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
   const [isTimelineOpen, setIsTimelineOpen] = useState(false);
   const [selectedPanelForTimeline, setSelectedPanelForTimeline] = useState<PanelModel | null>(null);
   const [isBulkStatusDialogOpen, setIsBulkStatusDialogOpen] = useState(false);
-  const [bulkStatusValue, setBulkStatusValue] = useState<number | null>(null);
+  const [bulkStatusValue, setBulkStatusValue] = useState<number | null>(null); // Will be set when dialog opens
   const [isStatusChangeDialogOpen, setIsStatusChangeDialogOpen] = useState(false);
   const [selectedPanelForStatusChange, setSelectedPanelForStatusChange] = useState<PanelModel | null>(null);
   const [isSavingPanel, setIsSavingPanel] = useState(false);
@@ -252,7 +252,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
   const [newPanelModel, setNewPanelModel] = useState({
     name: "",
     type: 0,
-    status: 0,
+    status: 0, // Default to "Issued For Production"
     building_id: undefined as string | undefined,
     facade_id: undefined as string | undefined,
     issue_transmittal_no: undefined as string | undefined,
@@ -719,7 +719,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       setNewPanelModel({
         name: "",
         type: 0,
-        status: 0,
+        status: 0, // Default to "Issued For Production"
         building_id: undefined,
         facade_id: undefined,
         issue_transmittal_no: undefined,
@@ -755,17 +755,16 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
 
     if (normalized.includes("issued for production")) return PANEL_STATUSES.indexOf("Issued For Production");
     if (normalized.includes("manufactur") || normalized.includes("produce")) return PANEL_STATUSES.indexOf("Produced");
-    if (normalized.includes("inspect")) return PANEL_STATUSES.indexOf("Inspected");
-    if (normalized.includes("approved final")) return PANEL_STATUSES.indexOf("Approved Final");
-    if (normalized.includes("approved material") || (normalized.includes("approve") && !normalized.includes("final"))) return PANEL_STATUSES.indexOf("Approved Material");
-    if (normalized.includes("reject")) return PANEL_STATUSES.indexOf("Rejected Material");
-    if (normalized === "issued" || normalized.includes("issue")) return PANEL_STATUSES.indexOf("Issued");
     if (normalized.includes("proceed")) return PANEL_STATUSES.indexOf("Proceed for Delivery");
     if (normalized.includes("deliver")) return PANEL_STATUSES.indexOf("Delivered");
+    if (normalized.includes("approved material") || (normalized.includes("approve") && !normalized.includes("final"))) return PANEL_STATUSES.indexOf("Approved Material");
+    if (normalized.includes("reject")) return PANEL_STATUSES.indexOf("Rejected Material");
     if (normalized.includes("install")) return PANEL_STATUSES.indexOf("Installed");
-    if (normalized.includes("broken")) return PANEL_STATUSES.indexOf("Broken at Site");
+    if (normalized.includes("inspect")) return PANEL_STATUSES.indexOf("Inspected");
+    if (normalized.includes("approved final")) return PANEL_STATUSES.indexOf("Approved Final");
     if (normalized.includes("on hold") || normalized === "hold") return PANEL_STATUSES.indexOf("On Hold");
     if (normalized.includes("cancel")) return PANEL_STATUSES.indexOf("Cancelled");
+    if (normalized.includes("broken")) return PANEL_STATUSES.indexOf("Broken at Site");
 
     return 0;
   };

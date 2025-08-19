@@ -390,6 +390,14 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       const panelIds = Array.from(selectedPanels);
       const selectedPanelObjects = panels.filter(panel => selectedPanels.has(panel.id));
       
+      // Check if all selected panels have the same status
+      const uniqueStatuses = new Set(selectedPanelObjects.map(panel => panel.status));
+      if (uniqueStatuses.size > 1) {
+        const statusNames = Array.from(uniqueStatuses).map(status => statusMap[status]).join(", ");
+        showToast(`Cannot update panels with different statuses: ${statusNames}. Please select panels with the same status.`, "error");
+        return;
+      }
+      
       // Validate status transitions for all selected panels
       for (const panel of selectedPanelObjects) {
         const validation = validateStatusTransition(panel.status, bulkStatusValue);
@@ -2767,41 +2775,87 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="bulk-status">New Status *</Label>
-              <Select
-                value={bulkStatusValue === null ? undefined : statusMap[bulkStatusValue]}
-                onValueChange={(value) => setBulkStatusValue(statusReverseMap[value])}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select new status" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[200px] overflow-y-auto">
-                  {PANEL_STATUSES.map((status, index) => {
-                    const isSpecial = isSpecialStatus(index);
-                    return (
-                      <SelectItem key={status} value={status}>
-                        <div className="flex items-center gap-2">
-                          <span>{status}</span>
-                          {isSpecial && (
-                            <Badge variant="outline" className="text-xs">
-                              Special
-                            </Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="bg-muted/25 p-3 rounded-lg">
-              <p className="text-sm text-muted-foreground">
-                This will update the status of {selectedPanels.size} selected panel(s) to the new status.
-                <br />
-                <strong>Note:</strong> Only valid status transitions will be allowed for each panel.
-              </p>
-            </div>
+            {(() => {
+              const selectedPanelObjects = panels.filter(panel => selectedPanels.has(panel.id));
+              const uniqueStatuses = new Set(selectedPanelObjects.map(panel => panel.status));
+              const hasDifferentStatuses = uniqueStatuses.size > 1;
+              const currentStatus = uniqueStatuses.size === 1 ? Array.from(uniqueStatuses)[0] : null;
+              const currentStatusName = currentStatus !== null ? statusMap[currentStatus] : null;
+              
+              return (
+                <>
+                  {hasDifferentStatuses ? (
+                    <div className="bg-destructive/15 border border-destructive/20 text-destructive p-3 rounded-lg">
+                      <p className="text-sm font-medium mb-1">Cannot Update Different Statuses</p>
+                      <p className="text-xs">
+                        Selected panels have different statuses: {Array.from(uniqueStatuses).map(status => statusMap[status]).join(", ")}.
+                        <br />
+                        Please select panels with the same status to perform bulk updates.
+                      </p>
+                    </div>
+                  ) : currentStatus !== null && (
+                    <div className="bg-blue-50 border border-blue-200 text-blue-800 p-3 rounded-lg">
+                      <p className="text-sm font-medium mb-1 text-destructive">Current Status: {currentStatusName}</p>
+                      <p className="text-xs text-destructive">
+                        All selected panels have the same status. You can update them to the next status in the workflow.
+                      </p>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="bulk-status">New Status *</Label>
+                    <Select
+                      value={bulkStatusValue === null ? undefined : statusMap[bulkStatusValue]}
+                      onValueChange={(value) => setBulkStatusValue(statusReverseMap[value])}
+                      disabled={hasDifferentStatuses}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={hasDifferentStatuses ? "Cannot update different statuses" : "Select new status"} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[200px] overflow-y-auto">
+                        {PANEL_STATUSES.map((status, index) => {
+                          const isSpecial = isSpecialStatus(index);
+                          const isValidTransition = currentStatus !== null ? validateStatusTransition(currentStatus, index).isValid : true;
+                          return (
+                            <SelectItem 
+                              key={status} 
+                              value={status}
+                              disabled={!isValidTransition}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span>{status}</span>
+                                {isSpecial && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Special
+                                  </Badge>
+                                )}
+                                {!isValidTransition && (
+                                  <span className="text-xs text-muted-foreground">(Invalid)</span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="bg-muted/25 p-3 rounded-lg">
+                    <p className="text-sm text-muted-foreground">
+                      {hasDifferentStatuses ? (
+                        "Bulk status updates are only allowed for panels with the same current status."
+                      ) : (
+                        <>
+                          This will update the status of {selectedPanels.size} selected panel(s) to the new status.
+                          <br />
+                          <strong>Note:</strong> Only valid status transitions will be allowed.
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </>
+              );
+            })()}
           </div>
           <DialogFooter>
             <Button
@@ -2813,7 +2867,14 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
             >
               Cancel
             </Button>
-            <Button onClick={handleBulkStatusUpdate} disabled={bulkStatusValue === null || isBulkStatusUpdating}>
+            <Button 
+              onClick={handleBulkStatusUpdate} 
+              disabled={bulkStatusValue === null || isBulkStatusUpdating || (() => {
+                const selectedPanelObjects = panels.filter(panel => selectedPanels.has(panel.id));
+                const uniqueStatuses = new Set(selectedPanelObjects.map(panel => panel.status));
+                return uniqueStatuses.size > 1;
+              })()}
+            >
               {isBulkStatusUpdating ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>

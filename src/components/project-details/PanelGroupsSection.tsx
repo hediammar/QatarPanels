@@ -15,7 +15,7 @@ import {
   Users,
   X
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../../lib/supabase";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -96,6 +96,13 @@ interface AddPanelsToGroupDialogProps {
   groupId: string;
   groupName: string;
   onPanelsAdded: () => void;
+}
+
+interface UpdatePanelGroupDialogProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  group: PanelGroupModel;
+  onGroupUpdated: () => void;
 }
 
 function UpdateGroupStatusDialog({ isOpen, onOpenChange, groupId, groupName, currentStatus, onStatusUpdate }: UpdateGroupStatusDialogProps) {
@@ -363,6 +370,414 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, onPa
   );
 }
 
+function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }: UpdatePanelGroupDialogProps) {
+  const [groupName, setGroupName] = useState(group.name);
+  const [groupDescription, setGroupDescription] = useState(group.description || "");
+  const [currentPanels, setCurrentPanels] = useState<PanelModel[]>([]);
+  const [availablePanels, setAvailablePanels] = useState<PanelModel[]>([]);
+  const [selectedPanelsToAdd, setSelectedPanelsToAdd] = useState<Set<string>>(new Set());
+  const [selectedPanelsToRemove, setSelectedPanelsToRemove] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [activeTab, setActiveTab] = useState<'details' | 'panels'>('details');
+  const [panelSearchTerm, setPanelSearchTerm] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      loadPanelData();
+    }
+  }, [isOpen, group.id]);
+
+  const loadPanelData = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch current panels in the group
+      const { data: currentData, error: currentError } = await supabase
+        .from('panels')
+        .select(`
+          id,
+          name,
+          status,
+          drawing_number,
+          ifp_qty_nos,
+          issue_transmittal_no
+        `)
+        .eq('panel_group_id', group.id);
+
+      if (currentError) {
+        console.error('Error fetching current panels:', currentError);
+        return;
+      }
+
+      const formattedCurrentPanels = currentData.map(panel => ({
+        id: panel.id,
+        name: panel.name,
+        status: mapPanelStatus(panel.status),
+        panelTag: panel.issue_transmittal_no || `TAG-${panel.id.slice(0, 8)}`,
+        dwgNo: panel.drawing_number || 'N/A',
+        unitQty: panel.ifp_qty_nos || 0,
+        groupId: group.id,
+      }));
+
+      setCurrentPanels(formattedCurrentPanels);
+
+      // Fetch available panels (not in any group)
+      const { data: availableData, error: availableError } = await supabase
+        .from('panels')
+        .select(`
+          id,
+          name,
+          status,
+          drawing_number,
+          ifp_qty_nos,
+          issue_transmittal_no
+        `)
+        .is('panel_group_id', null);
+
+      if (availableError) {
+        console.error('Error fetching available panels:', availableError);
+        return;
+      }
+
+      const formattedAvailablePanels = availableData.map(panel => ({
+        id: panel.id,
+        name: panel.name,
+        status: mapPanelStatus(panel.status),
+        panelTag: panel.issue_transmittal_no || `TAG-${panel.id.slice(0, 8)}`,
+        dwgNo: panel.drawing_number || 'N/A',
+        unitQty: panel.ifp_qty_nos || 0,
+        groupId: '',
+      }));
+
+      setAvailablePanels(formattedAvailablePanels);
+    } catch (err) {
+      console.error('Unexpected error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateGroup = async () => {
+    if (!groupName.trim()) {
+      alert("Group name is required");
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      // Update group details
+      const { error: updateError } = await supabase.rpc('update_panel_group', {
+        group_id: group.id,
+        group_name: groupName.trim(),
+        group_description: groupDescription.trim() || null
+      });
+
+      if (updateError) {
+        console.error('Error updating panel group:', updateError);
+        alert('Failed to update panel group');
+        return;
+      }
+
+      // Handle panel removals
+      if (selectedPanelsToRemove.size > 0) {
+        const { error: removeError } = await supabase
+          .from('panels')
+          .update({ panel_group_id: null })
+          .in('id', Array.from(selectedPanelsToRemove));
+
+        if (removeError) {
+          console.error('Error removing panels from group:', removeError);
+          alert('Failed to remove some panels from group');
+        }
+      }
+
+      // Handle panel additions
+      if (selectedPanelsToAdd.size > 0) {
+        const { error: addError } = await supabase.rpc('add_panels_to_group', {
+          group_id: group.id,
+          panel_ids: Array.from(selectedPanelsToAdd)
+        });
+
+        if (addError) {
+          console.error('Error adding panels to group:', addError);
+          alert('Failed to add some panels to group');
+        }
+      }
+
+      onGroupUpdated();
+      onOpenChange(false);
+      alert('Panel group updated successfully');
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      alert('An unexpected error occurred');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const togglePanelToAdd = (panelId: string) => {
+    const newSelected = new Set(selectedPanelsToAdd);
+    if (newSelected.has(panelId)) {
+      newSelected.delete(panelId);
+    } else {
+      newSelected.add(panelId);
+    }
+    setSelectedPanelsToAdd(newSelected);
+  };
+
+  const togglePanelToRemove = (panelId: string) => {
+    const newSelected = new Set(selectedPanelsToRemove);
+    if (newSelected.has(panelId)) {
+      newSelected.delete(panelId);
+    } else {
+      newSelected.add(panelId);
+    }
+    setSelectedPanelsToRemove(newSelected);
+  };
+
+  const selectAllAvailablePanels = () => {
+    setSelectedPanelsToAdd(new Set(availablePanels.map(panel => panel.id)));
+  };
+
+  const selectAllCurrentPanels = () => {
+    setSelectedPanelsToRemove(new Set(currentPanels.map(panel => panel.id)));
+  };
+
+  const clearAllSelections = () => {
+    setSelectedPanelsToAdd(new Set());
+    setSelectedPanelsToRemove(new Set());
+  };
+
+  // Combine and sort all panels for the unified list
+  const allPanels = useMemo(() => {
+    const combined = [
+      ...currentPanels.map(panel => ({ ...panel, isInGroup: true })),
+      ...availablePanels.map(panel => ({ ...panel, isInGroup: false }))
+    ];
+
+    // Filter by search term
+    const filtered = panelSearchTerm.trim() === "" 
+      ? combined 
+      : combined.filter(panel => 
+          panel.name.toLowerCase().includes(panelSearchTerm.toLowerCase()) ||
+          panel.panelTag.toLowerCase().includes(panelSearchTerm.toLowerCase()) ||
+          panel.dwgNo.toLowerCase().includes(panelSearchTerm.toLowerCase())
+        );
+
+    // Sort: selected panels first, then by name
+    return filtered.sort((a, b) => {
+      const aSelected = a.isInGroup ? selectedPanelsToRemove.has(a.id) : selectedPanelsToAdd.has(a.id);
+      const bSelected = b.isInGroup ? selectedPanelsToRemove.has(b.id) : selectedPanelsToAdd.has(b.id);
+      
+      if (aSelected && !bSelected) return -1;
+      if (!aSelected && bSelected) return 1;
+      
+      return a.name.localeCompare(b.name);
+    });
+  }, [currentPanels, availablePanels, selectedPanelsToAdd, selectedPanelsToRemove, panelSearchTerm]);
+
+  const togglePanelSelection = (panel: PanelModel & { isInGroup: boolean }) => {
+    if (panel.isInGroup) {
+      togglePanelToRemove(panel.id);
+    } else {
+      togglePanelToAdd(panel.id);
+    }
+  };
+
+  const isPanelSelected = (panel: PanelModel & { isInGroup: boolean }) => {
+    if (panel.isInGroup) {
+      // If panel is in group, it's selected unless it's marked for removal
+      return !selectedPanelsToRemove.has(panel.id);
+    } else {
+      // If panel is not in group, it's selected if it's marked for addition
+      return selectedPanelsToAdd.has(panel.id);
+    }
+  };
+
+  const selectAllPanels = () => {
+    const newSelectedToAdd = new Set(availablePanels.map(panel => panel.id));
+    const newSelectedToRemove = new Set(currentPanels.map(panel => panel.id));
+    setSelectedPanelsToAdd(newSelectedToAdd);
+    setSelectedPanelsToRemove(newSelectedToRemove);
+  };
+
+  const clearAllPanelSelections = () => {
+    setSelectedPanelsToAdd(new Set());
+    setSelectedPanelsToRemove(new Set());
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[95vw] max-w-6xl h-[90vh] flex flex-col p-0">
+        <DialogHeader className="px-6 py-4 border-b">
+          <DialogTitle>Update Panel Group: {group.name}</DialogTitle>
+          <DialogDescription>
+            Update the group details and manage panels in this group
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Tabs */}
+          <div className="flex border-b flex-shrink-0">
+            <button
+              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'details'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={() => setActiveTab('details')}
+            >
+              Group Details
+            </button>
+            <button
+              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'panels'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={() => setActiveTab('panels')}
+            >
+              Manage Panels ({currentPanels.length + availablePanels.length})
+            </button>
+          </div>
+
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            {activeTab === 'details' ? (
+              /* Group Details Tab */
+              <div className="p-6 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Group Name *</Label>
+                  <Input
+                    id="name"
+                    placeholder="Enter group name"
+                    value={groupName}
+                    onChange={(e) => setGroupName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Note</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Enter group Note (optional)"
+                    value={groupDescription}
+                    onChange={(e) => setGroupDescription(e.target.value)}
+                    rows={4}
+                  />
+                </div>
+              </div>
+            ) : (
+              /* Manage Panels Tab */
+              <div className="flex-1 flex flex-col min-h-0 p-6">
+                {isLoading ? (
+                  <div className="flex items-center justify-center p-8">
+                    <div className="text-muted-foreground">Loading panels...</div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Search and Controls */}
+                    <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                      <div className="flex-1 max-w-md">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search panels by name, tag, or drawing number..."
+                            value={panelSearchTerm}
+                            onChange={(e) => setPanelSearchTerm(e.target.value)}
+                            className="pl-10"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={selectAllPanels}>
+                          Select All
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={clearAllPanelSelections}>
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Panel List */}
+                    <div className="flex-1 overflow-y-auto border rounded-lg min-h-0 max-h-96">
+                      {allPanels.length === 0 ? (
+                        <div className="flex items-center justify-center p-8">
+                          <div className="text-muted-foreground text-center">
+                            <Package className="h-8 w-8 mx-auto mb-2" />
+                            <p>{panelSearchTerm.trim() ? 'No panels match your search' : 'No panels available'}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="divide-y">
+                          {allPanels.map((panel) => (
+                            <div key={panel.id} className="flex items-center p-3 hover:bg-muted/50">
+                              <Checkbox
+                                checked={isPanelSelected(panel)}
+                                onCheckedChange={() => togglePanelSelection(panel)}
+                                className="mr-3 flex-shrink-0"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium truncate">{panel.name}</span>
+                                  <Badge variant="secondary" className="flex-shrink-0">{panel.status}</Badge>
+                                  {panel.isInGroup && (
+                                    <Badge variant="outline" className="flex-shrink-0 text-xs">In Group</Badge>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                                  <span className="truncate">Tag: {panel.panelTag}</span>
+                                  <span className="truncate">Drawing: {panel.dwgNo}</span>
+                                  <span className="truncate">Qty: {panel.unitQty}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Summary */}
+                    <div className="mt-4 text-sm text-muted-foreground flex-shrink-0">
+                      Showing {allPanels.length} of {currentPanels.length + availablePanels.length} panels
+                      {panelSearchTerm.trim() && ` (filtered by "${panelSearchTerm}")`}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter className="px-6 py-4 border-t bg-muted/30">
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            {selectedPanelsToAdd.size > 0 && (
+              <span>+{selectedPanelsToAdd.size} to add</span>
+            )}
+            {selectedPanelsToRemove.size > 0 && (
+              <span>-{selectedPanelsToRemove.size} to remove</span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                onOpenChange(false);
+                setGroupName(group.name);
+                setGroupDescription(group.description || "");
+                clearAllSelections();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateGroup} disabled={isUpdating}>
+              {isUpdating ? "Updating..." : "Update Group"}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // Fetch panel groups from Supabase
 async function fetchPanelGroups(): Promise<PanelGroupModel[]> {
   const { data, error } = await supabase
@@ -462,6 +877,7 @@ export function PanelGroupsSection({
   const [isUpdateStatusDialogOpen, setIsUpdateStatusDialogOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<PanelGroupModel | null>(null);
   const [isAddPanelsDialogOpen, setIsAddPanelsDialogOpen] = useState(false);
+  const [isUpdatePanelGroupDialogOpen, setIsUpdatePanelGroupDialogOpen] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -507,7 +923,7 @@ export function PanelGroupsSection({
   };
 
   const handleEdit = (group: PanelGroupModel) => {
-    onEditGroup?.(group);
+    handleEditGroup(group);
   };
 
   const handleDelete = async (groupId: string) => {
@@ -560,6 +976,11 @@ export function PanelGroupsSection({
   const handleAddPanelsToGroup = (group: PanelGroupModel) => {
     setSelectedGroup(group);
     setIsAddPanelsDialogOpen(true);
+  };
+
+  const handleEditGroup = (group: PanelGroupModel) => {
+    setSelectedGroup(group);
+    setIsUpdatePanelGroupDialogOpen(true);
   };
 
   const uniqueProjects = Array.from(new Set(panelGroups.map(group => group.project)));
@@ -847,22 +1268,21 @@ export function PanelGroupsSection({
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <Badge className={'bg-primary text-primary-foreground'}>
-                            {group.status}
-                          </Badge>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenUpdateStatus(group)}
-                                >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                         
+                          
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => handleAddPanelsToGroup(group)}
                                 >
                             <Plus className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditGroup(group)}
+                                >
+                            <Edit className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
@@ -949,6 +1369,16 @@ export function PanelGroupsSection({
               groupId={selectedGroup.id}
               groupName={selectedGroup.name}
               onPanelsAdded={() => fetchPanelGroups().then(setPanelGroups)}
+            />
+          )}
+
+          {/* Update Panel Group Dialog */}
+          {selectedGroup && (
+            <UpdatePanelGroupDialog
+              isOpen={isUpdatePanelGroupDialogOpen}
+              onOpenChange={setIsUpdatePanelGroupDialogOpen}
+              group={selectedGroup}
+              onGroupUpdated={() => fetchPanelGroups().then(setPanelGroups)}
             />
           )}
 

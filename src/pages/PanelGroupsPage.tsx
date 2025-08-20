@@ -1,5 +1,4 @@
 import {
-  Building,
   Calendar,
   ChevronDown,
   ChevronLeft,
@@ -58,10 +57,8 @@ interface PanelModel {
   panelTag: string;
   dwgNo: string;
   unitQty: number;
-  groupId: string;
-  project_name?: string;
-  building_name?: string;
-  facade_name?: string;
+  groupId?: string; // Optional since we're using many-to-many relationship
+  allGroupIds?: string[];
 }
 
 interface PanelGroupModel {
@@ -131,7 +128,7 @@ function UpdateGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }: Upda
 
   const handleUpdateGroup = async () => {
     if (!groupName.trim()) {
-      alert("Group name is required");
+      alert("Note is required");
       return;
     }
 
@@ -171,19 +168,19 @@ function UpdateGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }: Upda
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Group Name *</Label>
+            <Label htmlFor="name">Note *</Label>
             <Input
               id="name"
-              placeholder="Enter group name"
+              placeholder="Enter a Note"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="description">Note</Label>
+            <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
-              placeholder="Enter group Note (optional)"
+              placeholder="Enter group Description (optional)"
               value={groupDescription}
               onChange={(e) => setGroupDescription(e.target.value)}
               rows={3}
@@ -285,7 +282,7 @@ function CreateGroupDialog({ isOpen, onOpenChange, onGroupCreated }: CreateGroup
 
   const handleCreateGroup = async () => {
     if (!groupName.trim()) {
-      alert("Group name is required");
+      alert("Note is required");
       return;
     }
 
@@ -328,19 +325,19 @@ function CreateGroupDialog({ isOpen, onOpenChange, onGroupCreated }: CreateGroup
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Group Name *</Label>
+            <Label htmlFor="name">Note *</Label>
             <Input
               id="name"
-              placeholder="Enter group name"
+              placeholder="Enter a Note"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="description"> Note</Label>
+            <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
-              placeholder="Enter group Note (optional)"
+              placeholder="Enter group Description (optional)"
               value={groupDescription}
               onChange={(e) => setGroupDescription(e.target.value)}
               rows={3}
@@ -378,7 +375,8 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, onPa
       const fetchAvailablePanels = async () => {
         setIsLoading(true);
         try {
-          const { data, error } = await supabase
+          // Get panels that are not in any group
+          const { data: allPanels, error: panelsError } = await supabase
             .from('panels')
             .select(`
               id,
@@ -386,19 +384,19 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, onPa
               status,
               drawing_number,
               ifp_qty_nos,
-              issue_transmittal_no,
-              projects (name),
-              buildings (name),
-              facades (name)
-            `)
-            .is('panel_group_id', null); // Only panels not already in a group
+              issue_transmittal_no
+            `);
 
-          if (error) {
-            console.error('Error fetching available panels:', error);
+          if (panelsError) {
+            console.error('Error fetching panels:', panelsError);
             return;
           }
 
-          const formattedPanels = data.map(panel => ({
+          // For many-to-many relationship, all panels are available to add to any group
+          // We don't need to filter out panels that are already in other groups
+          const availablePanelsData = allPanels;
+
+          const formattedPanels = availablePanelsData.map(panel => ({
             id: panel.id,
             name: panel.name,
             status: mapPanelStatus(panel.status),
@@ -524,9 +522,6 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, onPa
                         <span className="truncate">Tag: {panel.panelTag}</span>
                         <span className="truncate">Drawing: {panel.dwgNo}</span>
                         <span className="truncate">Qty: {panel.unitQty}</span>
-                        {panel.project_name && <span className="truncate">Project: {panel.project_name}</span>}
-                        {panel.building_name && <span className="truncate">Building: {panel.building_name}</span>}
-                        {panel.facade_name && <span className="truncate">Facade: {panel.facade_name}</span>}
                       </div>
                     </div>
                   </div>
@@ -631,28 +626,50 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
     }
   }, [isOpen, group.id]);
 
+  // Update form fields when group prop changes
+  useEffect(() => {
+    setGroupName(group.name);
+    setGroupDescription(group.description || "");
+  }, [group]);
+
   const loadPanelData = async () => {
     setIsLoading(true);
     try {
-      // Fetch current panels in the group
-      const { data: currentData, error: currentError } = await supabase
-        .from('panels')
-        .select(`
-          id,
-          name,
-          status,
-          drawing_number,
-          ifp_qty_nos,
-          issue_transmittal_no
-        `)
+      // Fetch current panels in the group using the junction table
+      const { data: membershipData, error: membershipError } = await supabase
+        .from('panel_group_memberships')
+        .select('panel_id')
         .eq('panel_group_id', group.id);
 
-      if (currentError) {
-        console.error('Error fetching current panels:', currentError);
+      if (membershipError) {
+        console.error('Error fetching panel group memberships:', membershipError);
         return;
       }
 
-      const formattedCurrentPanels = currentData.map(panel => ({
+      const currentPanelIds = membershipData?.map(m => m.panel_id) || [];
+
+      let currentPanelsData: any[] = [];
+      if (currentPanelIds.length > 0) {
+        const { data: currentData, error: currentError } = await supabase
+          .from('panels')
+          .select(`
+            id,
+            name,
+            status,
+            drawing_number,
+            ifp_qty_nos,
+            issue_transmittal_no
+          `)
+          .in('id', currentPanelIds);
+
+        if (currentError) {
+          console.error('Error fetching current panels:', currentError);
+          return;
+        }
+        currentPanelsData = currentData || [];
+      }
+
+      const formattedCurrentPanels = currentPanelsData.map(panel => ({
         id: panel.id,
         name: panel.name,
         status: mapPanelStatus(panel.status),
@@ -664,8 +681,8 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 
       setCurrentPanels(formattedCurrentPanels);
 
-      // Fetch available panels (not in any group)
-      const { data: availableData, error: availableError } = await supabase
+      // Fetch all panels - for many-to-many relationship, all panels are available
+      const { data: allPanelsData, error: allPanelsError } = await supabase
         .from('panels')
         .select(`
           id,
@@ -674,15 +691,19 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
           drawing_number,
           ifp_qty_nos,
           issue_transmittal_no
-        `)
-        .is('panel_group_id', null);
+        `);
 
-      if (availableError) {
-        console.error('Error fetching available panels:', availableError);
+      if (allPanelsError) {
+        console.error('Error fetching all panels:', allPanelsError);
         return;
       }
 
-      const formattedAvailablePanels = availableData.map(panel => ({
+      // For many-to-many relationship, all panels are available to add to any group
+      // We only need to filter out panels that are already in the current group
+      const currentPanelIdsSet = new Set(currentPanelIds);
+      const availablePanelsData = allPanelsData?.filter(panel => !currentPanelIdsSet.has(panel.id)) || [];
+
+      const formattedAvailablePanels = availablePanelsData.map(panel => ({
         id: panel.id,
         name: panel.name,
         status: mapPanelStatus(panel.status),
@@ -702,7 +723,7 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 
   const handleUpdateGroup = async () => {
     if (!groupName.trim()) {
-      alert("Group name is required");
+      alert("Note is required");
       return;
     }
 
@@ -724,9 +745,10 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
       // Handle panel removals
       if (selectedPanelsToRemove.size > 0) {
         const { error: removeError } = await supabase
-          .from('panels')
-          .update({ panel_group_id: null })
-          .in('id', Array.from(selectedPanelsToRemove));
+          .from('panel_group_memberships')
+          .delete()
+          .eq('panel_group_id', group.id)
+          .in('panel_id', Array.from(selectedPanelsToRemove));
 
         if (removeError) {
           console.error('Error removing panels from group:', removeError);
@@ -889,19 +911,19 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
               /* Group Details Tab */
               <div className="p-6 space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Group Name *</Label>
+                  <Label htmlFor="name">Note *</Label>
                   <Input
                     id="name"
-                    placeholder="Enter group name"
+                    placeholder="Enter a Note"
                     value={groupName}
                     onChange={(e) => setGroupName(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="description">Note</Label>
+                  <Label htmlFor="description">Description</Label>
                   <Textarea
                     id="description"
-                    placeholder="Enter group Note (optional)"
+                    placeholder="Enter group Description (optional)"
                     value={groupDescription}
                     onChange={(e) => setGroupDescription(e.target.value)}
                     rows={4}
@@ -1029,8 +1051,7 @@ async function fetchPanelGroups(): Promise<PanelGroupModel[]> {
       id,
       name,
       description,
-      created_at,
-      panels (id, project_id, projects (name))
+      created_at
     `);
 
   if (error) {
@@ -1038,14 +1059,40 @@ async function fetchPanelGroups(): Promise<PanelGroupModel[]> {
     return [];
   }
 
-  return data.map(group => ({
-    id: group.id,
-    name: group.name,
-    description: group.description || '',
-    panelCount: group.panels.length,
-    createdAt: new Date(group.created_at).toISOString(),
-    project: group.panels[0]?.projects?.[0]?.name || 'Unknown',
-  }));
+  // Get panel count for each group using the new junction table
+  const groupsWithCounts = await Promise.all(
+    data.map(async (group) => {
+      const { data: panelCountData, error: countError } = await supabase
+        .from('panel_group_memberships')
+        .select('panel_id', { count: 'exact' })
+        .eq('panel_group_id', group.id);
+
+      if (countError) {
+        console.error('Error fetching panel count for group:', group.id, countError);
+        return {
+          id: group.id,
+          name: group.name,
+          description: group.description || '',
+          panelCount: 0,
+          createdAt: new Date(group.created_at).toISOString(),
+          project: 'Unknown',
+        };
+      }
+
+      // Panel groups are no longer tied to specific projects
+
+      return {
+        id: group.id,
+        name: group.name,
+        description: group.description || '',
+        panelCount: panelCountData?.length || 0,
+        createdAt: new Date(group.created_at).toISOString(),
+        project: '', // No longer tied to specific projects
+      };
+    })
+  );
+
+  return groupsWithCounts;
 }
 
 async function fetchPanels(): Promise<PanelModel[]> {
@@ -1056,7 +1103,6 @@ async function fetchPanels(): Promise<PanelModel[]> {
       name,
       type,
       status,
-      panel_group_id,
       drawing_number,
       ifp_qty_nos,
       issue_transmittal_no
@@ -1067,15 +1113,42 @@ async function fetchPanels(): Promise<PanelModel[]> {
     return [];
   }
 
-  return data.map(panel => ({
-    id: panel.id,
-    name: panel.name,
-    status: mapPanelStatus(panel.status),
-    panelTag: panel.issue_transmittal_no || `TAG-${panel.id.slice(0, 8)}`,
-    dwgNo: panel.drawing_number || 'N/A',
-    unitQty: panel.ifp_qty_nos || 0,
-    groupId: panel.panel_group_id,
-  }));
+  // Get all panel group memberships in one query for efficiency
+  const { data: allMemberships, error: membershipsError } = await supabase
+    .from('panel_group_memberships')
+    .select('panel_id, panel_group_id');
+
+  if (membershipsError) {
+    console.error('Error fetching panel group memberships:', membershipsError);
+    return [];
+  }
+
+  // Create a map of panel_id to group_ids for quick lookup
+  const panelToGroupsMap = new Map<string, string[]>();
+  allMemberships?.forEach(membership => {
+    const existing = panelToGroupsMap.get(membership.panel_id) || [];
+    existing.push(membership.panel_group_id);
+    panelToGroupsMap.set(membership.panel_id, existing);
+  });
+
+  // Create panels with group information
+  const panelsWithGroups = data.map((panel) => {
+    const groupIds = panelToGroupsMap.get(panel.id) || [];
+
+    return {
+      id: panel.id,
+      name: panel.name,
+      status: mapPanelStatus(panel.status),
+      panelTag: panel.issue_transmittal_no || `TAG-${panel.id.slice(0, 8)}`,
+      dwgNo: panel.drawing_number || 'N/A',
+      unitQty: panel.ifp_qty_nos || 0,
+      groupId: '', // No longer used for many-to-many relationship
+      // Store all group IDs for future use if needed
+      allGroupIds: groupIds,
+    };
+  });
+
+  return panelsWithGroups;
 }
 
 function mapPanelStatus(status: number): PanelStatus {
@@ -1107,7 +1180,7 @@ export function PanelGroupsPage({
   const [panelGroups, setPanelGroups] = useState<PanelGroupModel[]>([]);
   const [panels, setPanels] = useState<PanelModel[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [projectFilter, setProjectFilter] = useState<string>("all");
+
   const [panelCountMinFilter, setPanelCountMinFilter] = useState("");
   const [panelCountMaxFilter, setPanelCountMaxFilter] = useState("");
   const [dateRangeFilter, setDateRangeFilter] = useState<string>("all");
@@ -1153,7 +1226,11 @@ export function PanelGroupsPage({
   }, []);
 
   const getGroupPanels = (group: PanelGroupModel) => {
-    return panels.filter(panel => panel.groupId === group.id);
+    // For many-to-many relationship, check if panel belongs to this group
+    return panels.filter(panel => {
+      // Check if this panel belongs to the current group using allGroupIds
+      return panel.allGroupIds?.includes(group.id);
+    });
   };
 
   const toggleGroupExpansion = (groupId: string) => {
@@ -1212,14 +1289,14 @@ export function PanelGroupsPage({
     }
   };
 
-  const uniqueProjects = Array.from(new Set(panelGroups.map(group => group.project)));
+
 
   const filteredGroups = panelGroups.filter((group) => {
     const matchesSearch = searchTerm === "" ||
       group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       group.description.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesProject = projectFilter === "all" || group.project === projectFilter;
+
 
     const matchesPanelCount = (() => {
       if (!panelCountMinFilter && !panelCountMaxFilter) return true;
@@ -1255,12 +1332,11 @@ export function PanelGroupsPage({
       }
     })();
 
-    return matchesSearch && matchesProject && matchesPanelCount && matchesDateRange;
+    return matchesSearch && matchesPanelCount && matchesDateRange;
   });
 
   const activePanelGroupFiltersCount = [
     searchTerm !== "",
-    projectFilter !== "all",
     panelCountMinFilter !== "",
     panelCountMaxFilter !== "",
     dateRangeFilter !== "all",
@@ -1272,7 +1348,6 @@ export function PanelGroupsPage({
 
   const clearPanelGroupFilters = () => {
     setSearchTerm("");
-    setProjectFilter("all");
     setPanelCountMinFilter("");
     setPanelCountMaxFilter("");
     setDateRangeFilter("all");
@@ -1317,7 +1392,7 @@ export function PanelGroupsPage({
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
               <div className="space-y-2">
                 <Label>Search</Label>
                 <div className="relative">
@@ -1332,29 +1407,6 @@ export function PanelGroupsPage({
                     className="pl-8"
                   />
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Project</Label>
-                <Select
-                  value={projectFilter}
-                  onValueChange={(value) => {
-                    setProjectFilter(value);
-                    handleFilterChange();
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="All projects" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All projects</SelectItem>
-                    {uniqueProjects.map((project) => (
-                      <SelectItem key={project} value={project}>
-                        {project}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
 
 
@@ -1432,16 +1484,16 @@ export function PanelGroupsPage({
               <div className="flex flex-col items-center justify-center py-12">
                 <Package className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium">
-                  {searchTerm || projectFilter !== 'all' || panelCountMinFilter || panelCountMaxFilter || dateRangeFilter !== 'all'
+                  {searchTerm || panelCountMinFilter || panelCountMaxFilter || dateRangeFilter !== 'all'
                     ? 'No panel groups match your search criteria'
                     : 'No panel groups found'}
                 </h3>
                 <p className="text-muted-foreground text-center">
-                  {searchTerm || projectFilter !== 'all' || panelCountMinFilter || panelCountMaxFilter || dateRangeFilter !== 'all'
+                  {searchTerm || panelCountMinFilter || panelCountMaxFilter || dateRangeFilter !== 'all'
                     ? 'Try adjusting your filters to see more results.'
                     : 'Get started by creating your first panel group.'}
                 </p>
-                {!searchTerm && projectFilter === 'all' && !panelCountMinFilter && !panelCountMaxFilter && dateRangeFilter === 'all' && (
+                {!searchTerm && !panelCountMinFilter && !panelCountMaxFilter && dateRangeFilter === 'all' && (
                   <Button onClick={handleOpenCreateGroup} className="mt-4">
                     <Plus className="mr-2 h-4 w-4" />
                     Add Panel Group
@@ -1507,10 +1559,6 @@ export function PanelGroupsPage({
 
                       {/* Group Summary */}
                       <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Building className="h-4 w-4" />
-                          <span>{group.project}</span>
-                        </div>
                         <div className="flex items-center gap-1">
                           <Package className="h-4 w-4" />
                           <span>{group.panelCount || 0} panels</span>

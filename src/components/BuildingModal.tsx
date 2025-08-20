@@ -40,7 +40,6 @@ interface BuildingData {
   id: string;
   name: string;
   project_id: string;
-  address: string;
   status: number;
   created_at: string;
   description?: string;
@@ -77,7 +76,6 @@ export function BuildingModal({
   const [formData, setFormData] = useState({
     name: "",
     project_id: "",
-    address: "",
     status: "active" as "active" | "completed" | "on-hold" | "inactive",
     description: ""
   });
@@ -172,7 +170,6 @@ export function BuildingModal({
       setFormData({
         name: editingBuilding.name,
         project_id: editingBuilding.project_id,
-        address: editingBuilding.address,
         status: numberToStatus[editingBuilding.status] as "active" | "completed" | "on-hold" | "inactive",
         description: editingBuilding.description || ""
       });
@@ -180,7 +177,6 @@ export function BuildingModal({
       setFormData({
         name: "",
         project_id: effectiveProject?.id || "",
-        address: "",
         status: "active",
         description: ""
       });
@@ -205,11 +201,6 @@ export function BuildingModal({
 
     if (!formData.project_id) {
       showToast('Project selection is required', 'error');
-      return;
-    }
-
-    if (!formData.address.trim()) {
-      showToast('Building address is required', 'error');
       return;
     }
 
@@ -238,7 +229,6 @@ export function BuildingModal({
       const buildingData = {
         name: formData.name.trim(),
         project_id: formData.project_id,
-        address: formData.address.trim(),
         status: statusToNumber[formData.status],
         description: formData.description.trim()
       };
@@ -249,7 +239,6 @@ export function BuildingModal({
       setFormData({
         name: "",
         project_id: effectiveProject?.id || "",
-        address: "",
         status: "active",
         description: ""
       });
@@ -267,7 +256,6 @@ export function BuildingModal({
     setFormData({
       name: "",
       project_id: effectiveProject?.id || "",
-      address: "",
       status: "active",
       description: ""
     });
@@ -391,18 +379,6 @@ export function BuildingModal({
                   {projects.length} project{projects.length !== 1 ? 's' : ''} available
                 </p>
               )}
-            </div>
-            
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="address" className="text-card-foreground">Address *</Label>
-              <Input
-                id="address"
-                value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                placeholder="Enter building address"
-                className="bg-input border-border text-foreground placeholder:text-muted-foreground"
-                required
-              />
             </div>
             
             <div className="space-y-2">

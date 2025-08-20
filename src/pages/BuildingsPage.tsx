@@ -32,7 +32,6 @@ interface BuildingModel {
   id: string;
   name: string;
   project_id: string;
-  address: string;
   status: number;
   description?: string;
   created_at: string;
@@ -169,7 +168,6 @@ export function BuildingsPage({
       .insert({
         name: buildingData.name,
         project_id: buildingData.project_id,
-        address: buildingData.address,
         status: buildingData.status,
         description: buildingData.description,
         user_id: currentUser.id
@@ -198,7 +196,6 @@ export function BuildingsPage({
       .update({
         name: buildingData.name,
         project_id: buildingData.project_id,
-        address: buildingData.address,
         status: buildingData.status,
         description: buildingData.description,
         user_id: currentUser.id
@@ -234,8 +231,7 @@ export function BuildingsPage({
   const filteredBuildings = buildings.filter((building) => {
     try {
       const matchesSearch = searchTerm === "" || 
-        (building.name && building.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (building.address && building.address.toLowerCase().includes(searchTerm.toLowerCase()));
+        (building.name && building.name.toLowerCase().includes(searchTerm.toLowerCase()));
       
       const matchesStatus = statusFilter === "all" || 
         (building.status !== null && building.status !== undefined && statusMap[building.status] === statusFilter);
@@ -388,13 +384,6 @@ export function BuildingsPage({
                     </span>
                   </div>
                 )}
-
-                <div className="flex items-center gap-2 text-sm">
-                  <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="text-card-foreground truncate">
-                    {building.address}
-                  </span>
-                </div>
 
                 <div className="flex items-center gap-2 text-sm">
                   <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />

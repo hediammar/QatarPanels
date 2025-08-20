@@ -34,6 +34,9 @@ interface FacadeData {
   description?: string;
   created_at: string;
   updated_at: string;
+  totalArea: number;
+  totalAmount: number;
+  totalWeight: number;
 }
 
 interface FacadesSectionProps {
@@ -143,13 +146,52 @@ export function FacadesSection({
         return;
       }
       
-      const formattedData = data?.map(facade => ({
-        ...facade,
-        building_name: facade.buildings?.name,
-        project_name: facade.buildings?.projects?.name
-      })) || [];
+      // Fetch panels for each facade to calculate totals
+      const facadesWithTotals = await Promise.all(
+        data?.map(async (facade) => {
+          // Fetch panels associated with this facade
+          const { data: panelsData, error: panelsError } = await supabase
+            .from('panels')
+            .select(`
+              unit_rate_qr_m2,
+              ifp_qty_area_sm,
+              weight
+            `)
+            .eq('facade_id', facade.id);
+
+          if (panelsError) {
+            console.error('Error fetching panels for facade:', facade.id, panelsError);
+            return {
+              ...facade,
+              building_name: facade.buildings?.name,
+              project_name: facade.buildings?.projects?.name,
+              totalArea: 0,
+              totalAmount: 0,
+              totalWeight: 0
+            };
+          }
+
+          // Calculate totals
+          const totalArea = panelsData?.reduce((sum, panel) => sum + (panel.ifp_qty_area_sm || 0), 0) || 0;
+          const totalAmount = panelsData?.reduce((sum, panel) => {
+            const area = panel.ifp_qty_area_sm || 0;
+            const rate = panel.unit_rate_qr_m2 || 0;
+            return sum + (area * rate);
+          }, 0) || 0;
+          const totalWeight = panelsData?.reduce((sum, panel) => sum + (panel.weight || 0), 0) || 0;
+
+          return {
+            ...facade,
+            building_name: facade.buildings?.name,
+            project_name: facade.buildings?.projects?.name,
+            totalArea,
+            totalAmount,
+            totalWeight
+          };
+        }) || []
+      );
       
-      setFacades(formattedData);
+      setFacades(facadesWithTotals);
       setLoading(false);
     }
 
@@ -176,7 +218,7 @@ export function FacadesSection({
     }
   };
 
-  const handleAddFacade = async (facadeData: Omit<FacadeData, "id" | "created_at" | "updated_at">) => {
+  const handleAddFacade = async (facadeData: Omit<FacadeData, "id" | "created_at" | "updated_at" | "totalArea" | "totalAmount" | "totalWeight">) => {
     const { data, error } = await supabase
       .from('facades')
       .insert({
@@ -204,7 +246,10 @@ export function FacadesSection({
     const formattedData = {
       ...data,
       building_name: data.buildings?.name,
-      project_name: data.buildings?.projects?.name
+      project_name: data.buildings?.projects?.name,
+      totalArea: 0,
+      totalAmount: 0,
+      totalWeight: 0
     };
 
     setFacades([...facades, formattedData]);
@@ -404,6 +449,19 @@ export function FacadesSection({
                   <span className="text-card-foreground font-medium">
                     {facade.description ? 'Has description' : 'No description'}
                   </span>
+                </div>
+
+                {/* Facade Totals */}
+                <div className="flex items-center gap-6 text-sm text-muted-foreground mt-2">
+                  <div className="flex items-center gap-1">
+                    <span>Total Area: {facade.totalArea.toFixed(2)} m²</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span>Total Amount: {facade.totalAmount.toFixed(2)} QR</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span>Total Weight: {facade.totalWeight.toFixed(2)} kg</span>
+                  </div>
                 </div>
               </div>
 

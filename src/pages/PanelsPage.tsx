@@ -92,7 +92,9 @@ import {
   PANEL_STATUSES, 
   PanelStatus,
   validateStatusTransition, 
+  validateStatusTransitionWithRole,
   getValidNextStatuses,
+  getValidNextStatusesForRole,
   isSpecialStatus 
 } from "../utils/statusValidation";
 
@@ -301,13 +303,18 @@ export function PanelsPage() {
       return;
     }
 
+    if (!currentUser?.role) {
+      showToast("User role not found", "error");
+      return;
+    }
+
     try {
       const panelIds = Array.from(selectedPanels);
       const selectedPanelObjects = panels.filter(panel => selectedPanels.has(panel.id));
       
-      // Validate status transitions for all selected panels
+      // Validate status transitions for all selected panels with role-based restrictions
       for (const panel of selectedPanelObjects) {
-        const validation = validateStatusTransition(panel.status, bulkStatusValue);
+        const validation = validateStatusTransitionWithRole(panel.status, bulkStatusValue, currentUser.role);
         if (!validation.isValid) {
           showToast(`Cannot update panel "${panel.name}": ${validation.error}`, "error");
           return;
@@ -589,11 +596,20 @@ export function PanelsPage() {
 
     // Validate status transition if editing an existing panel and status has changed
     if (editingPanel && editingPanel.status !== newPanelModel.status) {
-      const validation = validateStatusTransition(editingPanel.status, newPanelModel.status);
-      if (!validation.isValid) {
-        showToast(validation.error || "Invalid status transition", "error");
-        return;
+      // Ensure both statuses are valid numbers
+      if (typeof editingPanel.status === 'number' && typeof newPanelModel.status === 'number') {
+        const validation = validateStatusTransition(editingPanel.status, newPanelModel.status);
+        if (!validation.isValid) {
+          showToast(validation.error || "Invalid status transition", "error");
+          return;
+        }
       }
+    }
+
+    // Validate that status is a valid number
+    if (typeof newPanelModel.status !== 'number' || newPanelModel.status < 0 || newPanelModel.status >= PANEL_STATUSES.length) {
+      showToast("Invalid status value", "error");
+      return;
     }
 
     const panelData = {

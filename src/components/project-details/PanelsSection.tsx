@@ -93,7 +93,9 @@ import {
   PANEL_STATUSES, 
   PanelStatus,
   validateStatusTransition, 
+  validateStatusTransitionWithRole,
   getValidNextStatuses,
+  getValidNextStatusesForRole,
   isSpecialStatus 
 } from "../../utils/statusValidation";
 
@@ -384,6 +386,11 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
       return;
     }
 
+    if (!currentUser?.role) {
+      showToast("User role not found", "error");
+      return;
+    }
+
     setIsBulkStatusUpdating(true);
 
     try {
@@ -398,9 +405,9 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
         return;
       }
       
-      // Validate status transitions for all selected panels
+      // Validate status transitions for all selected panels with role-based restrictions
       for (const panel of selectedPanelObjects) {
-        const validation = validateStatusTransition(panel.status, bulkStatusValue);
+        const validation = validateStatusTransitionWithRole(panel.status, bulkStatusValue, currentUser.role);
         if (!validation.isValid) {
           showToast(`Cannot update panel "${panel.name}": ${validation.error}`, "error");
           return;

@@ -14,7 +14,9 @@ import { crudOperations } from '../utils/userTracking';
 import { 
   PANEL_STATUSES, 
   validateStatusTransition, 
+  validateStatusTransitionWithRole,
   getValidNextStatuses,
+  getValidNextStatusesForRole,
   isSpecialStatus 
 } from '../utils/statusValidation';
 
@@ -63,11 +65,11 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
   const statusMap: { [key: number]: PanelStatus } = PANEL_STATUSES.reduce((acc, status, index) => ({ ...acc, [index]: status }), {});
   const statusReverseMap = Object.fromEntries(Object.entries(statusMap).map(([k, v]) => [v, parseInt(k)]));
 
-  // Get valid next statuses for the current panel status
+  // Get valid next statuses for the current panel status and user role
   const getValidStatuses = () => {
-    if (!panel) return [];
+    if (!panel || !currentUser?.role) return [];
     
-    const validNextStatuses = getValidNextStatuses(panel.status);
+    const validNextStatuses = getValidNextStatusesForRole(panel.status, currentUser.role);
     const allStatuses = PANEL_STATUSES.map((_, index) => index);
     
     // Include special statuses (On Hold, Cancelled) that can be set from any status
@@ -81,13 +83,13 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
 
   // Validate status transition when newStatus changes
   useEffect(() => {
-    if (panel && newStatus !== panel.status) {
-      const validation = validateStatusTransition(panel.status, newStatus);
+    if (panel && newStatus !== panel.status && currentUser?.role) {
+      const validation = validateStatusTransitionWithRole(panel.status, newStatus, currentUser.role);
       setValidationError(validation.error || '');
     } else {
       setValidationError('');
     }
-  }, [panel, newStatus]);
+  }, [panel, newStatus, currentUser?.role]);
 
   // Reset form when panel changes
   useEffect(() => {
@@ -173,10 +175,10 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
   };
 
   const handleSubmit = async () => {
-    if (!panel) return;
+    if (!panel || !currentUser?.role) return;
 
-    // Validate status transition
-    const validation = validateStatusTransition(panel.status, newStatus);
+    // Validate status transition with role-based restrictions
+    const validation = validateStatusTransitionWithRole(panel.status, newStatus, currentUser.role);
     if (!validation.isValid) {
       showToast(validation.error || 'Invalid status transition', 'error');
       return;

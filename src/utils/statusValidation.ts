@@ -34,6 +34,100 @@ export const STATUS_FLOW: Record<number, number[]> = {
 // Special statuses that can be set from any status (emergency/administrative)
 export const SPECIAL_STATUSES = [9, 10, 11]; // On Hold, Cancelled, Broken at Site
 
+// Role-based status change restrictions based on the table
+// Each role can only change to specific statuses (following the status flow logic)
+export const ROLE_STATUS_RESTRICTIONS: Record<string, number[]> = {
+  'Data Entry': [0, 9, 10], // Issued For Production, On Hold, Cancelled
+  'Production engineer': [1], // Produced
+  'Site Engineer': [7], // Inspected
+  'QC Site': [4, 5, 8], // Approved Material, Rejected Material, Approved Final
+  'QC Factory': [2], // Proceed for Delivery
+  'Store Site': [3, 11], // Delivered, Broken at Site
+  'Foreman Site': [6], // Installed
+};
+
+/**
+ * Validates if a status transition is allowed based on user role
+ * @param currentStatus - The current status index
+ * @param newStatus - The proposed new status index
+ * @param userRole - The user's role
+ * @returns Object with isValid boolean and error message if invalid
+ */
+export function validateStatusTransitionWithRole(
+  currentStatus: number, 
+  newStatus: number, 
+  userRole: string
+): { isValid: boolean; error?: string } {
+  // Validate input parameters
+  if (currentStatus === undefined || currentStatus === null || newStatus === undefined || newStatus === null) {
+    return { isValid: false, error: "Invalid status values provided" };
+  }
+
+  // Validate that status indices are within bounds
+  if (currentStatus < 0 || currentStatus >= PANEL_STATUSES.length || newStatus < 0 || newStatus >= PANEL_STATUSES.length) {
+    return { isValid: false, error: "Status index out of bounds" };
+  }
+
+  // Admin can do everything without restrictions
+  if (userRole === 'Administrator') {
+    return validateStatusTransition(currentStatus, newStatus);
+  }
+
+  // Data Entry can do everything except user management (already handled in permissions)
+  if (userRole === 'Data Entry') {
+    return validateStatusTransition(currentStatus, newStatus);
+  }
+
+  // Check if user has permission to change to this specific status
+  const allowedStatuses = ROLE_STATUS_RESTRICTIONS[userRole];
+  if (!allowedStatuses) {
+    return { isValid: false, error: `Role "${userRole}" is not authorized to change panel status` };
+  }
+
+  // Check if the new status is in the role's allowed statuses
+  if (!allowedStatuses.includes(newStatus)) {
+    const newStatusName = PANEL_STATUSES[newStatus];
+    const allowedStatusNames = allowedStatuses.map(index => PANEL_STATUSES[index]);
+    return { 
+      isValid: false, 
+      error: `Role "${userRole}" cannot change status to "${newStatusName}". Allowed statuses: ${allowedStatusNames.join(", ")}` 
+    };
+  }
+
+  // Now check if the transition follows the status flow logic
+  return validateStatusTransition(currentStatus, newStatus);
+}
+
+/**
+ * Gets valid next statuses for a given current status and user role
+ * @param currentStatus - The current status index
+ * @param userRole - The user's role
+ * @returns Array of valid next status indices
+ */
+export function getValidNextStatusesForRole(currentStatus: number, userRole: string): number[] {
+  // Admin can do everything
+  if (userRole === 'Administrator') {
+    return getValidNextStatuses(currentStatus);
+  }
+
+  // Data Entry can do everything
+  if (userRole === 'Data Entry') {
+    return getValidNextStatuses(currentStatus);
+  }
+
+  // Get role's allowed statuses
+  const allowedStatuses = ROLE_STATUS_RESTRICTIONS[userRole];
+  if (!allowedStatuses) {
+    return [];
+  }
+
+  // Get valid next statuses from status flow
+  const validNextStatuses = getValidNextStatuses(currentStatus);
+  
+  // Filter to only include statuses that the role is allowed to change to
+  return validNextStatuses.filter(status => allowedStatuses.includes(status));
+}
+
 /**
  * Validates if a status transition is allowed
  * @param currentStatus - The current status index
@@ -41,6 +135,16 @@ export const SPECIAL_STATUSES = [9, 10, 11]; // On Hold, Cancelled, Broken at Si
  * @returns Object with isValid boolean and error message if invalid
  */
 export function validateStatusTransition(currentStatus: number, newStatus: number): { isValid: boolean; error?: string } {
+  // Validate input parameters
+  if (currentStatus === undefined || currentStatus === null || newStatus === undefined || newStatus === null) {
+    return { isValid: false, error: "Invalid status values provided" };
+  }
+
+  // Validate that status indices are within bounds
+  if (currentStatus < 0 || currentStatus >= PANEL_STATUSES.length || newStatus < 0 || newStatus >= PANEL_STATUSES.length) {
+    return { isValid: false, error: "Status index out of bounds" };
+  }
+
   // Same status is not allowed
   if (currentStatus === newStatus) {
     return { isValid: false, error: "Cannot change to the same status" };
@@ -53,10 +157,10 @@ export function validateStatusTransition(currentStatus: number, newStatus: numbe
 
   // Check if the transition is allowed in the status flow
   const allowedTransitions = STATUS_FLOW[currentStatus];
-  if (!allowedTransitions.includes(newStatus)) {
+  if (!allowedTransitions || !allowedTransitions.includes(newStatus)) {
     const currentStatusName = PANEL_STATUSES[currentStatus];
     const newStatusName = PANEL_STATUSES[newStatus];
-    const allowedStatusNames = allowedTransitions.map(index => PANEL_STATUSES[index]);
+    const allowedStatusNames = allowedTransitions ? allowedTransitions.map(index => PANEL_STATUSES[index]) : [];
     
     return { 
       isValid: false, 

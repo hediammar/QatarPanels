@@ -140,7 +140,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     customers: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     buildings: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: false },
+    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
     panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     navigation: {
       dashboard: true,
@@ -160,7 +160,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     customers: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     buildings: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: false },
+    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
     panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     navigation: {
       dashboard: true,
@@ -180,7 +180,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     customers: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     buildings: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: false },
+    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
     panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     navigation: {
       dashboard: true,
@@ -200,7 +200,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     customers: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     buildings: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: false },
+    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
     panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     navigation: {
       dashboard: true,
@@ -220,7 +220,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     customers: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     buildings: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: false },
+    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
     panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     navigation: {
       dashboard: true,
@@ -240,7 +240,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     customers: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     buildings: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: false },
+    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
     panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     navigation: {
       dashboard: true,

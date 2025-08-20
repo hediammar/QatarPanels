@@ -164,6 +164,8 @@ interface ImportedPanel {
 interface PanelsSectionProps {
   projectId: string;
   projectName: string;
+  facadeId?: string;
+  facadeName?: string;
 }
 
 interface QRCodeModalProps {
@@ -174,7 +176,7 @@ interface QRCodeModalProps {
   onClose: () => void;
 }
 
-export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
+export function PanelsSection({ projectId, projectName, facadeId, facadeName }: PanelsSectionProps) {
   const { user: currentUser } = useAuth();
   const { showToast } = useToastContext();
   const [panels, setPanels] = useState<PanelModel[]>([]);
@@ -469,7 +471,7 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
         setFacades(facadeData || []);
       }
 
-    const { data, error } = await supabase
+    let panelQuery = supabase
       .from("panels")
       .select(`
         *,
@@ -478,6 +480,13 @@ export function PanelsSection({ projectId, projectName }: PanelsSectionProps) {
         facades(name)
       `)
       .eq("project_id", projectId);
+
+    // If facadeId is provided, filter panels by that specific facade
+    if (facadeId) {
+      panelQuery = panelQuery.eq("facade_id", facadeId);
+    }
+
+    const { data, error } = await panelQuery;
 
     if (error) {
       console.error("Error fetching panels:", error);

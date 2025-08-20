@@ -8,6 +8,7 @@ import {
   Trash2
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -45,6 +46,7 @@ export function BuildingsSection({
   projectId,
   projectName,
 }: BuildingsSectionProps) {
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const [buildings, setBuildings] = useState<BuildingModel[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -153,6 +155,10 @@ export function BuildingsSection({
     } catch (error) {
       console.error('Error deleting building:', error);
     }
+  };
+
+  const handleCardClick = (building: BuildingModel) => {
+    navigate(`/buildings/${building.id}`);
   };
 
   const handleAddBuilding = async (buildingData: Omit<BuildingModel, "id" | "created_at">) => {
@@ -306,7 +312,8 @@ export function BuildingsSection({
         {filteredBuildings.map((building) => (
           <Card
             key={building.id}
-            className="qatar-card flex flex-col justify-between"
+            className="qatar-card flex flex-col justify-between cursor-pointer hover:shadow-xl transition-shadow"
+            onClick={() => handleCardClick(building)}
           >
             <CardHeader className="qatar-card-header">
               <div>
@@ -374,7 +381,10 @@ export function BuildingsSection({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDelete(building)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(building);
+                      }}
                       className="border-red-400/50 text-red-400 hover:bg-red-400/10"
                     >
                       <Trash2 className="h-3 w-3" />

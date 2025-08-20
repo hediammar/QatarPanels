@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -52,6 +53,7 @@ export function FacadesSection({
   buildingId,
   buildingName,
 }: FacadesSectionProps) {
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const [facades, setFacades] = useState<FacadeData[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -216,6 +218,10 @@ export function FacadesSection({
 
       setFacades(facades.filter(f => f.id !== facade.id));
     }
+  };
+
+  const handleCardClick = (facade: FacadeData) => {
+    navigate(`/facades/${facade.id}`);
   };
 
   const handleAddFacade = async (facadeData: Omit<FacadeData, "id" | "created_at" | "updated_at" | "totalArea" | "totalAmount" | "totalWeight">) => {
@@ -408,7 +414,8 @@ export function FacadesSection({
         {filteredFacades.map((facade) => (
           <Card
             key={facade.id}
-            className="qatar-card flex flex-col justify-between"
+            className="qatar-card flex flex-col justify-between cursor-pointer hover:shadow-xl transition-shadow"
+            onClick={() => handleCardClick(facade)}
           >
             <CardHeader className="qatar-card-header">
               <div>
@@ -500,7 +507,10 @@ export function FacadesSection({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleDelete(facade)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(facade);
+                      }}
                       className="border-red-400/50 text-red-400 hover:bg-red-400/10"
                     >
                       <Trash2 className="h-3 w-3" />

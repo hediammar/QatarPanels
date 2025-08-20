@@ -12,6 +12,8 @@ import { BulkImportProjectsPage } from "./pages/BulkImportProjectsPage";
 import { BulkImportPanelsPage } from "./pages/BulkImportPanelsPage";
 import { FacadesPage } from "./pages/FacadesPage";
 import { PanelsPage } from "./pages/PanelsPage";
+import { BuildingDetailsPage } from "./pages/BuildingDetailsPage";
+import { FacadeDetailsPage } from "./pages/FacadeDetailsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ToastProvider } from "./contexts/ToastContext";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -61,10 +63,24 @@ export default function App() {
                 </Layout>
               </ProtectedRoute>
             } />
+            <Route path="/buildings/:id" element={
+              <ProtectedRoute>
+                <Layout>
+                  <BuildingDetailsPage />
+                </Layout>
+              </ProtectedRoute>
+            } />
             <Route path="/facades" element={
               <ProtectedRoute>
                 <Layout>
                   <FacadesPage />
+                </Layout>
+              </ProtectedRoute>
+            } />
+            <Route path="/facades/:id" element={
+              <ProtectedRoute>
+                <Layout>
+                  <FacadeDetailsPage />
                 </Layout>
               </ProtectedRoute>
             } />

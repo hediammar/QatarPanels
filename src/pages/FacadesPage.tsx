@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -52,6 +53,7 @@ export function FacadesPage({
   buildingId,
   buildingName,
 }: FacadesPageProps) {
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const [facades, setFacades] = useState<FacadeData[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -417,7 +419,8 @@ export function FacadesPage({
         {filteredFacades.map((facade) => (
           <Card
             key={facade.id}
-            className="qatar-card flex flex-col justify-between"
+            className="qatar-card flex flex-col justify-between cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate(`/facades/${facade.id}`)}
           >
             <CardHeader className="qatar-card-header">
               <div>
@@ -512,13 +515,17 @@ export function FacadesPage({
                         editingFacade={facade}
                         currentProject={currentProject}
                         currentBuilding={currentBuilding}
+                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
                       />
                     )}
                     {canDeleteFacades && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDelete(facade)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(facade);
+                        }}
                         className="border-red-400/50 text-red-400 hover:bg-red-400/10"
                       >
                         <Trash2 className="h-3 w-3" />

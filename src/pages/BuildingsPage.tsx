@@ -8,6 +8,7 @@ import {
   Trash2
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
@@ -46,6 +47,7 @@ export function BuildingsPage({
   projectId,
   projectName,
 }: BuildingsSectionProps) {
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const { showToast } = useToastContext();
   const [buildings, setBuildings] = useState<BuildingModel[]>([]);
@@ -358,7 +360,8 @@ export function BuildingsPage({
         {filteredBuildings.map((building) => (
           <Card
             key={building.id}
-            className="qatar-card flex flex-col justify-between"
+            className="qatar-card flex flex-col justify-between cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate(`/buildings/${building.id}`)}
           >
             <CardHeader className="qatar-card-header">
               <div>
@@ -404,13 +407,17 @@ export function BuildingsPage({
                         onSubmit={handleUpdateBuilding.bind(null, building.id)}
                         editingBuilding={building}
                         currentProject={currentProject}
+                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
                       />
                     )}
                     {canDeleteBuildings && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDelete(building)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(building);
+                        }}
                         className="border-red-400/50 text-red-400 hover:bg-red-400/10"
                       >
                         <Trash2 className="h-3 w-3" />

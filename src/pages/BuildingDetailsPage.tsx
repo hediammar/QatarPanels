@@ -258,6 +258,7 @@ export function BuildingDetailsPage() {
                     name: project.name,
                     customer: customer?.name
                   } : undefined}
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
                 />
               )}
               {canDeleteBuildings && (

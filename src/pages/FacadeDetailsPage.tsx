@@ -299,6 +299,7 @@ export function FacadeDetailsPage() {
                     id: building.id,
                     name: building.name
                   } : undefined}
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
                 />
               )}
               {canDeleteFacades && (

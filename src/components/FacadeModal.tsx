@@ -452,6 +452,15 @@ export function FacadeModalTrigger({
 }: Omit<FacadeModalProps, "isOpen" | "onOpenChange" | "trigger"> & { disabled?: boolean; onClick?: (e: React.MouseEvent) => void }) {
   const [isOpen, setIsOpen] = useState(false);
 
+  const handleClick = (e: React.MouseEvent) => {
+    // Stop event propagation if provided
+    if (onClick) {
+      onClick(e);
+    }
+    // Open the modal
+    setIsOpen(true);
+  };
+
   return (
     <FacadeModal
       isOpen={isOpen}
@@ -465,7 +474,7 @@ export function FacadeModalTrigger({
       currentBuildingId={currentBuildingId}
       currentBuildingName={currentBuildingName}
       trigger={
-        <Button className="gap-2" disabled={disabled} onClick={onClick}>
+        <Button className="gap-2" disabled={disabled} onClick={handleClick}>
           <Plus className="h-4 w-4" />
           {editingFacade ? 'Edit Facade' : 'Add Facade'}
         </Button>

@@ -57,6 +57,9 @@ interface PanelModel {
   panelTag: string;
   dwgNo: string;
   unitQty: number;
+  unitRateQrM2: number;
+  ifpQtyAreaSm: number;
+  weight: number;
   groupId?: string; // Optional since we're using many-to-many relationship
   allGroupIds?: string[];
 }
@@ -384,7 +387,10 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, onPa
               status,
               drawing_number,
               ifp_qty_nos,
-              issue_transmittal_no
+              issue_transmittal_no,
+              unit_rate_qr_m2,
+              ifp_qty_area_sm,
+              weight
             `);
 
           if (panelsError) {
@@ -403,10 +409,10 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, onPa
             panelTag: panel.issue_transmittal_no || `TAG-${panel.id.slice(0, 8)}`,
             dwgNo: panel.drawing_number || 'N/A',
             unitQty: panel.ifp_qty_nos || 0,
+            unitRateQrM2: panel.unit_rate_qr_m2 || 0,
+            ifpQtyAreaSm: panel.ifp_qty_area_sm || 0,
+            weight: panel.weight || 0,
             groupId: '',
-            project_name: '',
-            building_name: '',
-            facade_name: '',
           }));
 
           setAvailablePanels(formattedPanels);
@@ -658,7 +664,10 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
             status,
             drawing_number,
             ifp_qty_nos,
-            issue_transmittal_no
+            issue_transmittal_no,
+            unit_rate_qr_m2,
+            ifp_qty_area_sm,
+            weight
           `)
           .in('id', currentPanelIds);
 
@@ -676,6 +685,9 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
         panelTag: panel.issue_transmittal_no || `TAG-${panel.id.slice(0, 8)}`,
         dwgNo: panel.drawing_number || 'N/A',
         unitQty: panel.ifp_qty_nos || 0,
+        unitRateQrM2: panel.unit_rate_qr_m2 || 0,
+        ifpQtyAreaSm: panel.ifp_qty_area_sm || 0,
+        weight: panel.weight || 0,
         groupId: group.id,
       }));
 
@@ -690,7 +702,10 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
           status,
           drawing_number,
           ifp_qty_nos,
-          issue_transmittal_no
+          issue_transmittal_no,
+          unit_rate_qr_m2,
+          ifp_qty_area_sm,
+          weight
         `);
 
       if (allPanelsError) {
@@ -710,6 +725,9 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
         panelTag: panel.issue_transmittal_no || `TAG-${panel.id.slice(0, 8)}`,
         dwgNo: panel.drawing_number || 'N/A',
         unitQty: panel.ifp_qty_nos || 0,
+        unitRateQrM2: panel.unit_rate_qr_m2 || 0,
+        ifpQtyAreaSm: panel.ifp_qty_area_sm || 0,
+        weight: panel.weight || 0,
         groupId: '',
       }));
 
@@ -1105,7 +1123,10 @@ async function fetchPanels(): Promise<PanelModel[]> {
       status,
       drawing_number,
       ifp_qty_nos,
-      issue_transmittal_no
+      issue_transmittal_no,
+      unit_rate_qr_m2,
+      ifp_qty_area_sm,
+      weight
     `);
 
   if (error) {
@@ -1142,6 +1163,9 @@ async function fetchPanels(): Promise<PanelModel[]> {
       panelTag: panel.issue_transmittal_no || `TAG-${panel.id.slice(0, 8)}`,
       dwgNo: panel.drawing_number || 'N/A',
       unitQty: panel.ifp_qty_nos || 0,
+      unitRateQrM2: panel.unit_rate_qr_m2 || 0,
+      ifpQtyAreaSm: panel.ifp_qty_area_sm || 0,
+      weight: panel.weight || 0,
       groupId: '', // No longer used for many-to-many relationship
       // Store all group IDs for future use if needed
       allGroupIds: groupIds,
@@ -1231,6 +1255,20 @@ export function PanelGroupsPage({
       // Check if this panel belongs to the current group using allGroupIds
       return panel.allGroupIds?.includes(group.id);
     });
+  };
+
+  const calculateGroupTotals = (group: PanelGroupModel) => {
+    const groupPanels = getGroupPanels(group);
+    
+    const totalArea = groupPanels.reduce((sum, panel) => sum + (panel.ifpQtyAreaSm || 0), 0);
+    const totalAmount = groupPanels.reduce((sum, panel) => {
+      const area = panel.ifpQtyAreaSm || 0;
+      const rate = panel.unitRateQrM2 || 0;
+      return sum + (area * rate);
+    }, 0);
+    const totalWeight = groupPanels.reduce((sum, panel) => sum + (panel.weight || 0), 0);
+    
+    return { totalArea, totalAmount, totalWeight };
   };
 
   const toggleGroupExpansion = (groupId: string) => {
@@ -1568,6 +1606,24 @@ export function PanelGroupsPage({
                           <span>Created {group.createdAt ? new Date(group.createdAt).toLocaleDateString() : 'Unknown'}</span>
                         </div>
                       </div>
+                      
+                      {/* Group Totals */}
+                      {(() => {
+                        const { totalArea, totalAmount, totalWeight } = calculateGroupTotals(group);
+                        return (
+                          <div className="flex items-center gap-6 text-sm text-muted-foreground mt-2">
+                            <div className="flex items-center gap-1">
+                              <span>Total Area: {totalArea.toFixed(2)} m²</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span>Total Amount: {totalAmount.toFixed(2)} QR</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span>Total Weight: {totalWeight.toFixed(2)} kg</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Expanded Content - Panels in Group */}

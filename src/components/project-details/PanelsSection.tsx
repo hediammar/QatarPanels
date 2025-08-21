@@ -2060,18 +2060,18 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                             </div>
                             <div className="flex items-center">
                               <Layers className="mr-2 h-3 w-3 text-muted-foreground" />
-                              <span className="text-sm">{typeMap[panel.type]}</span>
+                              <span className="text-sm">Type: {typeMap[panel.type]}</span>
                             </div>
                             <div>
                               <Badge className={'bg-primary text-primary-foreground'}>{statusMap[panel.status]}</Badge>
                             </div>
                             <div className="flex items-center">
                               <FolderOpen className="mr-2 h-3 w-3 text-muted-foreground" />
-                              <span className="text-sm">{panel.building_name || "—"}</span>
+                              <span className="text-sm">Building: {panel.building_name || "—"}</span>
                             </div>
                             <div className="flex items-center">
                               <Hash className="mr-2 h-3 w-3 text-muted-foreground" />
-                              <span className="text-sm">{panel.ifp_qty_nos || "0"}</span>
+                              <span className="text-sm">IFP Qty Nos: {panel.ifp_qty_nos || "0"}</span>
                             </div>
                           </div>
                         </div>

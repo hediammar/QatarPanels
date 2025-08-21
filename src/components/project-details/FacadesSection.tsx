@@ -38,6 +38,7 @@ interface FacadeData {
   totalArea: number;
   totalAmount: number;
   totalWeight: number;
+  totalPanels: number;
 }
 
 interface FacadesSectionProps {
@@ -169,7 +170,8 @@ export function FacadesSection({
               project_name: facade.buildings?.projects?.name,
               totalArea: 0,
               totalAmount: 0,
-              totalWeight: 0
+              totalWeight: 0,
+              totalPanels: 0
             };
           }
 
@@ -181,6 +183,7 @@ export function FacadesSection({
             return sum + (area * rate);
           }, 0) || 0;
           const totalWeight = panelsData?.reduce((sum, panel) => sum + (panel.weight || 0), 0) || 0;
+          const totalPanels = panelsData?.length || 0;
 
           return {
             ...facade,
@@ -188,7 +191,8 @@ export function FacadesSection({
             project_name: facade.buildings?.projects?.name,
             totalArea,
             totalAmount,
-            totalWeight
+            totalWeight,
+            totalPanels
           };
         }) || []
       );
@@ -224,7 +228,7 @@ export function FacadesSection({
     navigate(`/facades/${facade.id}`);
   };
 
-  const handleAddFacade = async (facadeData: Omit<FacadeData, "id" | "created_at" | "updated_at" | "totalArea" | "totalAmount" | "totalWeight">) => {
+  const handleAddFacade = async (facadeData: Omit<FacadeData, "id" | "created_at" | "updated_at" | "totalArea" | "totalAmount" | "totalWeight" | "totalPanels">) => {
     const { data, error } = await supabase
       .from('facades')
       .insert({
@@ -255,8 +259,9 @@ export function FacadesSection({
       project_name: data.buildings?.projects?.name,
       totalArea: 0,
       totalAmount: 0,
-      totalWeight: 0
-    };
+      totalWeight: 0,
+      totalPanels: 0
+    } as FacadeData;
 
     setFacades([...facades, formattedData]);
   };
@@ -468,6 +473,9 @@ export function FacadesSection({
                   </div>
                   <div className="flex items-center gap-1">
                     <span>Total Weight: {facade.totalWeight.toFixed(2)} kg</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span>Total Panels: {facade.totalPanels}</span>
                   </div>
                 </div>
               </div>

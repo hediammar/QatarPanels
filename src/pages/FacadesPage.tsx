@@ -38,6 +38,7 @@ interface FacadeData {
   totalArea: number;
   totalAmount: number;
   totalWeight: number;
+  totalPanels: number;
 }
 
 interface FacadesPageProps {
@@ -171,7 +172,8 @@ export function FacadesPage({
               project_name: facade.buildings?.projects?.name,
               totalArea: 0,
               totalAmount: 0,
-              totalWeight: 0
+              totalWeight: 0,
+              totalPanels: 0
             };
           }
 
@@ -183,6 +185,7 @@ export function FacadesPage({
             return sum + (area * rate);
           }, 0) || 0;
           const totalWeight = panelsData?.reduce((sum, panel) => sum + (panel.weight || 0), 0) || 0;
+          const totalPanels = panelsData?.length || 0;
 
           return {
             ...facade,
@@ -190,7 +193,8 @@ export function FacadesPage({
             project_name: facade.buildings?.projects?.name,
             totalArea,
             totalAmount,
-            totalWeight
+            totalWeight,
+            totalPanels
           };
         }) || []
       );
@@ -222,7 +226,7 @@ export function FacadesPage({
     }
   };
 
-  const handleAddFacade = async (facadeData: Omit<FacadeData, "id" | "created_at" | "updated_at" | "totalArea" | "totalAmount" | "totalWeight">) => {
+  const handleAddFacade = async (facadeData: Omit<FacadeData, "id" | "created_at" | "updated_at" | "totalArea" | "totalAmount" | "totalWeight" | "totalPanels">) => {
     if (!currentUser?.id) {
       console.error('User not authenticated');
       return;
@@ -259,8 +263,9 @@ export function FacadesPage({
       project_name: data.buildings?.projects?.name,
       totalArea: 0,
       totalAmount: 0,
-      totalWeight: 0
-    };
+      totalWeight: 0,
+      totalPanels: 0
+    } as FacadeData;
 
     setFacades([...facades, formattedData]);
   };
@@ -473,6 +478,9 @@ export function FacadesPage({
                   </div>
                   <div className="flex items-center gap-1">
                     <span>Total Weight: {facade.totalWeight.toFixed(2)} kg</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span>Total Panels: {facade.totalPanels}</span>
                   </div>
                 </div>
               </div>

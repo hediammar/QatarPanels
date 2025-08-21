@@ -36,6 +36,9 @@ interface BuildingModel {
   status: number;
   description?: string;
   created_at: string;
+  totalArea: number;
+  totalAmount: number;
+  totalWeight: number;
 }
 
 interface BuildingsSectionProps {
@@ -147,7 +150,48 @@ export function BuildingsPage({
           return;
         }
         
-        setBuildings(data || []);
+        // Fetch panels for each building to calculate totals
+        const buildingsWithTotals = await Promise.all(
+          data?.map(async (building) => {
+            // Fetch panels associated with this building
+            const { data: panelsData, error: panelsError } = await supabase
+              .from('panels')
+              .select(`
+                unit_rate_qr_m2,
+                ifp_qty_area_sm,
+                weight
+              `)
+              .eq('building_id', building.id);
+
+            if (panelsError) {
+              console.error('Error fetching panels for building:', building.id, panelsError);
+              return {
+                ...building,
+                totalArea: 0,
+                totalAmount: 0,
+                totalWeight: 0
+              };
+            }
+
+            // Calculate totals
+            const totalArea = panelsData?.reduce((sum, panel) => sum + (panel.ifp_qty_area_sm || 0), 0) || 0;
+            const totalAmount = panelsData?.reduce((sum, panel) => {
+              const area = panel.ifp_qty_area_sm || 0;
+              const rate = panel.unit_rate_qr_m2 || 0;
+              return sum + (area * rate);
+            }, 0) || 0;
+            const totalWeight = panelsData?.reduce((sum, panel) => sum + (panel.weight || 0), 0) || 0;
+
+            return {
+              ...building,
+              totalArea,
+              totalAmount,
+              totalWeight
+            };
+          }) || []
+        );
+        
+        setBuildings(buildingsWithTotals);
       } catch (error) {
         console.error('Error fetching buildings:', error);
         showToast('Failed to load buildings', 'error');
@@ -159,7 +203,7 @@ export function BuildingsPage({
     fetchBuildings();
   }, [projectId, showToast]);
 
-  const handleAddBuilding = async (buildingData: Omit<BuildingModel, "id" | "created_at">) => {
+  const handleAddBuilding = async (buildingData: Omit<BuildingModel, "id" | "created_at" | "totalArea" | "totalAmount" | "totalWeight">) => {
     if (!currentUser?.id) {
       showToast('You must be logged in to perform this action', 'error');
       return;
@@ -183,11 +227,18 @@ export function BuildingsPage({
       return;
     }
 
-    setBuildings([...buildings, data]);
+    const buildingWithTotals = {
+      ...data,
+      totalArea: 0,
+      totalAmount: 0,
+      totalWeight: 0
+    };
+
+    setBuildings([...buildings, buildingWithTotals]);
     showToast('Building created successfully', 'success');
   };
 
-  const handleUpdateBuilding = async (buildingId: string, buildingData: Omit<BuildingModel, "id" | "created_at">) => {
+  const handleUpdateBuilding = async (buildingId: string, buildingData: Omit<BuildingModel, "id" | "created_at" | "totalArea" | "totalAmount" | "totalWeight">) => {
     if (!currentUser?.id) {
       showToast('You must be logged in to perform this action', 'error');
       return;
@@ -210,6 +261,7 @@ export function BuildingsPage({
       return;
     }
 
+    // Keep the existing totals when updating
     setBuildings(buildings.map(b => 
       b.id === buildingId ? { ...b, ...buildingData } : b
     ));
@@ -393,6 +445,19 @@ export function BuildingsPage({
                   <span className="text-card-foreground font-medium">
                     {building.description ? 'Has description' : 'No description'}
                   </span>
+                </div>
+
+                {/* Building Totals */}
+                <div className="flex items-center gap-6 text-sm text-muted-foreground mt-2">
+                  <div className="flex items-center gap-1">
+                    <span>Total Area: {building.totalArea.toFixed(2)} m²</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span>Total Amount: {building.totalAmount.toFixed(2)} QR</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span>Total Weight: {building.totalWeight.toFixed(2)} kg</span>
+                  </div>
                 </div>
               </div>
 

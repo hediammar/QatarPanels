@@ -38,6 +38,7 @@ interface BuildingModel {
   totalArea: number;
   totalAmount: number;
   totalWeight: number;
+  totalPanels: number;
 }
 
 interface BuildingsSectionProps {
@@ -141,46 +142,49 @@ export function BuildingsSection({
         return;
       }
       
-      // Fetch panels for each building to calculate totals
-      const buildingsWithTotals = await Promise.all(
-        data?.map(async (building) => {
-          // Fetch panels associated with this building
-          const { data: panelsData, error: panelsError } = await supabase
-            .from('panels')
-            .select(`
-              unit_rate_qr_m2,
-              ifp_qty_area_sm,
-              weight
-            `)
-            .eq('building_id', building.id);
+                // Fetch panels for each building to calculate totals
+          const buildingsWithTotals = await Promise.all(
+            data?.map(async (building) => {
+              // Fetch panels associated with this building
+              const { data: panelsData, error: panelsError } = await supabase
+                .from('panels')
+                .select(`
+                  unit_rate_qr_m2,
+                  ifp_qty_area_sm,
+                  weight
+                `)
+                .eq('building_id', building.id);
 
-          if (panelsError) {
-            console.error('Error fetching panels for building:', building.id, panelsError);
-            return {
-              ...building,
-              totalArea: 0,
-              totalAmount: 0,
-              totalWeight: 0
-            };
-          }
+              if (panelsError) {
+                console.error('Error fetching panels for building:', building.id, panelsError);
+                return {
+                  ...building,
+                  totalArea: 0,
+                  totalAmount: 0,
+                  totalWeight: 0,
+                  totalPanels: 0
+                };
+              }
 
-          // Calculate totals
-          const totalArea = panelsData?.reduce((sum, panel) => sum + (panel.ifp_qty_area_sm || 0), 0) || 0;
-          const totalAmount = panelsData?.reduce((sum, panel) => {
-            const area = panel.ifp_qty_area_sm || 0;
-            const rate = panel.unit_rate_qr_m2 || 0;
-            return sum + (area * rate);
-          }, 0) || 0;
-          const totalWeight = panelsData?.reduce((sum, panel) => sum + (panel.weight || 0), 0) || 0;
+              // Calculate totals
+              const totalArea = panelsData?.reduce((sum, panel) => sum + (panel.ifp_qty_area_sm || 0), 0) || 0;
+              const totalAmount = panelsData?.reduce((sum, panel) => {
+                const area = panel.ifp_qty_area_sm || 0;
+                const rate = panel.unit_rate_qr_m2 || 0;
+                return sum + (area * rate);
+              }, 0) || 0;
+              const totalWeight = panelsData?.reduce((sum, panel) => sum + (panel.weight || 0), 0) || 0;
+              const totalPanels = panelsData?.length || 0;
 
-          return {
-            ...building,
-            totalArea,
-            totalAmount,
-            totalWeight
-          };
-        }) || []
-      );
+              return {
+                ...building,
+                totalArea,
+                totalAmount,
+                totalWeight,
+                totalPanels
+              };
+            }) || []
+          );
       
       setBuildings(buildingsWithTotals);
       setLoading(false);
@@ -205,7 +209,7 @@ export function BuildingsSection({
     navigate(`/buildings/${building.id}`);
   };
 
-  const handleAddBuilding = async (buildingData: Omit<BuildingModel, "id" | "created_at" | "totalArea" | "totalAmount" | "totalWeight">) => {
+  const handleAddBuilding = async (buildingData: Omit<BuildingModel, "id" | "created_at" | "totalArea" | "totalAmount" | "totalWeight" | "totalPanels">) => {
     const { data, error } = await supabase
       .from('buildings')
       .insert({
@@ -409,6 +413,9 @@ export function BuildingsSection({
                   <div className="flex items-center gap-1">
                     <span>Total Weight: {building.totalWeight.toFixed(2)} kg</span>
                   </div>
+                  <div className="flex items-center gap-1">
+                    <span>Total Panels: {building.totalPanels}</span>
+                  </div>
                 </div>
               </div>
 
@@ -419,7 +426,7 @@ export function BuildingsSection({
                   </div>
                   <div className="flex gap-2">
                     <BuildingModalTrigger
-                      onSubmit={async (data: Omit<BuildingModel, "id" | "created_at" | "totalArea" | "totalAmount" | "totalWeight">) => {
+                      onSubmit={async (data: Omit<BuildingModel, "id" | "created_at" | "totalArea" | "totalAmount" | "totalWeight" | "totalPanels">) => {
                         const { error } = await supabase
                           .from('buildings')
                           .update({

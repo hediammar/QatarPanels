@@ -39,6 +39,7 @@ interface BuildingModel {
   totalArea: number;
   totalAmount: number;
   totalWeight: number;
+  totalPanels: number;
 }
 
 interface BuildingsSectionProps {
@@ -169,7 +170,8 @@ export function BuildingsPage({
                 ...building,
                 totalArea: 0,
                 totalAmount: 0,
-                totalWeight: 0
+                totalWeight: 0,
+                totalPanels: 0
               };
             }
 
@@ -181,12 +183,14 @@ export function BuildingsPage({
               return sum + (area * rate);
             }, 0) || 0;
             const totalWeight = panelsData?.reduce((sum, panel) => sum + (panel.weight || 0), 0) || 0;
+            const totalPanels = panelsData?.length || 0;
 
             return {
               ...building,
               totalArea,
               totalAmount,
-              totalWeight
+              totalWeight,
+              totalPanels
             };
           }) || []
         );
@@ -203,7 +207,7 @@ export function BuildingsPage({
     fetchBuildings();
   }, [projectId, showToast]);
 
-  const handleAddBuilding = async (buildingData: Omit<BuildingModel, "id" | "created_at" | "totalArea" | "totalAmount" | "totalWeight">) => {
+  const handleAddBuilding = async (buildingData: Omit<BuildingModel, "id" | "created_at" | "totalArea" | "totalAmount" | "totalWeight" | "totalPanels">) => {
     if (!currentUser?.id) {
       showToast('You must be logged in to perform this action', 'error');
       return;
@@ -231,14 +235,15 @@ export function BuildingsPage({
       ...data,
       totalArea: 0,
       totalAmount: 0,
-      totalWeight: 0
+      totalWeight: 0,
+      totalPanels: 0
     };
 
     setBuildings([...buildings, buildingWithTotals]);
     showToast('Building created successfully', 'success');
   };
 
-  const handleUpdateBuilding = async (buildingId: string, buildingData: Omit<BuildingModel, "id" | "created_at" | "totalArea" | "totalAmount" | "totalWeight">) => {
+  const handleUpdateBuilding = async (buildingId: string, buildingData: Omit<BuildingModel, "id" | "created_at" | "totalArea" | "totalAmount" | "totalWeight" | "totalPanels">) => {
     if (!currentUser?.id) {
       showToast('You must be logged in to perform this action', 'error');
       return;
@@ -457,6 +462,9 @@ export function BuildingsPage({
                   </div>
                   <div className="flex items-center gap-1">
                     <span>Total Weight: {building.totalWeight.toFixed(2)} kg</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span>Total Panels: {building.totalPanels}</span>
                   </div>
                 </div>
               </div>

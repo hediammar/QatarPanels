@@ -228,6 +228,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
   const [isImportingPanels, setIsImportingPanels] = useState(false);
   const [panelGroups, setPanelGroups] = useState<Array<{id: string, name: string, description: string}>>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+  const [parentBuildingId, setParentBuildingId] = useState<string | undefined>(undefined);
   const canCreatePanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canCreate') : false;
 
   // Helper function to get valid statuses for a given current status
@@ -463,13 +464,21 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         building_id,
         buildings!inner(project_id)
       `)
-      .eq("buildings.project_id", projectId)
-      if (facadeError) {
-        console.error("Error fetching facades:", facadeError);
-      } else {
-        setAllFacades(facadeData || []);
-        setFacades(facadeData || []);
+      .eq("buildings.project_id", projectId);
+    if (facadeError) {
+      console.error("Error fetching facades:", facadeError);
+    } else {
+      setAllFacades(facadeData || []);
+      setFacades(facadeData || []);
+      
+      // If facadeId is provided, find the parent building
+      if (facadeId) {
+        const currentFacade = facadeData?.find(f => f.id === facadeId);
+        if (currentFacade) {
+          setParentBuildingId(currentFacade.building_id);
+        }
       }
+    }
 
     let panelQuery = supabase
       .from("panels")
@@ -506,6 +515,17 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
     fetchData();
     fetchPanelGroups();
   }, [projectId]);
+
+  // Set building and facade when facadeId is provided
+  useEffect(() => {
+    if (facadeId && parentBuildingId) {
+      setNewPanelModel(prev => ({
+        ...prev,
+        building_id: parentBuildingId,
+        facade_id: facadeId
+      }));
+    }
+  }, [facadeId, parentBuildingId]);
 
   // Filter panels
   const filteredPanels = panels.filter((panel) => {
@@ -744,8 +764,8 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         name: "",
         type: 0,
         status: 0, // Default to "Issued For Production"
-        building_id: undefined,
-        facade_id: undefined,
+        building_id: facadeId ? parentBuildingId : undefined,
+        facade_id: facadeId || undefined,
         issue_transmittal_no: undefined,
         drawing_number: undefined,
         unit_rate_qr_m2: undefined,
@@ -2307,27 +2327,15 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               <Label htmlFor="status">Status *</Label>
               <Select
                 value={statusMap[newPanelModel.status]}
-                onValueChange={(value) => setNewPanelModel({ ...newPanelModel, status: statusReverseMap[value] })}
+                disabled
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {PANEL_STATUSES.map((status, index) => {
-                    const isSpecial = isSpecialStatus(index);
-                    return (
-                      <SelectItem key={status} value={status}>
-                        <div className="flex items-center gap-2">
-                          <span>{status}</span>
-                          {isSpecial && (
-                            <Badge variant="outline" className="text-xs">
-                              Special
-                            </Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
+                  <SelectItem value={statusMap[0]}>
+                    {statusMap[0]}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -2342,6 +2350,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               <Label htmlFor="building_id">Building</Label>
               <Select
                 value={newPanelModel.building_id || ""}
+                disabled={!!facadeId}
                 onValueChange={(value) => {
                   setNewPanelModel({ 
                     ...newPanelModel, 
@@ -2367,6 +2376,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               <Label htmlFor="facade_id">Facade</Label>
               <Select
                 value={newPanelModel.facade_id || ""}
+                disabled={!!facadeId}
                 onValueChange={(value) => setNewPanelModel({ ...newPanelModel, facade_id: value || undefined })}
               >
                 <SelectTrigger>
@@ -2464,8 +2474,8 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                   name: "",
                   type: 0,
                   status: 0,
-                  building_id: undefined,
-                  facade_id: undefined,
+                  building_id: facadeId ? parentBuildingId : undefined,
+                  facade_id: facadeId || undefined,
                   issue_transmittal_no: undefined,
                   drawing_number: undefined,
                   unit_rate_qr_m2: undefined,
@@ -2577,6 +2587,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               <Label htmlFor="edit-building_id">Building</Label>
               <Select
                 value={newPanelModel.building_id || ""}
+                disabled={!!facadeId}
                 onValueChange={(value) => {
                   setNewPanelModel({ 
                     ...newPanelModel, 
@@ -2602,6 +2613,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               <Label htmlFor="edit-facade_id">Facade</Label>
               <Select
                 value={newPanelModel.facade_id || ""}
+                disabled={!!facadeId}
                 onValueChange={(value) => setNewPanelModel({ ...newPanelModel, facade_id: value || undefined })}
               >
                 <SelectTrigger>
@@ -2706,8 +2718,8 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                   name: "",
                   type: 0,
                   status: 0,
-                  building_id: undefined,
-                  facade_id: undefined,
+                  building_id: facadeId ? parentBuildingId : undefined,
+                  facade_id: facadeId || undefined,
                   issue_transmittal_no: undefined,
                   drawing_number: undefined,
                   unit_rate_qr_m2: undefined,

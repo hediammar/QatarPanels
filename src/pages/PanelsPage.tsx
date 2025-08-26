@@ -108,6 +108,7 @@ type PanelType = (typeof PANEL_TYPES)[number];
 interface Building {
   id: string;
   name: string;
+  project_id?: string;
 }
 
 interface Facade {
@@ -166,10 +167,12 @@ export function PanelsPage() {
   const { user: currentUser } = useAuth();
   const [panels, setPanels] = useState<PanelModel[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
+  const [filteredBuildings, setFilteredBuildings] = useState<Building[]>([]);
   const [facades, setFacades] = useState<Facade[]>([]);
   const [allFacades, setAllFacades] = useState<Facade[]>([]);
   const [projects, setProjects] = useState<Array<{id: string, name: string, customer_id?: string}>>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [addPanelProjectId, setAddPanelProjectId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -387,6 +390,7 @@ export function PanelsPage() {
       console.error("Error fetching buildings:", buildingError);
     } else {
       setBuildings(buildingData || []);
+      setFilteredBuildings(buildingData || []);
     }
 
     // Fetch facades with customer filtering
@@ -445,6 +449,20 @@ export function PanelsPage() {
     fetchData();
   }, [currentUser?.customer_id]);
 
+  // Reset add panel project selection when dialog opens
+  useEffect(() => {
+    if (isAddPanelDialogOpen) {
+      setAddPanelProjectId("");
+      setNewPanelModel({
+        ...newPanelModel,
+        building_id: undefined,
+        facade_id: undefined
+      });
+      setFilteredBuildings([]);
+      setFacades(allFacades);
+    }
+  }, [isAddPanelDialogOpen]);
+
   // Filter panels
   const filteredPanels = panels.filter((panel) => {
     const matchesSearch =
@@ -481,6 +499,16 @@ export function PanelsPage() {
     }
     const filteredFacades = allFacades.filter(facade => facade.building_id === buildingId);
     setFacades(filteredFacades);
+  };
+
+  // Function to filter buildings based on selected project
+  const filterBuildingsByProject = (projectId: string | undefined) => {
+    if (!projectId) {
+      setBuildings([]);
+      return;
+    }
+    const filteredBuildings = buildings.filter(building => building.project_id === projectId);
+    setBuildings(filteredBuildings);
   };
 
   const clearFilters = () => {
@@ -587,7 +615,7 @@ export function PanelsPage() {
       
     // If user is a customer, verify they can only work with their own projects
     if (isCustomer && currentUser?.customer_id) {
-      const targetProjectId = editingPanel ? editingPanel.project_id : selectedProjectId;
+      const targetProjectId = editingPanel ? editingPanel.project_id : addPanelProjectId;
       
       // For customer users, we'll rely on the database-level filtering
       // The fetchData function already filters projects by customer_id
@@ -616,7 +644,7 @@ export function PanelsPage() {
       name: newPanelModel.name,
       type: newPanelModel.type,
       status: newPanelModel.status,
-      project_id: editingPanel ? editingPanel.project_id : selectedProjectId,
+      project_id: editingPanel ? editingPanel.project_id : addPanelProjectId,
       building_id: newPanelModel.building_id || null,
       facade_id: newPanelModel.facade_id || null,
       issue_transmittal_no: newPanelModel.issue_transmittal_no || null,
@@ -707,7 +735,7 @@ export function PanelsPage() {
         }
         showToast("Panel updated successfully", "success");
       } else {
-        if (!selectedProjectId) {
+        if (!addPanelProjectId) {
           showToast("Please select a project first", "error");
           return;
         }
@@ -769,10 +797,11 @@ export function PanelsPage() {
     setIsAddPanelDialogOpen(false);
     setIsEditDialogOpen(false);
     setEditingPanel(null);
+    setAddPanelProjectId("");
     setNewPanelModel({
       name: "",
       type: 0,
-      status: 1,
+      status: 0, // Default to "Issued For Production"
       building_id: undefined,
       facade_id: undefined,
       issue_transmittal_no: undefined,
@@ -786,6 +815,7 @@ export function PanelsPage() {
     });
     // Reset facades to show all
     setFacades(allFacades);
+    setFilteredBuildings([]);
   };
 
   const normalizeType = (type: string): number => {
@@ -1509,8 +1539,21 @@ export function PanelsPage() {
             <div className="space-y-2">
               <Label htmlFor="project">Project *</Label>
               <Select
-                value={selectedProjectId}
-                onValueChange={setSelectedProjectId}
+                value={addPanelProjectId}
+                onValueChange={(value) => {
+                  setAddPanelProjectId(value);
+                  // Filter buildings by selected project
+                  const filteredBuildings = buildings.filter(building => building.project_id === value);
+                  setFilteredBuildings(filteredBuildings);
+                  // Clear building and facade selection when project changes
+                  setNewPanelModel({
+                    ...newPanelModel,
+                    building_id: undefined,
+                    facade_id: undefined
+                  });
+                  // Reset facades to show all
+                  setFacades(allFacades);
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select a project" />
@@ -1565,27 +1608,15 @@ export function PanelsPage() {
               <Label htmlFor="status">Status *</Label>
               <Select
                 value={statusMap[newPanelModel.status]}
-                onValueChange={(value) => setNewPanelModel({ ...newPanelModel, status: statusReverseMap[value] })}
+                disabled
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {PANEL_STATUSES.map((status, index) => {
-                    const isSpecial = isSpecialStatus(index);
-                    return (
-                      <SelectItem key={status} value={status}>
-                        <div className="flex items-center gap-2">
-                          <span>{status}</span>
-                          {isSpecial && (
-                            <Badge variant="outline" className="text-xs">
-                              Special
-                            </Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
+                  <SelectItem value={statusMap[0]}>
+                    {statusMap[0]}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1593,6 +1624,7 @@ export function PanelsPage() {
               <Label htmlFor="building_id">Building</Label>
               <Select
                 value={newPanelModel.building_id || ""}
+                disabled={!addPanelProjectId}
                 onValueChange={(value) => {
                   setNewPanelModel({ 
                     ...newPanelModel, 
@@ -1606,7 +1638,7 @@ export function PanelsPage() {
                   <SelectValue placeholder="Select building" />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
-                  {buildings.map((building) => (
+                  {filteredBuildings.map((building) => (
                     <SelectItem key={building.id} value={building.id}>
                       {building.name}
                     </SelectItem>
@@ -1618,6 +1650,7 @@ export function PanelsPage() {
               <Label htmlFor="facade_id">Facade</Label>
               <Select
                 value={newPanelModel.facade_id || ""}
+                disabled={!addPanelProjectId || !newPanelModel.building_id}
                 onValueChange={(value) => setNewPanelModel({ ...newPanelModel, facade_id: value || undefined })}
               >
                 <SelectTrigger>
@@ -1711,6 +1744,7 @@ export function PanelsPage() {
               variant="outline"
               onClick={() => {
                 setIsAddPanelDialogOpen(false);
+                setAddPanelProjectId("");
                 setNewPanelModel({
                   name: "",
                   type: 0,
@@ -1728,6 +1762,7 @@ export function PanelsPage() {
                 });
                 // Reset facades to show all
                 setFacades(allFacades);
+                setFilteredBuildings([]);
               }}
             >
               Cancel
@@ -1859,7 +1894,7 @@ export function PanelsPage() {
                   <SelectValue placeholder="Select building" />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
-                  {buildings.map((building) => (
+                  {filteredBuildings.map((building) => (
                     <SelectItem key={building.id} value={building.id}>
                       {building.name}
                     </SelectItem>

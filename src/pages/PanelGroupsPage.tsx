@@ -71,6 +71,7 @@ interface PanelGroupModel {
   panelCount: number;
   createdAt: string;
   project: string;
+  project_id?: string;
 }
 
 interface PanelGroupsSectionProps {
@@ -105,6 +106,7 @@ interface AddPanelsToGroupDialogProps {
   onOpenChange: (open: boolean) => void;
   groupId: string;
   groupName: string;
+  projectId: string;
   onPanelsAdded: () => void;
 }
 
@@ -281,7 +283,34 @@ function DeleteGroupDialog({ isOpen, onOpenChange, group, onGroupDeleted }: Dele
 function CreateGroupDialog({ isOpen, onOpenChange, onGroupCreated }: CreateGroupDialogProps) {
   const [groupName, setGroupName] = useState("");
   const [groupDescription, setGroupDescription] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [projects, setProjects] = useState<Array<{id: string, name: string}>>([]);
   const [isCreating, setIsCreating] = useState(false);
+
+  // Fetch projects when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      const fetchProjects = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('projects')
+            .select('id, name')
+            .order('name');
+          
+          if (error) {
+            console.error('Error fetching projects:', error);
+            return;
+          }
+          
+          setProjects(data || []);
+        } catch (err) {
+          console.error('Unexpected error:', err);
+        }
+      };
+      
+      fetchProjects();
+    }
+  }, [isOpen]);
 
   const handleCreateGroup = async () => {
     if (!groupName.trim()) {
@@ -289,11 +318,17 @@ function CreateGroupDialog({ isOpen, onOpenChange, onGroupCreated }: CreateGroup
       return;
     }
 
+    if (!selectedProjectId) {
+      alert("Please select a project");
+      return;
+    }
+
     setIsCreating(true);
     try {
       const { data, error } = await supabase.rpc('create_panel_group', {
         group_name: groupName.trim(),
-        group_description: groupDescription.trim() || null
+        group_description: groupDescription.trim() || null,
+        project_id: selectedProjectId
       });
 
       if (error) {
@@ -328,6 +363,24 @@ function CreateGroupDialog({ isOpen, onOpenChange, onGroupCreated }: CreateGroup
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
+            <Label htmlFor="project">Project *</Label>
+            <Select
+              value={selectedProjectId}
+              onValueChange={setSelectedProjectId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a project" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="name">Note *</Label>
             <Input
               id="name"
@@ -354,6 +407,7 @@ function CreateGroupDialog({ isOpen, onOpenChange, onGroupCreated }: CreateGroup
               onOpenChange(false);
               setGroupName("");
               setGroupDescription("");
+              setSelectedProjectId("");
             }}
           >
             Cancel
@@ -367,7 +421,7 @@ function CreateGroupDialog({ isOpen, onOpenChange, onGroupCreated }: CreateGroup
   );
 }
 
-function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, onPanelsAdded }: AddPanelsToGroupDialogProps) {
+function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, projectId, onPanelsAdded }: AddPanelsToGroupDialogProps) {
   const [availablePanels, setAvailablePanels] = useState<PanelModel[]>([]);
   const [selectedPanels, setSelectedPanels] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
@@ -378,7 +432,7 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, onPa
       const fetchAvailablePanels = async () => {
         setIsLoading(true);
         try {
-          // Get panels that are not in any group
+          // Get panels that belong to the same project as the group
           const { data: allPanels, error: panelsError } = await supabase
             .from('panels')
             .select(`
@@ -391,15 +445,15 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, onPa
               unit_rate_qr_m2,
               ifp_qty_area_sm,
               weight
-            `);
+            `)
+            .eq('project_id', projectId);
 
           if (panelsError) {
             console.error('Error fetching panels:', panelsError);
             return;
           }
 
-          // For many-to-many relationship, all panels are available to add to any group
-          // We don't need to filter out panels that are already in other groups
+          // Filter panels that belong to the same project as the group
           const availablePanelsData = allPanels;
 
           const formattedPanels = availablePanelsData.map(panel => ({
@@ -482,7 +536,7 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, onPa
         <DialogHeader className="px-6 py-4 border-b">
           <DialogTitle>Add Panels to "{groupName}"</DialogTitle>
           <DialogDescription>
-            Select panels to add to this group. Individual panel statuses will be preserved.
+            Select panels from the same project to add to this group. Individual panel statuses will be preserved.
           </DialogDescription>
         </DialogHeader>
         
@@ -693,7 +747,7 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 
       setCurrentPanels(formattedCurrentPanels);
 
-      // Fetch all panels - for many-to-many relationship, all panels are available
+      // Fetch panels that belong to the same project as the group
       const { data: allPanelsData, error: allPanelsError } = await supabase
         .from('panels')
         .select(`
@@ -706,15 +760,15 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
           unit_rate_qr_m2,
           ifp_qty_area_sm,
           weight
-        `);
+        `)
+        .eq('project_id', group.project_id);
 
       if (allPanelsError) {
         console.error('Error fetching all panels:', allPanelsError);
         return;
       }
 
-      // For many-to-many relationship, all panels are available to add to any group
-      // We only need to filter out panels that are already in the current group
+      // Filter out panels that are already in the current group
       const currentPanelIdsSet = new Set(currentPanelIds);
       const availablePanelsData = allPanelsData?.filter(panel => !currentPanelIdsSet.has(panel.id)) || [];
 
@@ -1069,7 +1123,8 @@ async function fetchPanelGroups(): Promise<PanelGroupModel[]> {
       id,
       name,
       description,
-      created_at
+      created_at,
+      project_id
     `);
 
   if (error) {
@@ -1094,6 +1149,7 @@ async function fetchPanelGroups(): Promise<PanelGroupModel[]> {
           panelCount: 0,
           createdAt: new Date(group.created_at).toISOString(),
           project: 'Unknown',
+          project_id: group.project_id || '',
         };
       }
 
@@ -1106,6 +1162,7 @@ async function fetchPanelGroups(): Promise<PanelGroupModel[]> {
         panelCount: panelCountData?.length || 0,
         createdAt: new Date(group.created_at).toISOString(),
         project: '', // No longer tied to specific projects
+        project_id: group.project_id || '',
       };
     })
   );
@@ -1702,6 +1759,7 @@ export function PanelGroupsPage({
               onOpenChange={setIsAddPanelsDialogOpen}
               groupId={selectedGroup.id}
               groupName={selectedGroup.name}
+              projectId={selectedGroup.project_id || ''}
               onPanelsAdded={() => {
                 setIsAddPanelsDialogOpen(false);
                 fetchPanelGroups().then(setPanelGroups);

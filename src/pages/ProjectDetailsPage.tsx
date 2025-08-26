@@ -298,6 +298,7 @@ export function ProjectDetailsPage() {
 
         <TabsContent value="panel-groups" className="space-y-6">
           <PanelGroupsSection
+            projectId={project.id}
             onAddGroup={() => console.log("Add panel group")}
             onEditGroup={(group) => console.log("Edit group:", group)}
             onDeleteGroup={(group) => console.log("Delete group:", group)}

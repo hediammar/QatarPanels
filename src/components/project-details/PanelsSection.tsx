@@ -291,6 +291,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         panel_ids: panelIds,
         name: newPanelGroupModel.name || null,
         description: newPanelGroupModel.description || null,
+        project_id: projectId,
       });
 
       if (error) {
@@ -322,9 +323,11 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
 
   const fetchPanelGroups = async () => {
     try {
+      // Only fetch panel groups that belong to the current project
       const { data, error } = await supabase
         .from('panel_groups')
-        .select('id, name, description')
+        .select('id, name, description, project_id')
+        .eq('project_id', projectId)
         .order('name');
 
       if (error) {
@@ -2922,7 +2925,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         <DialogHeader>
           <DialogTitle>Create New Panel Group</DialogTitle>
           <DialogDescription>
-            Create a new panel group with {selectedPanels.size} selected panels
+            Create a new panel group with {selectedPanels.size} selected panels from this project
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -2954,11 +2957,11 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               rows={3}
             />
           </div>
-          <div className="bg-muted/25 p-3 rounded-lg">
-            <p className="text-sm text-muted-foreground">
-              This will create a new panel group with {selectedPanels.size} panels from the current selection.
-            </p>
-          </div>
+                      <div className="bg-muted/25 p-3 rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                This will create a new panel group with {selectedPanels.size} panels from the current selection. Only panels from this project can be added to groups.
+              </p>
+            </div>
         </div>
         <DialogFooter>
           <Button
@@ -2992,9 +2995,9 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Add to Existing Panel Group</DialogTitle>
-            <DialogDescription>
-              Add {selectedPanels.size} selected panels to an existing group
-            </DialogDescription>
+                      <DialogDescription>
+            Add {selectedPanels.size} selected panels to an existing group from this project
+          </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -3004,21 +3007,27 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                 onValueChange={setSelectedGroupId}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose a panel group" />
+                  <SelectValue placeholder="Choose a panel group from this project" />
                 </SelectTrigger>
                 <SelectContent>
-                  {panelGroups.map((group) => (
-                    <SelectItem key={group.id} value={group.id}>
-                      {group.name}
-                      {group.description && ` - ${group.description}`}
-                    </SelectItem>
-                  ))}
+                  {panelGroups.length === 0 ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      No panel groups found in this project
+                    </div>
+                  ) : (
+                    panelGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                        {group.description && ` - ${group.description}`}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
             <div className="bg-muted/25 p-3 rounded-lg">
               <p className="text-sm text-muted-foreground">
-                This will add {selectedPanels.size} panels to the selected group. Individual panel statuses will be preserved.
+                This will add {selectedPanels.size} panels to the selected group. Only panels from this project can be added to groups. Individual panel statuses will be preserved.
               </p>
             </div>
           </div>

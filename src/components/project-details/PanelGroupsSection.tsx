@@ -72,9 +72,11 @@ interface PanelGroupModel {
   status: PanelStatus;
   createdAt: string;
   project: string;
+  project_id?: string;
 }
 
 interface PanelGroupsSectionProps {
+  projectId?: string;
   onAddGroup?: () => void;
   onEditGroup?: (group: PanelGroupModel) => void;
   onDeleteGroup?: (group: PanelGroupModel) => void;
@@ -95,6 +97,7 @@ interface AddPanelsToGroupDialogProps {
   onOpenChange: (open: boolean) => void;
   groupId: string;
   groupName: string;
+  projectId: string;
   onPanelsAdded: () => void;
 }
 
@@ -188,7 +191,7 @@ function UpdateGroupStatusDialog({ isOpen, onOpenChange, groupId, groupName, cur
   );
 }
 
-function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, onPanelsAdded }: AddPanelsToGroupDialogProps) {
+function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, projectId, onPanelsAdded }: AddPanelsToGroupDialogProps) {
   const [availablePanels, setAvailablePanels] = useState<PanelModel[]>([]);
   const [selectedPanels, setSelectedPanels] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
@@ -199,7 +202,7 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, onPa
       const fetchAvailablePanels = async () => {
         setIsLoading(true);
         try {
-          // Get panels that are not in any group
+          // Get panels that belong to the same project as the group
           const { data: allPanels, error: panelsError } = await supabase
             .from('panels')
             .select(`
@@ -212,15 +215,15 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, onPa
               unit_rate_qr_m2,
               ifp_qty_area_sm,
               weight
-            `);
+            `)
+            .eq('project_id', projectId);
 
           if (panelsError) {
             console.error('Error fetching panels:', panelsError);
             return;
           }
 
-          // For many-to-many relationship, all panels are available to add to any group
-          // We don't need to filter out panels that are already in other groups
+          // Filter panels that belong to the same project as the group
           const availablePanelsData = allPanels;
 
           const formattedPanels = availablePanelsData.map(panel => ({
@@ -303,7 +306,7 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, onPa
         <DialogHeader className="px-6 py-4 border-b">
           <DialogTitle>Add Panels to "{groupName}"</DialogTitle>
           <DialogDescription>
-            Select panels to add to this group. Individual panel statuses will be preserved.
+            Select panels from the same project to add to this group. Individual panel statuses will be preserved.
           </DialogDescription>
         </DialogHeader>
         
@@ -456,7 +459,7 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 
       setCurrentPanels(formattedCurrentPanels);
 
-      // Fetch all panels - for many-to-many relationship, all panels are available
+      // Fetch panels that belong to the same project as the group
       const { data: allPanelsData, error: allPanelsError } = await supabase
         .from('panels')
         .select(`
@@ -469,14 +472,15 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
           unit_rate_qr_m2,
           ifp_qty_area_sm,
           weight
-        `);
+        `)
+        .eq('project_id', group.project_id);
 
       if (allPanelsError) {
         console.error('Error fetching all panels:', allPanelsError);
         return;
       }
 
-      // For many-to-many relationship, all panels are available to add to any group
+      // Filter panels that belong to the same project as the group
       // We only need to filter out panels that are already in the current group
       const currentPanelIdsSet = new Set(currentPanelIds);
       const availablePanelsData = allPanelsData?.filter(panel => !currentPanelIdsSet.has(panel.id)) || [];
@@ -825,15 +829,23 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 }
 
 // Fetch panel groups from Supabase
-async function fetchPanelGroups(): Promise<PanelGroupModel[]> {
-  const { data, error } = await supabase
+async function fetchPanelGroups(projectId?: string): Promise<PanelGroupModel[]> {
+  let query = supabase
     .from('panel_groups')
     .select(`
       id,
       name,
       description,
-      created_at
+      created_at,
+      project_id
     `);
+  
+  // Filter by project if projectId is provided
+  if (projectId) {
+    query = query.eq('project_id', projectId);
+  }
+  
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching panel groups:', error);
@@ -858,6 +870,7 @@ async function fetchPanelGroups(): Promise<PanelGroupModel[]> {
           status: "Produced" as PanelStatus,
     createdAt: new Date(group.created_at).toISOString(),
           project: 'Unknown',
+          project_id: group.project_id || '',
         };
       }
 
@@ -871,6 +884,7 @@ async function fetchPanelGroups(): Promise<PanelGroupModel[]> {
         status: "Produced" as PanelStatus,
         createdAt: new Date(group.created_at).toISOString(),
         project: '', // No longer tied to specific projects
+        project_id: group.project_id || '',
       };
     })
   );
@@ -961,6 +975,7 @@ function mapPanelStatus(status: number): PanelStatus {
 }
 
 export function PanelGroupsSection({
+  projectId,
   onAddGroup,
   onEditGroup,
   onDeleteGroup,
@@ -985,7 +1000,7 @@ export function PanelGroupsSection({
 
   useEffect(() => {
     async function loadData() {
-      const groups = await fetchPanelGroups();
+      const groups = await fetchPanelGroups(projectId);
       const panelsData = await fetchPanels();
       setPanelGroups(groups);
       setPanels(panelsData);
@@ -995,7 +1010,7 @@ export function PanelGroupsSection({
     const groupSubscription = supabase
       .channel('panel_groups')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'panel_groups' }, () => {
-        fetchPanelGroups().then(setPanelGroups);
+        fetchPanelGroups(projectId).then(setPanelGroups);
       })
       .subscribe();
 
@@ -1010,7 +1025,7 @@ export function PanelGroupsSection({
       supabase.removeChannel(groupSubscription);
       supabase.removeChannel(panelSubscription);
     };
-  }, []);
+  }, [projectId]);
 
   const getGroupPanels = (group: PanelGroupModel) => {
     // For many-to-many relationship, check if panel belongs to this group
@@ -1467,7 +1482,7 @@ export function PanelGroupsSection({
               groupId={selectedGroup.id}
               groupName={selectedGroup.name}
               currentStatus={selectedGroup.status}
-              onStatusUpdate={() => fetchPanelGroups().then(setPanelGroups)}
+              onStatusUpdate={() => fetchPanelGroups(projectId).then(setPanelGroups)}
             />
           )}
 
@@ -1478,7 +1493,8 @@ export function PanelGroupsSection({
               onOpenChange={setIsAddPanelsDialogOpen}
               groupId={selectedGroup.id}
               groupName={selectedGroup.name}
-              onPanelsAdded={() => fetchPanelGroups().then(setPanelGroups)}
+              projectId={selectedGroup.project_id || ''}
+              onPanelsAdded={() => fetchPanelGroups(projectId).then(setPanelGroups)}
             />
           )}
 
@@ -1488,7 +1504,7 @@ export function PanelGroupsSection({
               isOpen={isUpdatePanelGroupDialogOpen}
               onOpenChange={setIsUpdatePanelGroupDialogOpen}
               group={selectedGroup}
-              onGroupUpdated={() => fetchPanelGroups().then(setPanelGroups)}
+              onGroupUpdated={() => fetchPanelGroups(projectId).then(setPanelGroups)}
             />
           )}
 

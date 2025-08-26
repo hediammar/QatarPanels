@@ -158,15 +158,7 @@ function PanelGroupCard({ panelGroup, navigate }: { panelGroup: PanelGroup; navi
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate(`/panel-groups/${panelGroup.id}`)}
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
-          </div>
+
         </div>
 
         {/* Group Summary */}

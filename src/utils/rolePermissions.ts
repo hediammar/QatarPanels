@@ -59,6 +59,12 @@ export interface RolePermissions {
     canUpdate: boolean;
     canDelete: boolean;
   };
+  notes: {
+    canCreate: boolean;
+    canRead: boolean;
+    canUpdate: boolean;
+    canDelete: boolean;
+  };
   // Navigation permissions
   navigation: {
     dashboard: boolean;
@@ -68,6 +74,7 @@ export interface RolePermissions {
     panels: boolean;
     customers: boolean;
     panelGroups: boolean;
+    notes: boolean;
     users: boolean;
     bulkImport: boolean;
   };
@@ -82,6 +89,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     facades: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
     panels: { canCreate: true, canRead: true, canUpdate: true, canDelete: true, canBulkImport: true, canChangeStatus: true },
     panelGroups: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    notes: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
     navigation: {
       dashboard: true,
       projects: true,
@@ -90,6 +98,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       panels: true,
       customers: true,
       panelGroups: true,
+      notes: true,
       users: true,
       bulkImport: true,
     },
@@ -102,6 +111,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     facades: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
     panels: { canCreate: true, canRead: true, canUpdate: true, canDelete: true, canBulkImport: true, canChangeStatus: true },
     panelGroups: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    notes: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
     navigation: {
       dashboard: true,
       projects: true,
@@ -110,6 +120,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       panels: true,
       customers: true,
       panelGroups: true,
+      notes: true,
       users: false,
       bulkImport: true,
     },
@@ -122,6 +133,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: false },
     panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
+    notes: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     navigation: {
       dashboard: true,
       projects: true,
@@ -130,6 +142,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       panels: true,
       customers: false,
       panelGroups: false,
+      notes: false,
       users: false,
       bulkImport: false,
     },
@@ -142,6 +155,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
     panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
+    notes: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     navigation: {
       dashboard: true,
       projects: true,
@@ -150,6 +164,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       panels: true,
       customers: true,
       panelGroups: true,
+      notes: true,
       users: false,
       bulkImport: false,
     },
@@ -162,6 +177,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
     panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
+    notes: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     navigation: {
       dashboard: true,
       projects: true,
@@ -170,6 +186,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       panels: true,
       customers: true,
       panelGroups: true,
+      notes: true,
       users: false,
       bulkImport: false,
     },
@@ -182,6 +199,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
     panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
+    notes: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     navigation: {
       dashboard: true,
       projects: true,
@@ -190,6 +208,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       panels: true,
       customers: true,
       panelGroups: true,
+      notes: true,
       users: false,
       bulkImport: false,
     },
@@ -202,6 +221,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
     panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
+    notes: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     navigation: {
       dashboard: true,
       projects: true,
@@ -210,6 +230,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       panels: true,
       customers: true,
       panelGroups: true,
+      notes: true,
       users: false,
       bulkImport: false,
     },
@@ -222,6 +243,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
     panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
+    notes: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     navigation: {
       dashboard: true,
       projects: true,
@@ -230,6 +252,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       panels: true,
       customers: true,
       panelGroups: true,
+      notes: true,
       users: false,
       bulkImport: false,
     },
@@ -242,6 +265,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
     panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
+    notes: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     navigation: {
       dashboard: true,
       projects: true,
@@ -250,6 +274,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
       panels: true,
       customers: true,
       panelGroups: true,
+      notes: true,
       users: false,
       bulkImport: false,
     },

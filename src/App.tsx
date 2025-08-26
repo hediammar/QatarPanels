@@ -7,6 +7,8 @@ import { ProjectDetailsPage } from "./pages/ProjectDetailsPage";
 import { BuildingsPage } from "./pages/BuildingsPage";
 import { CustomersPage } from "./pages/CustomersPage";
 import { PanelGroupsPage } from "./pages/PanelGroupsPage";
+import NotesPage from "./pages/NotesPage";
+import { NoteDetailsPage } from "./pages/NoteDetailsPage";
 import { UsersPage } from "./pages/UsersPage";
 import { BulkImportProjectsPage } from "./pages/BulkImportProjectsPage";
 import { BulkImportPanelsPage } from "./pages/BulkImportPanelsPage";
@@ -105,6 +107,20 @@ export default function App() {
                 </Layout>
               </ProtectedRoute>
             } />
+                            <Route path="/notes" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <NotesPage />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/notes/:id" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <NoteDetailsPage />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
             <Route path="/users" element={
               <AdminRoute>
                 <Layout>

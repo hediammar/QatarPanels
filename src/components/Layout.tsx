@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { UserHeader } from "./UserHeader";
-import { LayoutDashboard, Users, FolderOpen, Package, RefreshCw, Upload, AlertTriangle, Wifi, WifiOff, Layers, PackagePlus, UserCog, Menu, X, Building2, Building, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, FolderOpen, Package, RefreshCw, Upload, AlertTriangle, Wifi, WifiOff, Layers, PackagePlus, UserCog, Menu, X, Building2, Building, LogOut, FileText } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { canAccessNavigation } from "../utils/rolePermissions";
 
@@ -81,6 +81,7 @@ export function Layout({ children }: LayoutProps) {
     { id: '/panels', label: 'Panels', icon: Package, accessKey: 'panels' as const },
     { id: '/customers', label: 'Customers', icon: Users, accessKey: 'customers' as const },
     { id: '/panel-groups', label: 'Panel Groups', icon: Layers, accessKey: 'panelGroups' as const },
+    { id: '/notes', label: 'Notes', icon: FileText, accessKey: 'notes' as const },
     { id: '/users', label: 'User Management', icon: UserCog, accessKey: 'users' as const },
     { id: '/bulk-import-projects', label: 'Import Projects', icon: Upload, accessKey: 'bulkImport' as const },
     { id: '/bulk-import-panels', label: 'Import Panels', icon: Upload, accessKey: 'bulkImport' as const },

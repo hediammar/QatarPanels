@@ -20,7 +20,16 @@ import {
   MapPin,
   DollarSign,
   Hash,
-  Loader2
+  Loader2,
+  Sparkles,
+  BarChart3,
+  Settings,
+  Zap,
+  ArrowRight,
+  CheckSquare,
+  Clock,
+  TrendingUp,
+  Building2
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { hasPermission, UserRole } from '../utils/rolePermissions';
@@ -90,11 +99,17 @@ export function BulkImportProjectsPage() {
   // Check if user has permission to bulk import projects
   if (!canBulkImportProjects) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
-          <p className="text-muted-foreground">You don't have permission to bulk import projects.</p>
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="max-w-md w-full">
+          <Card className="border-0 shadow-2xl bg-card">
+            <CardContent className="p-8 text-center">
+              <div className="w-16 h-16 bg-destructive/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="h-8 w-8 text-destructive" />
+              </div>
+              <h2 className="text-2xl font-bold text-card-foreground mb-2">Access Denied</h2>
+              <p className="text-muted-foreground">You don't have permission to bulk import projects.</p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -405,339 +420,452 @@ export function BulkImportProjectsPage() {
   const invalidRows = totalRows - validRows;
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Bulk Import Projects</h1>
-          <p className="text-gray-600 mt-2">
-            Import multiple projects from an Excel file. Each field is in a separate column for easy editing.
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto p-6 space-y-8">
+        {/* Hero Section */}
+        <div className="text-center space-y-4">
+          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-primary to-accent text-white px-4 py-2 rounded-full text-sm font-medium mb-4">
+            <Sparkles className="h-4 w-4" />
+            Bulk Import System
+          </div>
+          <h1 className="text-4xl font-bold text-foreground">
+            Bulk Import Projects
+          </h1>
+          <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+            Import multiple projects from an Excel file with intelligent validation and automatic relationship management. 
+            Each field is in a separate column for seamless editing.
           </p>
         </div>
-      </div>
 
-      {!canCreateProjects && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            You do not have permission to create projects. Please contact your administrator.
-          </AlertDescription>
-        </Alert>
-      )}
+        {!canCreateProjects && (
+          <Alert className="border-destructive bg-destructive/10 backdrop-blur-sm">
+            <AlertCircle className="h-4 w-4 text-destructive" />
+            <AlertDescription className="text-destructive">
+              You do not have permission to create projects. Please contact your administrator.
+            </AlertDescription>
+          </Alert>
+        )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Template Download */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Download className="h-5 w-5" />
-              Download Excel Template
-            </CardTitle>
-            <CardDescription>
-              Download the Excel template with each field in a separate column. Perfect for editing project data.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <Button onClick={downloadTemplate} className="w-full">
-                <Download className="h-4 w-4 mr-2" />
-                Download Excel Template (.xlsx)
-              </Button>
-              <div className="text-xs text-gray-600 text-center">
-                Excel files provide better formatting and data validation
+        {/* Main Action Cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Template Download */}
+          <Card className="border-0 shadow-xl bg-card hover:shadow-2xl transition-all duration-300 group">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <Download className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-bold text-card-foreground">Download Template</CardTitle>
+                  <CardDescription className="text-muted-foreground">
+                    Get the Excel template with proper formatting
+                  </CardDescription>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button 
+                onClick={downloadTemplate} 
+                className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 h-12 text-base font-semibold"
+              >
+                <Download className="h-5 w-5 mr-2" />
+                Download Excel Template
+              </Button>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <CheckSquare className="h-4 w-4 text-green-500" />
+                <span>Perfect formatting and data validation</span>
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* File Upload */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              Upload Excel File
-            </CardTitle>
-            <CardDescription>
-              Select an Excel file (.xlsx or .xls) with your project data. Each field should be in a separate column.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="excel-file">Excel File (.xlsx or .xls)</Label>
+          {/* File Upload */}
+          <Card className="border-0 shadow-xl bg-card hover:shadow-2xl transition-all duration-300 group">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                  <Upload className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-bold text-card-foreground">Upload File</CardTitle>
+                  <CardDescription className="text-muted-foreground">
+                    Select your Excel file to import
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="excel-file" className="text-sm font-medium text-card-foreground">Excel File (.xlsx or .xls)</Label>
                 <Input
                   id="excel-file"
                   type="file"
                   accept=".xlsx,.xls"
                   onChange={handleFileUpload}
                   disabled={!canCreateProjects}
+                  className="border-2 border-dashed border-border hover:border-primary transition-colors duration-300 bg-input"
                 />
               </div>
               {file && (
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <FileText className="h-4 w-4" />
-                  {file.name} ({(file.size / 1024).toFixed(1)} KB)
+                <div className="flex items-center gap-2 text-sm text-muted-foreground bg-secondary/50 p-3 rounded-lg">
+                  <FileText className="h-4 w-4 text-primary" />
+                  <span className="font-medium">{file.name}</span>
+                  <span className="text-muted-foreground">({(file.size / 1024).toFixed(1)} KB)</span>
                 </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* Excel Format Instructions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Excel Format Instructions
-          </CardTitle>
-          <CardDescription>
-            Each field should be in a separate column. The template includes sample data and proper formatting.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="p-4 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-800 mb-2">
-                <strong>Excel Benefits:</strong> 
-                - Each field in its own column
-                - Better formatting and data validation
-                - Easy to edit and maintain
-                - No issues with commas or special characters
-              </p>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>name</TableHead>
-                    <TableHead>customer_name</TableHead>
-                    <TableHead>location</TableHead>
-                    <TableHead>start_date</TableHead>
-                    <TableHead>end_date</TableHead>
-                    <TableHead>status</TableHead>
-                    <TableHead>estimated_cost</TableHead>
-                    <TableHead>estimated_panels</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell>Project Alpha</TableCell>
-                    <TableCell>Al Rayyan Construction</TableCell>
-                    <TableCell>Doha, Qatar</TableCell>
-                    <TableCell>2024-01-15</TableCell>
-                    <TableCell>2024-06-30</TableCell>
-                    <TableCell>active</TableCell>
-                    <TableCell>500000</TableCell>
-                    <TableCell>1200</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-            <div className="mt-4 p-4 bg-green-50 rounded-lg">
-              <p className="text-sm text-green-800">
-                <strong>How to use:</strong> 
-                1. Download the Excel template → 2. Edit the data → 3. Save as .xlsx → 4. Upload back
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Validation Results */}
-      {parsedData.length > 0 && (
-        <Card>
+        {/* Instructions Card */}
+        <Card className="border-0 shadow-xl bg-card">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5" />
-              Validation Results
-            </CardTitle>
-            <CardDescription>
-              {validRows} of {totalRows} rows are valid for import.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex gap-4">
-                <Badge variant="default" className="flex items-center gap-1">
-                  <CheckCircle className="h-3 w-3" />
-                  {validRows} Valid
-                </Badge>
-                {invalidRows > 0 && (
-                  <Badge variant="destructive" className="flex items-center gap-1">
-                    <XCircle className="h-3 w-3" />
-                    {invalidRows} Invalid
-                  </Badge>
-                )}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
+                <Settings className="h-6 w-6 text-white" />
               </div>
+              <div>
+                <CardTitle className="text-xl font-bold text-card-foreground">Excel Format Guide</CardTitle>
+                <CardDescription className="text-muted-foreground">
+                  Each field in its own column for optimal editing experience
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Benefits Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                    <CheckCircle className="h-4 w-4 text-white" />
+                  </div>
+                  <h3 className="font-semibold text-card-foreground">Excel Benefits</h3>
+                </div>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                    Each field in its own column
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                    Better formatting and data validation
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                    No issues with commas or special characters
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                    Supports multiple date formats
+                  </li>
+                </ul>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                    <Zap className="h-4 w-4 text-white" />
+                  </div>
+                  <h3 className="font-semibold text-card-foreground">Auto Creation</h3>
+                </div>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                    Projects created automatically
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                    Customer relationships maintained
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                    Proper date formatting
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                    Status validation
+                  </li>
+                </ul>
+              </div>
+            </div>
 
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Row</TableHead>
-                    <TableHead>Project Name</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Issues</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {parsedData.map((row, index) => {
-                    const validation = validationResults[index];
-                    return (
-                      <TableRow key={index}>
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell>{row.name}</TableCell>
-                        <TableCell>{row.customer_name}</TableCell>
-                        <TableCell>
-                          {validation?.isValid ? (
-                            <Badge variant="default" className="flex items-center gap-1">
-                              <CheckCircle className="h-3 w-3" />
-                              Valid
-                            </Badge>
-                          ) : (
-                            <Badge variant="destructive" className="flex items-center gap-1">
-                              <XCircle className="h-3 w-3" />
-                              Invalid
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            {validation?.errors.map((error, i) => (
-                              <div key={i} className="text-sm text-red-600">{error}</div>
-                            ))}
-                            {validation?.warnings.map((warning, i) => (
-                              <div key={i} className="text-sm text-yellow-600">{warning}</div>
-                            ))}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+            {/* Sample Table */}
+            <div className="space-y-4">
+              <h3 className="font-semibold text-card-foreground flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-purple-500" />
+                Sample Data Structure
+              </h3>
+              <div className="overflow-x-auto rounded-xl border border-border bg-muted">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-secondary/50">
+                      <TableHead className="font-semibold text-card-foreground">name</TableHead>
+                      <TableHead className="font-semibold text-card-foreground">customer_name</TableHead>
+                      <TableHead className="font-semibold text-card-foreground">location</TableHead>
+                      <TableHead className="font-semibold text-card-foreground">start_date</TableHead>
+                      <TableHead className="font-semibold text-card-foreground">status</TableHead>
+                      <TableHead className="font-semibold text-card-foreground">estimated_cost</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow className="hover:bg-secondary/30 transition-colors">
+                      <TableCell className="font-medium text-card-foreground">Project Alpha</TableCell>
+                      <TableCell>Al Rayyan Construction</TableCell>
+                      <TableCell>Doha, Qatar</TableCell>
+                      <TableCell>2024-01-15</TableCell>
+                      <TableCell><Badge variant="default">active</Badge></TableCell>
+                      <TableCell>500,000 QAR</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            {/* Project Status Values */}
+            <div className="space-y-3">
+              <h4 className="font-semibold text-card-foreground flex items-center gap-2">
+                <Clock className="h-4 w-4 text-green-500" />
+                Available Status Values
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {['active', 'inactive', 'completed', 'on-hold'].map((status) => (
+                  <Badge key={status} variant="outline" className="bg-secondary/50 border-border text-card-foreground">
+                    {status}
+                  </Badge>
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>
-      )}
 
-      {/* Import Actions */}
-      {parsedData.length > 0 && validRows > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Import Actions</CardTitle>
-            <CardDescription>
-              Import {validRows} valid projects to the database.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {isImporting && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Importing projects...
+        {/* Validation Results */}
+        {parsedData.length > 0 && (
+          <Card className="border-0 shadow-xl bg-card">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center">
+                    <CheckCircle className="h-6 w-6 text-white" />
                   </div>
-                  <Progress value={progress} className="w-full" />
+                  <div>
+                    <CardTitle className="text-xl font-bold text-card-foreground">Validation Results</CardTitle>
+                    <CardDescription className="text-muted-foreground">
+                      {validRows} of {totalRows} rows are valid for import
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <Badge variant="default" className="bg-status-complete text-status-complete-foreground">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    {validRows} Valid
+                  </Badge>
+                  {invalidRows > 0 && (
+                    <Badge variant="destructive" className="bg-status-rejected text-status-rejected-foreground">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      {invalidRows} Invalid
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto rounded-xl border border-border bg-muted">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-secondary/50">
+                      <TableHead className="font-semibold text-card-foreground">Row</TableHead>
+                      <TableHead className="font-semibold text-card-foreground">Project Name</TableHead>
+                      <TableHead className="font-semibold text-card-foreground">Customer</TableHead>
+                      <TableHead className="font-semibold text-card-foreground">Status</TableHead>
+                      <TableHead className="font-semibold text-card-foreground">Issues</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {parsedData.map((row, index) => {
+                      const validation = validationResults[index];
+                      return (
+                        <TableRow key={index} className="hover:bg-secondary/30 transition-colors">
+                          <TableCell className="font-medium text-card-foreground">{index + 1}</TableCell>
+                          <TableCell className="font-medium text-card-foreground">{row.name}</TableCell>
+                          <TableCell>{row.customer_name}</TableCell>
+                          <TableCell>
+                            {validation?.isValid ? (
+                              <Badge variant="default" className="bg-status-complete text-status-complete-foreground">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Valid
+                              </Badge>
+                            ) : (
+                              <Badge variant="destructive" className="bg-status-rejected text-status-rejected-foreground">
+                                <XCircle className="h-3 w-3 mr-1" />
+                                Invalid
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              {validation?.errors.map((error, i) => (
+                                <div key={i} className="text-sm text-destructive">{error}</div>
+                              ))}
+                              {validation?.warnings.map((warning, i) => (
+                                <div key={i} className="text-sm text-status-onhold-foreground">{warning}</div>
+                              ))}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Import Actions */}
+        {parsedData.length > 0 && validRows > 0 && (
+          <Card className="border-0 shadow-xl bg-card">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center">
+                  <TrendingUp className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-bold text-card-foreground">Import Actions</CardTitle>
+                  <CardDescription className="text-muted-foreground">
+                    Import {validRows} valid projects to the database
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {isImporting && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 p-4 bg-secondary/50 rounded-lg">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <span className="font-medium text-card-foreground">Importing projects...</span>
+                  </div>
+                  <Progress value={progress} className="w-full h-3" />
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex gap-4">
                 <Button 
                   onClick={importProjects} 
                   disabled={!canCreateProjects || isImporting || validRows === 0}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 h-12 px-8 text-base font-semibold"
                 >
                   {isImporting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
-                    <Upload className="h-4 w-4" />
+                    <Upload className="h-5 w-5" />
                   )}
                   Import {validRows} Projects
+                  <ArrowRight className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" onClick={resetForm}>
+                <Button 
+                  variant="outline" 
+                  onClick={resetForm}
+                  className="h-12 px-6 border-2 hover:bg-secondary transition-all duration-300 text-card-foreground border-border"
+                >
                   Reset
                 </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Import Results */}
-      {importResults.length > 0 && (
-        <Card>
+        {/* Import Results */}
+        {importResults.length > 0 && (
+          <Card className="border-0 shadow-xl bg-card">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
+                  <BarChart3 className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-bold text-card-foreground">Import Results</CardTitle>
+                  <CardDescription className="text-muted-foreground">
+                    Results from the latest import operation
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {importResults.map((result, index) => (
+                  <div 
+                    key={index} 
+                    className={`p-4 rounded-xl border-2 ${
+                      result.success 
+                        ? 'bg-status-complete/10 border-status-complete' 
+                        : 'bg-status-rejected/10 border-status-rejected'
+                    } backdrop-blur-sm`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {result.success ? (
+                        <CheckCircle className="h-5 w-5 text-status-complete" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-status-rejected" />
+                      )}
+                      <span className={`font-medium ${result.success ? 'text-status-complete-foreground' : 'text-status-rejected-foreground'}`}>
+                        {result.message}
+                      </span>
+                    </div>
+                    {result.errors && result.errors.length > 0 && (
+                      <div className="mt-3 text-sm text-destructive space-y-1">
+                        {result.errors.map((error, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <div className="w-1 h-1 bg-destructive rounded-full"></div>
+                            {error}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Error Display */}
+        {error && (
+          <Alert className="border-destructive bg-destructive/10 backdrop-blur-sm">
+            <AlertCircle className="h-4 w-4 text-destructive" />
+            <AlertDescription className="text-destructive font-medium">{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Available Customers */}
+        <Card className="border-0 shadow-xl bg-card">
           <CardHeader>
-            <CardTitle>Import Results</CardTitle>
-            <CardDescription>
-              Results from the latest import operation.
-            </CardDescription>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
+                <Users className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-bold text-card-foreground">Available Customers</CardTitle>
+                <CardDescription className="text-muted-foreground">
+                  Use exact names in your Excel file for existing customers
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {importResults.map((result, index) => (
-                <div 
-                  key={index} 
-                  className={`p-3 rounded-lg border ${
-                    result.success 
-                      ? 'bg-green-50 border-green-200' 
-                      : 'bg-red-50 border-red-200'
-                  }`}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {customers.map((customer) => (
+                <Badge 
+                  key={customer.id} 
+                  variant="outline" 
+                  className="justify-start bg-secondary/50 border-border text-card-foreground hover:bg-secondary transition-colors duration-200"
                 >
-                  <div className="flex items-center gap-2">
-                    {result.success ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-red-600" />
-                    )}
-                    <span className={result.success ? 'text-green-800' : 'text-red-800'}>
-                      {result.message}
-                    </span>
-                  </div>
-                  {result.errors && result.errors.length > 0 && (
-                    <div className="mt-2 text-sm text-red-600">
-                      {result.errors.map((error, i) => (
-                        <div key={i}>• {error}</div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                  {customer.name}
+                </Badge>
               ))}
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {/* Error Display */}
-      {error && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Available Customers */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Available Customers
-          </CardTitle>
-          <CardDescription>
-            These are the customers available in the database. Use exact names in your Excel file.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-            {customers.map((customer) => (
-              <Badge key={customer.id} variant="outline" className="justify-start">
-                {customer.name}
-              </Badge>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

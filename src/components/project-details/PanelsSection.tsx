@@ -229,6 +229,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
   const [panelGroups, setPanelGroups] = useState<Array<{id: string, name: string, description: string}>>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const [parentBuildingId, setParentBuildingId] = useState<string | undefined>(undefined);
+  const [existingPanels, setExistingPanels] = useState<{ [key: string]: any }>({});
   const canCreatePanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canCreate') : false;
 
   // Helper function to get valid statuses for a given current status
@@ -830,6 +831,37 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
 
   const normalizeName = (value?: string) => (value || "").trim().toLowerCase();
 
+  // New function to find existing panel by name
+  const findExistingPanelByName = async (panelName: string): Promise<any | null> => {
+    if (!panelName?.trim()) return null;
+    
+    try {
+      const { data, error } = await supabase
+        .from('panels')
+        .select(`
+          *,
+          projects!inner(name, customer_id),
+          buildings(name),
+          facades(name)
+        `)
+        .eq('name', panelName.trim())
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No rows returned - panel doesn't exist
+          return null;
+        }
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error finding existing panel:', error);
+      return null;
+    }
+  };
+
   const findBuildingIdByName = (name?: string): string | undefined => {
     if (!name) return undefined;
     const target = normalizeName(name);
@@ -956,6 +988,89 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
     return `${year}-${month}-${day}`;
   };
 
+  // Helper function to parse date in different formats (same as BulkImportPanelsPage)
+  const parseDate = (dateStr: string): Date | null => {
+    if (!dateStr.trim()) return null;
+    
+    const str = dateStr.trim();
+    
+    // Handle 0000-00-00 format - convert to earliest valid date
+    if (str === '0000-00-00' || str === '00/00/0000' || str === '00.00.0000') {
+      return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+    }
+    
+    try {
+      // Try different date formats
+      if (str.includes('/')) {
+        // Format: DD/MM/YYYY
+        const parts = str.split('/');
+        if (parts.length === 3) {
+          // Check for invalid date parts (00/00/YYYY or DD/00/YYYY or DD/MM/0000)
+          if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
+            return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+          }
+          const year = parseInt(parts[2]);
+          const month = parseInt(parts[1]) - 1;
+          const day = parseInt(parts[0]);
+          
+          // Create date using UTC to avoid timezone issues
+          const date = new Date(Date.UTC(year, month, day));
+          if (!isNaN(date.getTime())) {
+            return date;
+          }
+        }
+      } else if (str.includes('.')) {
+        // Format: DD.MM.YYYY
+        const parts = str.split('.');
+        if (parts.length === 3) {
+          // Check for invalid date parts (00.00.YYYY or DD.00.YYYY or DD.MM.0000)
+          if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
+            return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+          }
+          const year = parseInt(parts[2]);
+          const month = parseInt(parts[1]) - 1;
+          const day = parseInt(parts[0]);
+          
+          // Create date using UTC to avoid timezone issues
+          const date = new Date(Date.UTC(year, month, day));
+          if (!isNaN(date.getTime())) {
+            return date;
+          }
+        }
+      } else if (str.includes('-')) {
+        // Format: YYYY-MM-DD
+        const parts = str.split('-');
+        if (parts.length === 3) {
+          // Check for invalid date parts (0000-MM-DD or YYYY-00-DD or YYYY-MM-00)
+          if (parts[0] === '0000' || parts[1] === '00' || parts[2] === '00') {
+            return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+          }
+          const year = parseInt(parts[0]);
+          const month = parseInt(parts[1]) - 1;
+          const day = parseInt(parts[2]);
+          
+          // Create date using UTC to avoid timezone issues
+          const date = new Date(Date.UTC(year, month, day));
+          if (!isNaN(date.getTime())) {
+            return date;
+          }
+        }
+      }
+      
+      // Try parsing as ISO string
+      const parsedDate = new Date(str);
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate;
+      }
+      
+      // If all else fails, return 1900-01-01
+      return new Date('1900-01-01T00:00:00.000Z');
+    } catch (error) {
+      // If any error occurs, return 1900-01-01
+      return new Date('1900-01-01T00:00:00.000Z');
+    }
+  };
+
   const parseExcelDateToISO = (value: any): string | undefined => {
     if (!value) return undefined;
     if (value instanceof Date) return formatDateToISO(value);
@@ -1008,9 +1123,9 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
           project_id: projectId,
           project_name: projectName,
           building_id: resolvedBuildingId || undefined,
-          building_name: buildingNameFromRow,
+          building_name: buildingNameFromRow || undefined,
           facade_id: resolvedFacadeId || undefined,
-          facade_name: facadeNameFromRow,
+          facade_name: facadeNameFromRow || undefined,
           issue_transmittal_no: row["Issue Transmittal No"] || row["IssueTransmittalNo"] || row["issue_transmittal_no"] || undefined,
           drawing_number: row["Drawing Number"] || row["DrawingNumber"] || row["drawing_number"] || undefined,
           unit_rate_qr_m2: parseFloat(row["Unit Rate QR/m2"] || row["unit_rate_qr_m2"] || "0") || undefined,
@@ -1027,6 +1142,18 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         return panel;
       });
 
+      // Check for existing panels
+      const existingPanelsMap: { [key: string]: any } = {};
+      for (const panel of parsedPanels) {
+        if (panel.name?.trim()) {
+          const existingPanel = await findExistingPanelByName(panel.name);
+          if (existingPanel) {
+            existingPanelsMap[panel.name.trim()] = existingPanel;
+          }
+        }
+      }
+
+      setExistingPanels(existingPanelsMap);
       setImportedPanels(parsedPanels);
       setBulkImportStep("preview");
     } catch (error) {
@@ -1039,6 +1166,27 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
     const actualIndex = importedPanels.findIndex((p) => p.id === filteredImportedPanels[index].id);
     const updatedPanels = [...importedPanels];
     (updatedPanels[actualIndex] as any)[field] = value;
+    
+    // Update building_name when building_id changes
+    if (field === 'building_id') {
+      if (value) {
+        const building = buildings.find(b => b.id === value);
+        (updatedPanels[actualIndex] as any).building_name = building?.name || undefined;
+      } else {
+        (updatedPanels[actualIndex] as any).building_name = undefined;
+      }
+    }
+    
+    // Update facade_name when facade_id changes
+    if (field === 'facade_id') {
+      if (value) {
+        const facade = facades.find(f => f.id === value);
+        (updatedPanels[actualIndex] as any).facade_name = facade?.name || undefined;
+      } else {
+        (updatedPanels[actualIndex] as any).facade_name = undefined;
+      }
+    }
+    
     validatePanel(updatedPanels[actualIndex]);
     setImportedPanels(updatedPanels);
   };
@@ -1063,24 +1211,123 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
       setBulkImportStep("importing");
       setImportProgress(0);
 
-      // Import panels with user tracking
-      const importedPanels = [];
+      // Create local caches for the import session to avoid state update issues
+      const localBuildings = [...buildings];
+      const localFacades = [...facades];
+
+      const results: { success: boolean; message: string; data?: any; errors?: string[] }[] = [];
+      let successCount = 0;
+      let errorCount = 0;
       let processedCount = 0;
       
       for (const panel of validPanels) {
         try {
           console.log('Processing panel:', panel.name);
           
-          // Resolve building and facade IDs (create if they don't exist)
-          const { building_id, facade_id } = await resolveBuildingAndFacadeIds(panel);
+          // Check if panel already exists
+          const existingPanel = await findExistingPanelByName(panel.name);
+
+          // Helper functions that work with local caches
+          const findBuildingIdByNameLocal = (name?: string): string | undefined => {
+            if (!name) return undefined;
+            const target = normalizeName(name);
+            const match = localBuildings.find((b) => normalizeName(b.name) === target);
+            return match?.id;
+          };
+
+          const findFacadeIdByNameLocal = (name?: string): string | undefined => {
+            if (!name) return undefined;
+            const target = normalizeName(name);
+            const match = localFacades.find((f) => normalizeName(f.name) === target);
+            return match?.id;
+          };
+
+          // Resolve building and facade IDs using local caches
+          let resolvedBuildingId = panel.building_id;
+          let resolvedFacadeId = panel.facade_id;
+
+          // If building name is provided but no building ID, try to find or create building
+          if (panel.building_name && !resolvedBuildingId) {
+            try {
+              // First check if building already exists in local cache
+              const existingBuildingId = findBuildingIdByNameLocal(panel.building_name);
+              if (existingBuildingId) {
+                resolvedBuildingId = existingBuildingId;
+              } else {
+                // Create new building
+                const buildingData = {
+                  name: panel.building_name,
+                  project_id: projectId,
+                  status: 0, // Default status
+                  description: `Building created during bulk import for ${projectName}`,
+                };
+
+                console.log('Creating new building:', buildingData);
+                const newBuilding = await crudOperations.create("buildings", buildingData);
+                localBuildings.push({ id: newBuilding.id, name: panel.building_name });
+                resolvedBuildingId = newBuilding.id;
+              }
+            } catch (error) {
+              console.error('Error resolving building:', error);
+              throw error;
+            }
+          }
+
+          // If facade name is provided but no facade ID, try to find or create facade
+          if (panel.facade_name && !resolvedFacadeId) {
+            if (!resolvedBuildingId) {
+              throw new Error(`Cannot create facade "${panel.facade_name}" without a building`);
+            }
+            
+            try {
+              // First check if facade already exists in local cache
+              const existingFacadeId = findFacadeIdByNameLocal(panel.facade_name);
+              if (existingFacadeId) {
+                // Verify it belongs to the correct building
+                const facade = localFacades.find(f => f.id === existingFacadeId);
+                if (facade && facade.building_id === resolvedBuildingId) {
+                  resolvedFacadeId = existingFacadeId;
+                } else {
+                  // Create new facade with same name but different building
+                  const facadeData = {
+                    name: panel.facade_name,
+                    building_id: resolvedBuildingId,
+                    status: 0, // Default status
+                    description: `Facade created during bulk import for building ${resolvedBuildingId}`,
+                  };
+
+                  console.log('Creating new facade:', facadeData);
+                  const newFacade = await crudOperations.create("facades", facadeData);
+                  localFacades.push({ id: newFacade.id, name: panel.facade_name, building_id: resolvedBuildingId });
+                  resolvedFacadeId = newFacade.id;
+                }
+              } else {
+                // Create new facade
+                const facadeData = {
+                  name: panel.facade_name,
+                  building_id: resolvedBuildingId,
+                  status: 0, // Default status
+                  description: `Facade created during bulk import for building ${resolvedBuildingId}`,
+                };
+
+                console.log('Creating new facade:', facadeData);
+                const newFacade = await crudOperations.create("facades", facadeData);
+                localFacades.push({ id: newFacade.id, name: panel.facade_name, building_id: resolvedBuildingId });
+                resolvedFacadeId = newFacade.id;
+              }
+            } catch (error) {
+              console.error('Error resolving facade:', error);
+              throw error;
+            }
+          }
           
           const panelData = {
             name: panel.name,
             type: panel.type,
             status: panel.status,
             project_id: projectId,
-            building_id: building_id || null,
-            facade_id: facade_id || null,
+            building_id: resolvedBuildingId || null,
+            facade_id: resolvedFacadeId || null,
             issue_transmittal_no: panel.issue_transmittal_no || null,
             drawing_number: panel.drawing_number || null,
             unit_rate_qr_m2: panel.unit_rate_qr_m2 || null,
@@ -1091,10 +1338,45 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
             issued_for_production_date: panel.issued_for_production_date || null,
           };
 
-          console.log('Importing panel with data:', panelData);
-          const newPanel = await crudOperations.create("panels", panelData);
-          // Database triggers will automatically add status history
-          importedPanels.push(newPanel);
+          if (existingPanel) {
+            console.log(`Panel "${panel.name}" already exists. Updating...`);
+            
+            // Update existing panel
+            const { data: updatedPanel, error: updateError } = await supabase
+              .from('panels')
+              .update(panelData)
+              .eq('id', existingPanel.id)
+              .select()
+              .single();
+
+            if (updateError) {
+              results.push({
+                success: false,
+                message: `Failed to update panel "${panel.name}". ${updateError.message}`,
+                errors: [updateError.message]
+              });
+              errorCount++;
+            } else {
+              results.push({
+                success: true,
+                message: `Successfully updated panel "${panel.name}"`,
+                data: updatedPanel
+              });
+              successCount++;
+            }
+          } else {
+            console.log('Creating new panel with data:', panelData);
+            
+            // Create new panel
+            const newPanel = await crudOperations.create("panels", panelData);
+            // Database triggers will automatically add status history
+            results.push({
+              success: true,
+              message: `Successfully imported "${panel.name}"`,
+              data: newPanel
+            });
+            successCount++;
+          }
           
           // Update progress
           processedCount++;
@@ -1102,41 +1384,25 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
           
         } catch (error) {
           console.error("Error importing panel:", error);
-          // Continue with other panels even if one fails
+          results.push({
+            success: false,
+            message: `Failed to import "${panel.name}"`,
+            errors: [error instanceof Error ? error.message : 'Unknown error']
+          });
+          errorCount++;
           processedCount++;
           setImportProgress((processedCount / validPanels.length) * 100);
         }
       }
 
-      // Fetch complete data for imported panels
-      const panelIds = importedPanels.map(p => p.id);
-      if (panelIds.length > 0) {
-        const { data, error } = await supabase
-          .from("panels")
-          .select(`
-            *,
-            projects!inner(name),
-            buildings(name),
-            facades(name)
-          `)
-          .in("id", panelIds);
+      // Update the global state with the local caches
+      setBuildings(localBuildings);
+      setFacades(localFacades);
 
-        if (error) {
-          console.error("Error fetching imported panels:", error);
-        } else {
-          setPanels([
-            ...panels,
-            ...(data?.map((panel) => ({
-              ...panel,
-              project_name: panel.projects?.name,
-              building_name: panel.buildings?.name,
-              facade_name: panel.facades?.name,
-            })) || []),
-          ]);
-        }
-      }
+      // Refresh the panels data to reflect all changes
+      await fetchData();
 
-      setImportResults({ successful: importedPanels.length, failed: validPanels.length - importedPanels.length });
+      setImportResults({ successful: successCount, failed: errorCount });
       setBulkImportStep("complete");
     } catch (error) {
       console.error("Bulk import error:", error);
@@ -1257,6 +1523,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               setBulkImportStep("upload");
               setBulkImportFile(null);
               setImportedPanels([]);
+              setExistingPanels({});
               setImportProgress(0);
               setImportResults({ successful: 0, failed: 0 });
               setBulkImportErrors([]);
@@ -1509,13 +1776,14 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                         <TableHead className="min-w-[120px]">Drawing No</TableHead>
                         <TableHead className="min-w-[100px]">Weight (kg)</TableHead>
                         <TableHead className="min-w-[150px]">Production Date</TableHead>
+                        <TableHead className="min-w-[100px]">Action</TableHead>
                         <TableHead className="w-12"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {paginatedImportedPanels.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={9} className="text-center py-8">
+                          <TableCell colSpan={12} className="text-center py-8">
                             <div className="flex flex-col items-center gap-2">
                               <Package className="h-8 w-8 text-muted-foreground" />
                               <p className="text-muted-foreground">No panels match your search criteria</p>
@@ -1577,38 +1845,54 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                               </Select>
                             </TableCell>
                             <TableCell>
-                              <Select
-                                value={panel.building_id || ""}
-                                onValueChange={(value) => updateImportedPanel(index, "building_id", value || undefined)}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select building" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {buildings.map((building) => (
-                                    <SelectItem key={building.id} value={building.id}>
-                                      {building.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              {panel.building_id ? (
+                                <Select
+                                  value={panel.building_id}
+                                  onValueChange={(value) => updateImportedPanel(index, "building_id", value || undefined)}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {buildings.map((building) => (
+                                      <SelectItem key={building.id} value={building.id}>
+                                        {building.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <Input
+                                  value={panel.building_name || ""}
+                                  onChange={(e) => updateImportedPanel(index, "building_name", e.target.value || undefined)}
+                                  placeholder="Enter building name"
+                                />
+                              )}
                             </TableCell>
                             <TableCell>
-                              <Select
-                                value={panel.facade_id || ""}
-                                onValueChange={(value) => updateImportedPanel(index, "facade_id", value || undefined)}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select facade" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {facades.map((facade) => (
-                                    <SelectItem key={facade.id} value={facade.id}>
-                                      {facade.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              {panel.facade_id ? (
+                                <Select
+                                  value={panel.facade_id}
+                                  onValueChange={(value) => updateImportedPanel(index, "facade_id", value || undefined)}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {facades.map((facade) => (
+                                      <SelectItem key={facade.id} value={facade.id}>
+                                        {facade.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <Input
+                                  value={panel.facade_name || ""}
+                                  onChange={(e) => updateImportedPanel(index, "facade_name", e.target.value || undefined)}
+                                  placeholder="Enter facade name"
+                                />
+                              )}
                             </TableCell>
                             <TableCell>
                               <Input
@@ -1641,6 +1925,19 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                                 onChange={(e) => updateImportedPanel(index, "issued_for_production_date", e.target.value || undefined)}
                                 placeholder="2024-01-15"
                               />
+                            </TableCell>
+                            <TableCell>
+                              {existingPanels[panel.name?.trim() || ''] ? (
+                                <Badge variant="secondary" className="flex items-center gap-1">
+                                  <Edit className="h-3 w-3" />
+                                  Update
+                                </Badge>
+                              ) : (
+                                <Badge variant="default" className="flex items-center gap-1">
+                                  <Plus className="h-3 w-3" />
+                                  Create
+                                </Badge>
+                              )}
                             </TableCell>
                             <TableCell>
                               <Button
@@ -1712,25 +2009,72 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               </div>
             )}
 
+            {/* Import Summary */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <Badge variant="default" className="flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      {validPanelsCount} Valid
+                    </Badge>
+                    {invalidPanelsCount > 0 && (
+                      <Badge variant="destructive" className="flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {invalidPanelsCount} Invalid
+                      </Badge>
+                    )}
+                    {(() => {
+                      const newPanelsCount = validPanelsCount - Object.keys(existingPanels).length;
+                      const existingPanelsCount = Object.keys(existingPanels).length;
+                      return (
+                        <>
+                          {newPanelsCount > 0 && (
+                            <Badge variant="default" className="flex items-center gap-1">
+                              <Plus className="h-3 w-3" />
+                              {newPanelsCount} New
+                            </Badge>
+                          )}
+                          {existingPanelsCount > 0 && (
+                            <Badge variant="secondary" className="flex items-center gap-1">
+                              <Edit className="h-3 w-3" />
+                              {existingPanelsCount} Update
+                            </Badge>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Existing panels with the same name will be updated automatically
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <div className="flex items-center justify-between">
-              <Button variant="outline" onClick={() => setBulkImportStep("upload")}>
+              <Button variant="outline" onClick={() => {
+                setBulkImportStep("upload");
+                setExistingPanels({});
+              }}>
                 Back to Upload
               </Button>
               <div className="flex items-center gap-4">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsBulkImportMode(false);
-                    setBulkImportStep("upload");
-                    setBulkImportFile(null);
-                    setImportedPanels([]);
-                    setImportProgress(0);
-                    setImportResults({ successful: 0, failed: 0 });
-                    setBulkImportErrors([]);
-                  }}
-                >
-                  Cancel Import
-                </Button>
+                                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsBulkImportMode(false);
+                      setBulkImportStep("upload");
+                      setBulkImportFile(null);
+                      setImportedPanels([]);
+                      setExistingPanels({});
+                      setImportProgress(0);
+                      setImportResults({ successful: 0, failed: 0 });
+                      setBulkImportErrors([]);
+                    }}
+                  >
+                    Cancel Import
+                  </Button>
                 <Button onClick={handleImportPanels} disabled={validPanelsCount === 0 || isImportingPanels}>
                   {isImportingPanels ? (
                     <>
@@ -1738,7 +2082,17 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                       Importing...
                     </>
                   ) : (
-                    `Import ${validPanelsCount} Panel${validPanelsCount !== 1 ? "s" : ""}`
+                    (() => {
+                      const newPanelsCount = validPanelsCount - Object.keys(existingPanels).length;
+                      const existingPanelsCount = Object.keys(existingPanels).length;
+                      if (newPanelsCount > 0 && existingPanelsCount > 0) {
+                        return `Import ${newPanelsCount} New & Update ${existingPanelsCount} Existing`;
+                      } else if (existingPanelsCount > 0) {
+                        return `Update ${existingPanelsCount} Panel${existingPanelsCount !== 1 ? "s" : ""}`;
+                      } else {
+                        return `Import ${validPanelsCount} Panel${validPanelsCount !== 1 ? "s" : ""}`;
+                      }
+                    })()
                   )}
                 </Button>
               </div>
@@ -1785,6 +2139,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                       setBulkImportStep("upload");
                       setBulkImportFile(null);
                       setImportedPanels([]);
+                      setExistingPanels({});
                       setImportProgress(0);
                       setImportResults({ successful: 0, failed: 0 });
                       setBulkImportErrors([]);
@@ -1799,6 +2154,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                       setBulkImportStep("upload");
                       setBulkImportFile(null);
                       setImportedPanels([]);
+                      setExistingPanels({});
                       setImportProgress(0);
                       setImportResults({ successful: 0, failed: 0 });
                       setBulkImportErrors([]);

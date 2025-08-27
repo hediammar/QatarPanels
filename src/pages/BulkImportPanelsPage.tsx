@@ -36,10 +36,10 @@ interface PanelImportData {
   issue_transmittal_no: string;
   dwg_no: string;
   description: string;
-  panel_tag: string;
   unit_qty: string;
   ifp_qty_nos: string;
   ifp_qty: string;
+  weight?: string;
   dimension?: string;
   building_name?: string;
   facade_name?: string;
@@ -230,7 +230,7 @@ export function BulkImportPanelsPage() {
       console.log('Creating new project:', projectData);
       const newProject = await crudOperations.create("projects", projectData);
       
-      // Add to local state
+      // Add to local state immediately
       setProjects(prev => [...prev, { id: newProject.id, name: projectName }]);
       
       console.log('Project created successfully:', newProject.id);
@@ -343,72 +343,6 @@ export function BulkImportPanelsPage() {
     }
   };
 
-  const resolveProjectBuildingAndFacadeIds = async (row: PanelImportData): Promise<{ 
-    project_id?: string, 
-    building_id?: string, 
-    facade_id?: string 
-  }> => {
-    let resolvedProjectId = findProjectIdByName(row.project_name);
-    let resolvedBuildingId: string | undefined;
-    let resolvedFacadeId: string | undefined;
-
-    // If project doesn't exist, create it
-    if (!resolvedProjectId) {
-      try {
-        // First resolve customer if provided, or create a default one
-        let customerId: string | null = null;
-        
-        if (row.customer_name && row.customer_name.trim()) {
-          const customer = await createCustomerIfNotExists(row.customer_name);
-          customerId = customer;
-        } else {
-          // Create a default customer for the project
-          const defaultCustomerName = `${row.project_name} Customer`;
-          const customer = await createCustomerIfNotExists(defaultCustomerName);
-          customerId = customer;
-        }
-
-        if (!customerId) {
-          throw new Error(`Failed to create or find customer for project "${row.project_name}"`);
-        }
-
-        const projectId = await createProjectIfNotExists(row.project_name, customerId);
-        resolvedProjectId = projectId || undefined;
-      } catch (error) {
-        console.error('Error resolving project:', error);
-        throw error;
-      }
-    }
-
-    // If building name is provided, find or create building
-    if (row.building_name && resolvedProjectId) {
-      try {
-        const buildingId = await createBuildingIfNotExists(row.building_name, resolvedProjectId);
-        resolvedBuildingId = buildingId || undefined;
-      } catch (error) {
-        console.error('Error resolving building:', error);
-        throw error;
-      }
-    }
-
-    // If facade name is provided, find or create facade
-    if (row.facade_name && resolvedBuildingId) {
-      try {
-        const facadeId = await createFacadeIfNotExists(row.facade_name, resolvedBuildingId);
-        resolvedFacadeId = facadeId || undefined;
-      } catch (error) {
-        console.error('Error resolving facade:', error);
-        throw error;
-      }
-    }
-
-    return {
-      project_id: resolvedProjectId,
-      building_id: resolvedBuildingId,
-      facade_id: resolvedFacadeId,
-    };
-  };
-
   const downloadTemplate = () => {
         // Create sample data
     const sampleData = [
@@ -421,10 +355,10 @@ export function BulkImportPanelsPage() {
           issue_transmittal_no: 'IT-001',
           dwg_no: 'DWG-001',
           description: 'Exterior wall panel',
-          panel_tag: 'A-001',
           unit_qty: '10.5',
           ifp_qty_nos: '5',
           ifp_qty: '52.5',
+          weight: '25.5',
           dimension: '1000x500x100',
           building_name: 'Building A',
           facade_name: 'North Facade',
@@ -439,10 +373,10 @@ export function BulkImportPanelsPage() {
           issue_transmittal_no: 'IT-002',
           dwg_no: 'DWG-002',
           description: 'Interior partition panel',
-          panel_tag: 'B-002',
           unit_qty: '8.0',
           ifp_qty_nos: '3',
           ifp_qty: '24.0',
+          weight: '18.2',
           dimension: '500x300x50',
           building_name: 'Main Tower',
           facade_name: 'East Facade',
@@ -457,10 +391,10 @@ export function BulkImportPanelsPage() {
           issue_transmittal_no: 'IT-003',
           dwg_no: 'DWG-003',
           description: 'Roof panel',
-          panel_tag: 'C-003',
           unit_qty: '15.0',
           ifp_qty_nos: '2',
           ifp_qty: '30.0',
+          weight: '45.8',
           dimension: '2000x1000x150',
           building_name: 'Office Complex',
           facade_name: 'South Facade',
@@ -482,10 +416,10 @@ export function BulkImportPanelsPage() {
       'issue_transmittal_no',
       'dwg_no',
       'description',
-      'panel_tag',
       'unit_qty',
       'ifp_qty_nos',
       'ifp_qty',
+      'weight',
       'dimension',
       'building_name',
       'facade_name',
@@ -505,10 +439,10 @@ export function BulkImportPanelsPage() {
       { wch: 18 }, // issue_transmittal_no
       { wch: 12 }, // dwg_no
       { wch: 25 }, // description
-      { wch: 12 }, // panel_tag
       { wch: 10 }, // unit_qty
       { wch: 12 }, // ifp_qty_nos
       { wch: 10 }, // ifp_qty
+      { wch: 10 }, // weight
       { wch: 15 }, // dimension
       { wch: 15 }, // building_name
       { wch: 15 }, // facade_name
@@ -583,10 +517,10 @@ export function BulkImportPanelsPage() {
                 issue_transmittal_no: row[5]?.toString().trim() || '',
                 dwg_no: row[6]?.toString().trim() || '',
                 description: row[7]?.toString().trim() || '',
-                panel_tag: row[8]?.toString().trim() || '',
-                unit_qty: row[9]?.toString().trim() || '',
-                ifp_qty_nos: row[10]?.toString().trim() || '',
-                ifp_qty: row[11]?.toString().trim() || '',
+                unit_qty: row[8]?.toString().trim() || '',
+                ifp_qty_nos: row[9]?.toString().trim() || '',
+                ifp_qty: row[10]?.toString().trim() || '',
+                weight: row[11]?.toString().trim() || undefined,
                 dimension: row[12]?.toString().trim() || undefined,
                 building_name: row[13]?.toString().trim() || undefined,
                 facade_name: row[14]?.toString().trim() || undefined,
@@ -773,6 +707,17 @@ export function BulkImportPanelsPage() {
         }
       }
 
+      // Weight validation - only validate if weight is provided
+      if (row.weight && row.weight.trim()) {
+        const weight = Number(row.weight);
+        if (isNaN(weight)) {
+          errors.push('Weight must be a number');
+        }
+        if (weight < 0) {
+          errors.push('Weight cannot be negative');
+        }
+      }
+
       return {
         isValid: errors.length === 0,
         errors,
@@ -836,17 +781,285 @@ export function BulkImportPanelsPage() {
     setProgress(0);
     setImportResults([]);
 
+    // Create local caches for the import session to avoid state update issues
+    const localProjects = [...projects];
+    const localBuildings = [...buildings];
+    const localFacades = [...facades];
+    const localCustomers = [...customers];
+
     const results: ImportResult[] = [];
     let successCount = 0;
     let errorCount = 0;
 
+    // Helper function to map status text to numeric value
+    const mapStatusToNumber = (statusText: string): number => {
+      if (!statusText.trim()) return 0; // Default to "Issued For Production"
+      
+      const status = statusText.toLowerCase().trim();
+      
+      // Map common status texts to numeric values (including typos)
+      const statusMap: { [key: string]: number } = {
+        'issued for production': 0, // "Issued For Production"
+        'produced': 1, // "Produced"
+        'inspected': 2, // "Inspected"
+        'approved material': 3, // "Approved Material"
+        'rejected material': 4, // "Rejected Material"
+        'issued': 5, // "Issued"
+        'proceed for delivery': 6, // "Proceed for Delivery"
+        'procced for delivery': 6, // Handle typo
+        'delivered': 7, // "Delivered"
+        'installed': 8, // "Installed"
+        'approved final': 9, // "Approved Final"
+        'broken at site': 10, // "Broken at Site"
+        'on hold': 11, // "On Hold"
+        'cancelled': 12 // "Cancelled"
+      };
+      
+      return statusMap[status] || 0; // Default to "Issued For Production"
+    };
+
+    // Helper function to map panel type text to numeric value
+    const mapTypeToNumber = (typeText: string): number => {
+      if (!typeText.trim()) return 0; // Default to "GRC"
+      
+      const type = typeText.toUpperCase().trim();
+      
+      // Map panel type texts to numeric values
+      const typeMap: { [key: string]: number } = {
+        'GRC': 0, // "GRC"
+        'GRG': 1, // "GRG"
+        'GRP': 2, // "GRP"
+        'EIFS': 3, // "EIFS"
+        'UHPC': 4 // "UHPC"
+      };
+      
+      return typeMap[type] || 0; // Default to "GRC"
+    };
+
+    // Helper function to parse date in different formats
+    const parseDate = (dateStr: string): Date | null => {
+      if (!dateStr.trim()) return null;
+      
+      const str = dateStr.trim();
+      
+      // Handle 0000-00-00 format - convert to earliest valid date
+      if (str === '0000-00-00' || str === '00/00/0000' || str === '00.00.0000') {
+        return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+      }
+      
+      try {
+        // Try different date formats
+        if (str.includes('/')) {
+          // Format: DD/MM/YYYY
+          const parts = str.split('/');
+          if (parts.length === 3) {
+            // Check for invalid date parts (00/00/YYYY or DD/00/YYYY or DD/MM/0000)
+            if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
+              return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+            }
+            const year = parseInt(parts[2]);
+            const month = parseInt(parts[1]) - 1;
+            const day = parseInt(parts[0]);
+            
+            // Create date using UTC to avoid timezone issues
+            const date = new Date(Date.UTC(year, month, day));
+            if (!isNaN(date.getTime())) {
+              return date;
+            }
+          }
+        } else if (str.includes('.')) {
+          // Format: DD.MM.YYYY
+          const parts = str.split('.');
+          if (parts.length === 3) {
+            // Check for invalid date parts (00.00.YYYY or DD.00.YYYY or DD.MM.0000)
+            if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
+              return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+            }
+            const year = parseInt(parts[2]);
+            const month = parseInt(parts[1]) - 1;
+            const day = parseInt(parts[0]);
+            
+            // Create date using UTC to avoid timezone issues
+            const date = new Date(Date.UTC(year, month, day));
+            if (!isNaN(date.getTime())) {
+              return date;
+            }
+          }
+        } else if (str.includes('-')) {
+          // Format: YYYY-MM-DD
+          const parts = str.split('-');
+          if (parts.length === 3) {
+            // Check for invalid date parts (0000-MM-DD or YYYY-00-DD or YYYY-MM-00)
+            if (parts[0] === '0000' || parts[1] === '00' || parts[2] === '00') {
+              return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
+            }
+            const year = parseInt(parts[0]);
+            const month = parseInt(parts[1]) - 1;
+            const day = parseInt(parts[2]);
+            
+            // Create date using UTC to avoid timezone issues
+            const date = new Date(Date.UTC(year, month, day));
+            if (!isNaN(date.getTime())) {
+              return date;
+            }
+          }
+        }
+        
+        // Try parsing as ISO string
+        const parsedDate = new Date(str);
+        if (!isNaN(parsedDate.getTime())) {
+          return parsedDate;
+        }
+        
+        // If all else fails, return 1900-01-01
+        return new Date('1900-01-01T00:00:00.000Z');
+      } catch (error) {
+        // If any error occurs, return 1900-01-01
+        return new Date('1900-01-01T00:00:00.000Z');
+      }
+    };
+
     for (let i = 0; i < validData.length; i++) {
       const row = validData[i];
       try {
-        // Resolve project, building, and facade IDs
-        const { project_id, building_id, facade_id } = await resolveProjectBuildingAndFacadeIds(row);
+        // Helper functions that work with local caches
+        const findProjectIdByNameLocal = (name?: string): string | undefined => {
+          if (!name) return undefined;
+          const target = normalizeName(name);
+          const match = localProjects.find((p) => normalizeName(p.name) === target);
+          return match?.id;
+        };
 
-        if (!project_id) {
+        const findBuildingIdByNameLocal = (name?: string, projectId?: string): string | undefined => {
+          if (!name || !projectId) return undefined;
+          const target = normalizeName(name);
+          const match = localBuildings.find((b) => normalizeName(b.name) === target && b.project_id === projectId);
+          return match?.id;
+        };
+
+        const findFacadeIdByNameLocal = (name?: string, buildingId?: string): string | undefined => {
+          if (!name || !buildingId) return undefined;
+          const target = normalizeName(name);
+          const match = localFacades.find((f) => normalizeName(f.name) === target && f.building_id === buildingId);
+          return match?.id;
+        };
+
+        const findCustomerIdByNameLocal = (name?: string): string | undefined => {
+          if (!name) return undefined;
+          const target = normalizeName(name);
+          const match = localCustomers.find((c) => normalizeName(c.name) === target);
+          return match?.id;
+        };
+
+        // Resolve project, building, and facade IDs using local caches
+        let resolvedProjectId = findProjectIdByNameLocal(row.project_name);
+        let resolvedBuildingId: string | undefined;
+        let resolvedFacadeId: string | undefined;
+
+        // If project doesn't exist, create it
+        if (!resolvedProjectId) {
+          try {
+            // First resolve customer if provided, or create a default one
+            let customerId: string | null = null;
+            
+            if (row.customer_name && row.customer_name.trim()) {
+              const existingCustomerId = findCustomerIdByNameLocal(row.customer_name);
+              if (existingCustomerId) {
+                customerId = existingCustomerId;
+              } else {
+                // Create new customer
+                const customerData = {
+                  name: row.customer_name,
+                  email: `${row.customer_name.toLowerCase().replace(/\s+/g, '.')}@example.com`,
+                  phone: '+974-0000-0000',
+                };
+                const newCustomer = await crudOperations.create("customers", customerData);
+                localCustomers.push({ id: newCustomer.id, name: row.customer_name });
+                customerId = newCustomer.id;
+              }
+            } else {
+              // Create a default customer for the project
+              const defaultCustomerName = `${row.project_name} Customer`;
+              const customerData = {
+                name: defaultCustomerName,
+                email: `${defaultCustomerName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
+                phone: '+974-0000-0000',
+              };
+              const newCustomer = await crudOperations.create("customers", customerData);
+              localCustomers.push({ id: newCustomer.id, name: defaultCustomerName });
+              customerId = newCustomer.id;
+            }
+
+            if (!customerId) {
+              throw new Error(`Failed to create or find customer for project "${row.project_name}"`);
+            }
+
+            // Create new project
+            const projectData = {
+              name: row.project_name,
+              customer_id: customerId,
+              location: 'Unknown Location',
+              status: 'active',
+              start_date: new Date().toISOString().split('T')[0],
+            };
+            const newProject = await crudOperations.create("projects", projectData);
+            localProjects.push({ id: newProject.id, name: row.project_name });
+            resolvedProjectId = newProject.id;
+          } catch (error) {
+            console.error('Error resolving project:', error);
+            throw error;
+          }
+        }
+
+        // If building name is provided, find or create building
+        if (row.building_name && resolvedProjectId) {
+          try {
+            const existingBuildingId = findBuildingIdByNameLocal(row.building_name, resolvedProjectId);
+            if (existingBuildingId) {
+              resolvedBuildingId = existingBuildingId;
+            } else {
+              // Create new building
+              const buildingData = {
+                name: row.building_name,
+                project_id: resolvedProjectId,
+                status: 0,
+                description: `Building created during bulk import for project ${resolvedProjectId}`,
+              };
+              const newBuilding = await crudOperations.create("buildings", buildingData);
+              localBuildings.push({ id: newBuilding.id, name: row.building_name, project_id: resolvedProjectId });
+              resolvedBuildingId = newBuilding.id;
+            }
+          } catch (error) {
+            console.error('Error resolving building:', error);
+            throw error;
+          }
+        }
+
+        // If facade name is provided, find or create facade
+        if (row.facade_name && resolvedBuildingId) {
+          try {
+            const existingFacadeId = findFacadeIdByNameLocal(row.facade_name, resolvedBuildingId);
+            if (existingFacadeId) {
+              resolvedFacadeId = existingFacadeId;
+            } else {
+              // Create new facade
+              const facadeData = {
+                name: row.facade_name,
+                building_id: resolvedBuildingId,
+                status: 0,
+                description: `Facade created during bulk import for building ${resolvedBuildingId}`,
+              };
+              const newFacade = await crudOperations.create("facades", facadeData);
+              localFacades.push({ id: newFacade.id, name: row.facade_name, building_id: resolvedBuildingId });
+              resolvedFacadeId = newFacade.id;
+            }
+          } catch (error) {
+            console.error('Error resolving facade:', error);
+            throw error;
+          }
+        }
+
+        if (!resolvedProjectId) {
           results.push({
             success: false,
             message: `Failed to resolve project for "${row.name}". Project "${row.project_name}" not found and could not be created.`,
@@ -856,163 +1069,37 @@ export function BulkImportPanelsPage() {
           continue;
         }
 
-        // Helper function to parse date in different formats
-        const parseDate = (dateStr: string): Date | null => {
-          if (!dateStr.trim()) return null;
-          
-          const str = dateStr.trim();
-          
-          // Handle 0000-00-00 format - convert to earliest valid date
-          if (str === '0000-00-00' || str === '00/00/0000' || str === '00.00.0000') {
-            return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
-          }
-          
-          try {
-            // Try different date formats
-            if (str.includes('/')) {
-              // Format: DD/MM/YYYY
-              const parts = str.split('/');
-              if (parts.length === 3) {
-                // Check for invalid date parts (00/00/YYYY or DD/00/YYYY or DD/MM/0000)
-                if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
-                  return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
-                }
-                const year = parseInt(parts[2]);
-                const month = parseInt(parts[1]) - 1;
-                const day = parseInt(parts[0]);
-                
-                // Create date using UTC to avoid timezone issues
-                const date = new Date(Date.UTC(year, month, day));
-                if (!isNaN(date.getTime())) {
-                  return date;
-                }
-              }
-            } else if (str.includes('.')) {
-              // Format: DD.MM.YYYY
-              const parts = str.split('.');
-              if (parts.length === 3) {
-                // Check for invalid date parts (00.00.YYYY or DD.00.YYYY or DD.MM.0000)
-                if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
-                  return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
-                }
-                const year = parseInt(parts[2]);
-                const month = parseInt(parts[1]) - 1;
-                const day = parseInt(parts[0]);
-                
-                // Create date using UTC to avoid timezone issues
-                const date = new Date(Date.UTC(year, month, day));
-                if (!isNaN(date.getTime())) {
-                  return date;
-                }
-              }
-            } else if (str.includes('-')) {
-              // Format: YYYY-MM-DD
-              const parts = str.split('-');
-              if (parts.length === 3) {
-                // Check for invalid date parts (0000-MM-DD or YYYY-00-DD or YYYY-MM-00)
-                if (parts[0] === '0000' || parts[1] === '00' || parts[2] === '00') {
-                  return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
-                }
-                const year = parseInt(parts[0]);
-                const month = parseInt(parts[1]) - 1;
-                const day = parseInt(parts[2]);
-                
-                // Create date using UTC to avoid timezone issues
-                const date = new Date(Date.UTC(year, month, day));
-                if (!isNaN(date.getTime())) {
-                  return date;
-                }
-              }
-            }
-            
-            // Try parsing as ISO string
-            const parsedDate = new Date(str);
-            if (!isNaN(parsedDate.getTime())) {
-              return parsedDate;
-            }
-            
-            // If all else fails, return 1900-01-01
-            return new Date('1900-01-01T00:00:00.000Z');
-          } catch (error) {
-            // If any error occurs, return 1900-01-01
-            return new Date('1900-01-01T00:00:00.000Z');
-          }
-        };
-
-        // Helper function to map status text to numeric value
-        const mapStatusToNumber = (statusText: string): number | null => {
-          if (!statusText.trim()) return null;
-          
-          const status = statusText.toLowerCase().trim();
-          
-          // Map common status texts to numeric values (including typos)
-          const statusMap: { [key: string]: number } = {
-            'issued for production': 1,
-            'produced': 2,
-            'inspected': 3,
-            'approved material': 4,
-            'rejected material': 5,
-            'issued': 6,
-            'proceed for delivery': 7,
-            'procced for delivery': 7, // Handle typo
-            'delivered': 8,
-            'installed': 9,
-            'approved final': 10,
-            'broken at site': 11,
-            'on hold': 12,
-            'cancelled': 13
-          };
-          
-          return statusMap[status] || null;
-        };
-
-        // Helper function to map panel type text to numeric value
-        const mapTypeToNumber = (typeText: string): number | null => {
-          if (!typeText.trim()) return null;
-          
-          const type = typeText.toUpperCase().trim();
-          
-          // Map panel type texts to numeric values
-          const typeMap: { [key: string]: number } = {
-            'GRC': 1,
-            'GRG': 2,
-            'GRP': 3,
-            'EIFS': 4,
-            'UHPC': 5
-          };
-          
-          return typeMap[type] || null;
-        };
-
         // Check if panel already exists
         const existingPanel = await findExistingPanelByName(row.name);
 
         if (existingPanel) {
           console.log(`Panel "${row.name}" already exists. Updating...`);
-                     const updateData = {
-             name: row.name.trim(),
-             type: row.type?.trim() ? mapTypeToNumber(row.type) : null,
-             status: row.status?.trim() ? mapStatusToNumber(row.status) : null,
-             project_id: project_id,
-             building_id: building_id || null,
-             facade_id: facade_id || null,
-             issue_transmittal_no: row.issue_transmittal_no?.trim() || null,
-             drawing_number: row.dwg_no?.trim() || null,
-             unit_rate_qr_m2: row.unit_qty?.trim() ? parseFloat(row.unit_qty) : null,
-             ifp_qty_area_sm: row.ifp_qty?.trim() ? parseFloat(row.ifp_qty) : null,
-             ifp_qty_nos: row.ifp_qty_nos?.trim() ? parseInt(row.ifp_qty_nos) : null,
-             dimension: row.dimension?.trim() || null,
-             issued_for_production_date: row.date?.trim() ? (() => {
-               const parsedDate = parseDate(row.date);
-               if (!parsedDate) return null;
-               // Format as YYYY-MM-DD string for Supabase
-               const year = parsedDate.getUTCFullYear();
-               const month = String(parsedDate.getUTCMonth() + 1).padStart(2, '0');
-               const day = String(parsedDate.getUTCDate()).padStart(2, '0');
-               return `${year}-${month}-${day}`;
-             })() : null,
-             user_id: currentUser?.id || null
-           };
+          
+          const updateData = {
+            name: row.name.trim(),
+            type: mapTypeToNumber(row.type),
+            status: mapStatusToNumber(row.status),
+            project_id: resolvedProjectId,
+            building_id: resolvedBuildingId || null,
+            facade_id: resolvedFacadeId || null,
+            issue_transmittal_no: row.issue_transmittal_no?.trim() || null,
+            drawing_number: row.dwg_no?.trim() || null,
+            unit_rate_qr_m2: row.unit_qty?.trim() ? parseFloat(row.unit_qty) : null,
+            ifp_qty_area_sm: row.ifp_qty?.trim() ? parseFloat(row.ifp_qty) : null,
+            ifp_qty_nos: row.ifp_qty_nos?.trim() ? parseInt(row.ifp_qty_nos) : null,
+            weight: row.weight?.trim() ? parseFloat(row.weight) : null,
+            dimension: row.dimension?.trim() || null,
+            issued_for_production_date: row.date?.trim() ? (() => {
+              const parsedDate = parseDate(row.date);
+              if (!parsedDate) return null;
+              // Format as YYYY-MM-DD string for Supabase
+              const year = parsedDate.getUTCFullYear();
+              const month = String(parsedDate.getUTCMonth() + 1).padStart(2, '0');
+              const day = String(parsedDate.getUTCDate()).padStart(2, '0');
+              return `${year}-${month}-${day}`;
+            })() : null,
+            user_id: currentUser?.id || null
+          };
 
           const { data: updatedPanel, error: updateError } = await supabase
             .from('panels')
@@ -1037,19 +1124,21 @@ export function BulkImportPanelsPage() {
             successCount++;
           }
         } else {
-          // Prepare panel data for new panel
+          console.log('Creating new panel with data:', row.name);
+          
           const panelData = {
             name: row.name.trim(),
-            type: row.type?.trim() ? mapTypeToNumber(row.type) : null, // Map text to number
-            status: row.status?.trim() ? mapStatusToNumber(row.status) : null,
-            project_id: project_id,
-            building_id: building_id || null,
-            facade_id: facade_id || null,
+            type: mapTypeToNumber(row.type),
+            status: mapStatusToNumber(row.status),
+            project_id: resolvedProjectId,
+            building_id: resolvedBuildingId || null,
+            facade_id: resolvedFacadeId || null,
             issue_transmittal_no: row.issue_transmittal_no?.trim() || null,
             drawing_number: row.dwg_no?.trim() || null,
             unit_rate_qr_m2: row.unit_qty?.trim() ? parseFloat(row.unit_qty) : null,
             ifp_qty_area_sm: row.ifp_qty?.trim() ? parseFloat(row.ifp_qty) : null,
             ifp_qty_nos: row.ifp_qty_nos?.trim() ? parseInt(row.ifp_qty_nos) : null,
+            weight: row.weight?.trim() ? parseFloat(row.weight) : null,
             dimension: row.dimension?.trim() || null,
             issued_for_production_date: row.date?.trim() ? (() => {
               const parsedDate = parseDate(row.date);
@@ -1098,6 +1187,12 @@ export function BulkImportPanelsPage() {
       setProgress(((i + 1) / validData.length) * 100);
       setImportResults([...results]);
     }
+
+    // Update the global state with the local caches
+    setProjects(localProjects);
+    setBuildings(localBuildings);
+    setFacades(localFacades);
+    setCustomers(localCustomers);
 
     setIsImporting(false);
     setProgress(100);
@@ -1244,10 +1339,10 @@ export function BulkImportPanelsPage() {
                     <TableHead>issue_transmittal_no</TableHead>
                     <TableHead>dwg_no</TableHead>
                     <TableHead>description</TableHead>
-                    <TableHead>panel_tag</TableHead>
                     <TableHead>unit_qty</TableHead>
                     <TableHead>ifp_qty_nos</TableHead>
                     <TableHead>ifp_qty</TableHead>
+                    <TableHead>weight</TableHead>
                     <TableHead>dimension</TableHead>
                     <TableHead>building_name</TableHead>
                     <TableHead>facade_name</TableHead>
@@ -1264,10 +1359,10 @@ export function BulkImportPanelsPage() {
                      <TableCell>IT-001</TableCell>
                      <TableCell>DWG-001</TableCell>
                      <TableCell>Exterior wall panel</TableCell>
-                     <TableCell>A-001</TableCell>
                      <TableCell>10.5</TableCell>
                      <TableCell>5</TableCell>
                      <TableCell>52.5</TableCell>
+                     <TableCell>25.5</TableCell>
                      <TableCell>1000x500x100</TableCell>
                      <TableCell>Building A</TableCell>
                      <TableCell>North Facade</TableCell>

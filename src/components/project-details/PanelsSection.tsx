@@ -231,6 +231,10 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
   const [parentBuildingId, setParentBuildingId] = useState<string | undefined>(undefined);
   const [existingPanels, setExistingPanels] = useState<{ [key: string]: any }>({});
   const canCreatePanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canCreate') : false;
+  const canUpdatePanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canUpdate') : false;
+  const canDeletePanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canDelete') : false;
+  const canBulkImportPanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canBulkImport') : false;
+  const canChangePanelStatus = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canChangeStatus') : false;
 
   // Helper function to get valid statuses for a given current status
   const getValidStatuses = (currentStatus: number) => {
@@ -2181,7 +2185,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
           <span className="text-sm text-muted-foreground">in {projectName}</span>
         </div>
         <div className="flex items-center gap-2">
-           {isSelectionMode && (
+           {isSelectionMode && canUpdatePanels && (
             <>
               <Button
                 variant="outline"
@@ -2210,7 +2214,8 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               
             </>
           )}
-         {isSelectionMode && <Button
+         {isSelectionMode && canUpdatePanels && (
+            <Button
             variant="outline"
             onClick={toggleSelectAll}
             disabled={paginatedPanels.length === 0}
@@ -2226,7 +2231,9 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                 Select All
               </>
             )}
-          </Button>}
+            </Button>
+          )}
+          {canUpdatePanels && (
           <Button
             variant={isSelectionMode ? "default" : "outline"}
             onClick={toggleSelectionMode}
@@ -2243,8 +2250,10 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               </>
             )}
           </Button>
+          )}
           {!isSelectionMode&&
           <>
+            {canBulkImportPanels && (
             <Button
               variant="outline"
               onClick={() => setIsBulkImportMode(true)}
@@ -2253,6 +2262,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               <Upload className="h-4 w-4 mr-2" />
               Bulk Import
             </Button>
+            )}
             <Button onClick={() => setIsAddPanelDialogOpen(true)} disabled={!canCreatePanels}>
               <Plus className="h-4 w-4 mr-2" />
               Add Panel
@@ -2387,6 +2397,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                       <Plus className="mr-2 h-4 w-4" />
                       Add Panel
                     </Button>
+                    {canBulkImportPanels && (
                     <Button
                       variant="outline"
                       onClick={() => setIsBulkImportMode(true)}
@@ -2395,6 +2406,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                       <Upload className="mr-2 h-4 w-4" />
                       Bulk Import
                     </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -2405,7 +2417,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                     <CollapsibleTrigger asChild>
                       <div className="flex items-center justify-between p-4 hover:bg-muted/50 cursor-pointer">
                         <div className="flex items-center space-x-4 flex-1">
-                          {isSelectionMode && (
+                          {isSelectionMode && canUpdatePanels && (
                             <div 
                               className="flex items-center"
                               onClick={(e) => {
@@ -2455,6 +2467,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                           </div>
                         </div>
                        <div className="flex items-center gap-2">
+                          {canChangePanelStatus && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -2467,6 +2480,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                           >
                             <RefreshCw className="h-4 w-4" />
                           </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -2489,6 +2503,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                           >
                             <History className="h-4 w-4" />
                           </Button>
+                          {canUpdatePanels && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -2500,6 +2515,8 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
+                          )}
+                          {canDeletePanels && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -2511,6 +2528,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
+                          )}
                           
                         </div>
                       </div>

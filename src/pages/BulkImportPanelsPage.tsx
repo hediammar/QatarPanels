@@ -73,6 +73,10 @@ interface Facade {
 
 export function BulkImportPanelsPage() {
   const { user: currentUser } = useAuth();
+  
+  // Check if user has permission to bulk import panels
+  const canBulkImportPanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canBulkImport') : false;
+  
   const [file, setFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<PanelImportData[]>([]);
   const [validationResults, setValidationResults] = useState<ValidationResult[]>([]);
@@ -96,6 +100,19 @@ export function BulkImportPanelsPage() {
     fetchFacades();
     fetchCustomers();
   }, []);
+
+  // Check if user has permission to bulk import panels
+  if (!canBulkImportPanels) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+          <p className="text-muted-foreground">You don't have permission to bulk import panels.</p>
+        </div>
+      </div>
+    );
+  }
 
   const fetchProjects = async () => {
     try {

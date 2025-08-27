@@ -1343,18 +1343,20 @@ export function PanelsPage() {
                           </div>
                         </div>
                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleStatusChange(panel);
-                            }}
-                            className="p-0 text-blue-600 hover:text-blue-700"
-                            title="Change Status"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </Button>
+                          {canChangePanelStatus && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStatusChange(panel);
+                              }}
+                              className="p-0 text-blue-600 hover:text-blue-700"
+                              title="Change Status"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"

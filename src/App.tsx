@@ -20,6 +20,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { ToastProvider } from "./contexts/ToastContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute, AdminRoute } from "./components/ProtectedRoute";
+import { RoleBasedRedirect } from "./components/RoleBasedRedirect";
 import { forceEnglishLocale } from "./utils/date-utils";
 
 export default function App() {
@@ -40,7 +41,9 @@ export default function App() {
             <Route path="/" element={
               <ProtectedRoute>
                 <Layout>
-                  <HomePage />
+                  <RoleBasedRedirect>
+                    <HomePage />
+                  </RoleBasedRedirect>
                 </Layout>
               </ProtectedRoute>
             } />

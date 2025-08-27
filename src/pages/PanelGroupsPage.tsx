@@ -31,6 +31,8 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { Checkbox } from "../components/ui/checkbox";
+import { useAuth } from "../contexts/AuthContext";
+import { hasPermission, UserRole } from "../utils/rolePermissions";
 
 const PANEL_STATUSES = [
   { value: "Issued For Production", label: "Issued For Production" },
@@ -1277,6 +1279,12 @@ export function PanelGroupsPage({
   const [isUpdateStatusDialogOpen, setIsUpdateStatusDialogOpen] = useState(false);
   const [isUpdatePanelGroupDialogOpen, setIsUpdatePanelGroupDialogOpen] = useState(false);
 
+  // RBAC Permission checks
+  const { user: currentUser } = useAuth();
+  const canCreatePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canCreate') : false;
+  const canUpdatePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canUpdate') : false;
+  const canDeletePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canDelete') : false;
+
   useEffect(() => {
     async function loadData() {
       const groups = await fetchPanelGroups();
@@ -1642,13 +1650,15 @@ export function PanelGroupsPage({
                             <Edit className="h-4 w-4" />
                           </Button>
                           
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(group.id)}
-                                >
-                            <X className="h-4 w-4 text-red-500" />
-                          </Button>
+                          {canDeletePanelGroups && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(group.id)}
+                                  >
+                              <X className="h-4 w-4 text-red-500" />
+                            </Button>
+                          )}
                         </div>
                       </div>
 

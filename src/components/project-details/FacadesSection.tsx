@@ -66,6 +66,8 @@ export function FacadesSection({
   const [buildingFilter, setBuildingFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const canCreateFacades = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'facades', 'canCreate') : false;
+  const canUpdateFacades = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'facades', 'canUpdate') : false;
+  const canDeleteFacades = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'facades', 'canDelete') : false;
 
   // Map database status (integer) to UI status
   const statusMap: { [key: number]: string } = {
@@ -498,43 +500,47 @@ export function FacadesSection({
                     Created: {formatDate(facade.created_at)}
                   </div>
                   <div className="flex gap-2">
-                    <FacadeModalTrigger
-                      onSubmit={async (data) => {
-                        const { error } = await supabase
-                          .from('facades')
-                          .update({
-                            name: data.name,
-                            building_id: data.building_id,
-                            status: data.status,
-                            description: data.description,
-                            updated_at: new Date().toISOString()
-                          })
-                          .eq('id', facade.id);
+                    {canUpdateFacades && (
+                      <FacadeModalTrigger
+                        onSubmit={async (data) => {
+                          const { error } = await supabase
+                            .from('facades')
+                            .update({
+                              name: data.name,
+                              building_id: data.building_id,
+                              status: data.status,
+                              description: data.description,
+                              updated_at: new Date().toISOString()
+                            })
+                            .eq('id', facade.id);
 
-                        if (error) {
-                          console.error('Error updating facade:', error);
-                          return;
-                        }
+                          if (error) {
+                            console.error('Error updating facade:', error);
+                            return;
+                          }
 
-                        setFacades(facades.map(f => 
-                          f.id === facade.id ? { ...f, ...data, updated_at: new Date().toISOString() } : f
-                        ));
-                      }}
-                      editingFacade={facade}
-                      currentProject={currentProject}
-                      currentBuilding={currentBuilding}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(facade);
-                      }}
-                      className="border-red-400/50 text-red-400 hover:bg-red-400/10"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                          setFacades(facades.map(f => 
+                            f.id === facade.id ? { ...f, ...data, updated_at: new Date().toISOString() } : f
+                          ));
+                        }}
+                        editingFacade={facade}
+                        currentProject={currentProject}
+                        currentBuilding={currentBuilding}
+                      />
+                    )}
+                    {canDeleteFacades && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(facade);
+                        }}
+                        className="border-red-400/50 text-red-400 hover:bg-red-400/10"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>

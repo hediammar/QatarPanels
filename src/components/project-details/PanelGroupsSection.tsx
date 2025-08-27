@@ -31,6 +31,8 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Checkbox } from "../ui/checkbox";
+import { useAuth } from "../../contexts/AuthContext";
+import { hasPermission, UserRole } from "../../utils/rolePermissions";
 
 const PANEL_STATUSES = [
   { value: "Produced", label: "Produced" },
@@ -998,6 +1000,12 @@ export function PanelGroupsSection({
   const [isAddPanelsDialogOpen, setIsAddPanelsDialogOpen] = useState(false);
   const [isUpdatePanelGroupDialogOpen, setIsUpdatePanelGroupDialogOpen] = useState(false);
 
+  // RBAC Permission checks
+  const { user: currentUser } = useAuth();
+  const canCreatePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canCreate') : false;
+  const canUpdatePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canUpdate') : false;
+  const canDeletePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canDelete') : false;
+
   useEffect(() => {
     async function loadData() {
       const groups = await fetchPanelGroups(projectId);
@@ -1381,20 +1389,24 @@ export function PanelGroupsSection({
                         <div className="flex items-center gap-2">
                          
                           
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleAddPanelsToGroup(group)}
-                                >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditGroup(group)}
-                                >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          {canUpdatePanelGroups && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleAddPanelsToGroup(group)}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canUpdatePanelGroups && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditGroup(group)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
 

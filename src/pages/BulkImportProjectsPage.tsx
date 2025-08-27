@@ -52,6 +52,10 @@ interface ImportResult {
 
 export function BulkImportProjectsPage() {
   const { user: currentUser } = useAuth();
+  
+  // Check if user has permission to bulk import projects
+  const canBulkImportProjects = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'projects', 'canBulkImport') : false;
+  
   const [file, setFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<ProjectImportData[]>([]);
   const [validationResults, setValidationResults] = useState<ValidationResult[]>([]);
@@ -64,10 +68,6 @@ export function BulkImportProjectsPage() {
 
   // RBAC Permission check
   const canCreateProjects = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'projects', 'canCreate') : false;
-
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
 
   const fetchCustomers = async () => {
     try {
@@ -82,6 +82,23 @@ export function BulkImportProjectsPage() {
       setError('Failed to fetch customers: ' + err.message);
     }
   };
+
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  // Check if user has permission to bulk import projects
+  if (!canBulkImportProjects) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+          <p className="text-muted-foreground">You don't have permission to bulk import projects.</p>
+        </div>
+      </div>
+    );
+  }
 
   const downloadTemplate = () => {
     // Create sample data

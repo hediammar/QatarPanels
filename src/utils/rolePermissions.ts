@@ -25,6 +25,7 @@ export interface RolePermissions {
     canRead: boolean;
     canUpdate: boolean;
     canDelete: boolean;
+    canBulkImport?: boolean;
     customerSpecific?: boolean; // For customer role - only see their own projects
   };
   customers: {
@@ -83,7 +84,7 @@ export interface RolePermissions {
 export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   'Administrator': {
     users: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
-    projects: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    projects: { canCreate: true, canRead: true, canUpdate: true, canDelete: true, canBulkImport: true },
     customers: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
     buildings: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
     facades: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
@@ -105,7 +106,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   },
   'Data Entry': {
     users: { canCreate: false, canRead: false, canUpdate: false, canDelete: false },
-    projects: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    projects: { canCreate: true, canRead: true, canUpdate: true, canDelete: true, canBulkImport: true },
     customers: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
     buildings: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
     facades: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
@@ -135,7 +136,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     notes: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
     navigation: {
-      dashboard: true,
+      dashboard: false,
       projects: true,
       buildings: false,
       facades: false,
@@ -149,13 +150,13 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   },
   'Production engineer': {
     users: { canCreate: false, canRead: false, canUpdate: false, canDelete: false },
-    projects: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    customers: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    buildings: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
-    panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    notes: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
+    projects: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    customers: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    buildings: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    facades: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    panels: { canCreate: true, canRead: true, canUpdate: true, canDelete: true, canBulkImport: true, canChangeStatus: false },
+    panelGroups: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    notes: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
     navigation: {
       dashboard: true,
       projects: true,
@@ -171,13 +172,13 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   },
   'QC Factory': {
     users: { canCreate: false, canRead: false, canUpdate: false, canDelete: false },
-    projects: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    customers: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    buildings: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
-    panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    notes: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
+    projects: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    customers: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    buildings: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    facades: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    panels: { canCreate: true, canRead: true, canUpdate: true, canDelete: true, canBulkImport: true, canChangeStatus: false },
+    panelGroups: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    notes: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
     navigation: {
       dashboard: true,
       projects: true,
@@ -193,13 +194,13 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   },
   'Store Site': {
     users: { canCreate: false, canRead: false, canUpdate: false, canDelete: false },
-    projects: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    customers: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    buildings: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
-    panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    notes: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
+    projects: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    customers: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    buildings: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    facades: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    panels: { canCreate: true, canRead: true, canUpdate: true, canDelete: true, canBulkImport: true, canChangeStatus: false },
+    panelGroups: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    notes: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
     navigation: {
       dashboard: true,
       projects: true,
@@ -215,13 +216,13 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   },
   'QC Site': {
     users: { canCreate: false, canRead: false, canUpdate: false, canDelete: false },
-    projects: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    customers: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    buildings: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
-    panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    notes: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
+    projects: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    customers: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    buildings: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    facades: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    panels: { canCreate: true, canRead: true, canUpdate: true, canDelete: true, canBulkImport: true, canChangeStatus: false },
+    panelGroups: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    notes: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
     navigation: {
       dashboard: true,
       projects: true,
@@ -237,13 +238,13 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   },
   'Foreman Site': {
     users: { canCreate: false, canRead: false, canUpdate: false, canDelete: false },
-    projects: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    customers: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    buildings: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
-    panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    notes: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
+    projects: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    customers: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    buildings: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    facades: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    panels: { canCreate: true, canRead: true, canUpdate: true, canDelete: true, canBulkImport: true, canChangeStatus: false },
+    panelGroups: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    notes: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
     navigation: {
       dashboard: true,
       projects: true,
@@ -259,13 +260,13 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
   },
   'Site Engineer': {
     users: { canCreate: false, canRead: false, canUpdate: false, canDelete: false },
-    projects: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    customers: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    buildings: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    facades: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    panels: { canCreate: false, canRead: true, canUpdate: false, canDelete: false, canBulkImport: false, canChangeStatus: true },
-    panelGroups: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
-    notes: { canCreate: false, canRead: true, canUpdate: false, canDelete: false },
+    projects: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    customers: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    buildings: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    facades: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    panels: { canCreate: true, canRead: true, canUpdate: true, canDelete: true, canBulkImport: true, canChangeStatus: false },
+    panelGroups: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
+    notes: { canCreate: true, canRead: true, canUpdate: true, canDelete: true },
     navigation: {
       dashboard: true,
       projects: true,
@@ -300,7 +301,7 @@ export const canAccessNavigation = (role: UserRole, page: keyof RolePermissions[
 };
 
 export const isReadOnlyRole = (role: UserRole): boolean => {
-  return ['Customer', 'Production engineer', 'QC Factory', 'Store Site', 'QC Site', 'Foreman Site', 'Site Engineer'].includes(role);
+  return ['Customer'].includes(role);
 };
 
 export const canModifyData = (role: UserRole): boolean => {

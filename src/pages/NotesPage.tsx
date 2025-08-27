@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../components/ui/badge';
 import { Plus, Edit, Trash2, FileText } from 'lucide-react';
 import { useToastContext } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
+import { hasPermission, UserRole } from '../utils/rolePermissions';
 
 interface Note {
   id: string;
@@ -42,6 +44,12 @@ const NotesPage: React.FC = () => {
   const [newNote, setNewNote] = useState({ title: '', content: '' });
   const [selectedPanelGroups, setSelectedPanelGroups] = useState<string[]>([]);
   const { showToast } = useToastContext();
+  const { user: currentUser } = useAuth();
+
+  // RBAC Permission checks
+  const canCreateNotes = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'notes', 'canCreate') : false;
+  const canUpdateNotes = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'notes', 'canUpdate') : false;
+  const canDeleteNotes = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'notes', 'canDelete') : false;
 
   useEffect(() => {
     fetchNotes();
@@ -285,13 +293,14 @@ const NotesPage: React.FC = () => {
             {notes.length}
           </Badge>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Create Note
-            </Button>
-          </DialogTrigger>
+        {canCreateNotes && (
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Create Note
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Create New Note</DialogTitle>
@@ -373,6 +382,7 @@ const NotesPage: React.FC = () => {
             </div>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Notes Grid */}
@@ -434,27 +444,31 @@ const NotesPage: React.FC = () => {
                     Created: {new Date(note.created_at).toLocaleDateString()}
                   </div>
                   <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditDialog(note);
-                      }}
-                    >
-                      <Edit className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteNote(note.id);
-                      }}
-                      className="border-red-400/50 text-red-400 hover:bg-red-400/10"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                    {canUpdateNotes && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditDialog(note);
+                        }}
+                      >
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                    )}
+                    {canDeleteNotes && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteNote(note.id);
+                        }}
+                        className="border-red-400/50 text-red-400 hover:bg-red-400/10"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>

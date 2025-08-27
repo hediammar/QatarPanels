@@ -1110,6 +1110,10 @@ export function UsersPage() {
                             <div>
                               <div className="font-medium">{user.name}</div>
                               <div className="text-sm text-muted-foreground flex items-center gap-1">
+                                <UserPlus className="h-3 w-3" />
+                                {user.username}
+                              </div>
+                              <div className="text-sm text-muted-foreground flex items-center gap-1">
                                 <Mail className="h-3 w-3" />
                                 {user.email}
                               </div>
@@ -1276,6 +1280,16 @@ export function UsersPage() {
                     id="edit-name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-username">Username</Label>
+                  <Input
+                    id="edit-username"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     required
                   />
                 </div>

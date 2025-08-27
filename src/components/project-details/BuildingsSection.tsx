@@ -61,6 +61,8 @@ export function BuildingsSection({
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const canCreateBuildings = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'buildings', 'canCreate') : false;
+  const canUpdateBuildings = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'buildings', 'canUpdate') : false;
+  const canDeleteBuildings = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'buildings', 'canDelete') : false;
 
   // Map database status (integer) to UI status
   const statusMap: { [key: number]: string } = {
@@ -437,42 +439,46 @@ export function BuildingsSection({
                     Created: {formatDate(building.created_at)}
                   </div>
                   <div className="flex gap-2">
-                    <BuildingModalTrigger
-                      onSubmit={async (data: Omit<BuildingModel, "id" | "created_at" | "totalArea" | "totalAmount" | "totalWeight" | "totalPanels">) => {
-                        const { error } = await supabase
-                          .from('buildings')
-                          .update({
-                            name: data.name,
-                            project_id: data.project_id,
-                            status: data.status,
-                            description: data.description
-                          })
-                          .eq('id', building.id);
+                    {canUpdateBuildings && (
+                      <BuildingModalTrigger
+                        onSubmit={async (data: Omit<BuildingModel, "id" | "created_at" | "totalArea" | "totalAmount" | "totalWeight" | "totalPanels">) => {
+                          const { error } = await supabase
+                            .from('buildings')
+                            .update({
+                              name: data.name,
+                              project_id: data.project_id,
+                              status: data.status,
+                              description: data.description
+                            })
+                            .eq('id', building.id);
 
-                        if (error) {
-                          console.error('Error updating building:', error);
-                          return;
-                        }
+                          if (error) {
+                            console.error('Error updating building:', error);
+                            return;
+                          }
 
-                        // Keep the existing totals when updating
-                        setBuildings(buildings.map(b => 
-                          b.id === building.id ? { ...b, ...data } : b
-                        ));
-                      }}
-                      editingBuilding={building}
-                      currentProject={currentProject}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(building);
-                      }}
-                      className="border-red-400/50 text-red-400 hover:bg-red-400/10"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                          // Keep the existing totals when updating
+                          setBuildings(buildings.map(b => 
+                            b.id === building.id ? { ...b, ...data } : b
+                          ));
+                        }}
+                        editingBuilding={building}
+                        currentProject={currentProject}
+                      />
+                    )}
+                    {canDeleteBuildings && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(building);
+                        }}
+                        className="border-red-400/50 text-red-400 hover:bg-red-400/10"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>

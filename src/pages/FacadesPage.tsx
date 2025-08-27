@@ -19,6 +19,10 @@ import {
   Trash2,
   Building,
   FolderOpen,
+  Square,
+  DollarSign,
+  Weight,
+  Package
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { FacadeModalTrigger } from "../components/FacadeModal";
@@ -469,18 +473,26 @@ export function FacadesPage({
                 </div>
 
                 {/* Facade Totals */}
-                <div className="flex items-center gap-6 text-sm text-muted-foreground mt-2">
-                  <div className="flex items-center gap-1">
-                    <span>Total Area: {facade.totalArea.toFixed(2)} m²</span>
+                <div className="space-y-2 mt-4">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Square className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="font-semibold text-card-foreground">Total Area:</span>
+                    <span className="text-muted-foreground">{facade.totalArea.toFixed(2)} m²</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span>Total Amount: {facade.totalAmount.toFixed(2)} QR</span>
+                  <div className="flex items-center gap-2 text-sm">
+                    <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="font-semibold text-card-foreground">Total Amount:</span>
+                    <span className="text-muted-foreground">{facade.totalAmount.toFixed(2)} QR</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span>Total Weight: {facade.totalWeight.toFixed(2)} kg</span>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Weight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="font-semibold text-card-foreground">Total Weight:</span>
+                    <span className="text-muted-foreground">{facade.totalWeight.toFixed(2)} kg</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span>Total Panels: {facade.totalPanels}</span>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="font-semibold text-card-foreground">Total Panels:</span>
+                    <span className="text-muted-foreground">{facade.totalPanels}</span>
                   </div>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Building2, Edit, Trash2 } from "lucide-react";
+import { ArrowLeft, Building2, Edit, Trash2, Square, DollarSign, Weight, Package } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -21,6 +21,10 @@ interface Building {
   description?: string;
   created_at: string;
   updated_at: string;
+  totalArea?: number;
+  totalAmount?: number;
+  totalWeight?: number;
+  totalPanels?: number;
 }
 
 interface Project {
@@ -91,7 +95,39 @@ export function BuildingDetailsPage() {
       }
 
       if (buildingData) {
-        setBuilding(buildingData);
+        // Fetch panels for this building to calculate totals
+        const { data: panelsData, error: panelsError } = await supabase
+          .from('panels')
+          .select(`
+            unit_rate_qr_m2,
+            ifp_qty_area_sm,
+            weight
+          `)
+          .eq('building_id', buildingId);
+
+        if (panelsError) {
+          console.error('Error fetching panels for building:', buildingId, panelsError);
+        }
+
+        // Calculate totals
+        const totalArea = panelsData?.reduce((sum, panel) => sum + (panel.ifp_qty_area_sm || 0), 0) || 0;
+        const totalAmount = panelsData?.reduce((sum, panel) => {
+          const area = panel.ifp_qty_area_sm || 0;
+          const rate = panel.unit_rate_qr_m2 || 0;
+          return sum + (area * rate);
+        }, 0) || 0;
+        const totalWeight = panelsData?.reduce((sum, panel) => sum + (panel.weight || 0), 0) || 0;
+        const totalPanels = panelsData?.length || 0;
+
+        const buildingWithTotals = {
+          ...buildingData,
+          totalArea,
+          totalAmount,
+          totalWeight,
+          totalPanels
+        };
+
+        setBuilding(buildingWithTotals);
         setProject(buildingData.projects);
         setCustomer(buildingData.projects.customers);
         console.log("Building details loaded successfully:", buildingData.name);
@@ -320,6 +356,37 @@ export function BuildingDetailsPage() {
                 <p className="text-muted-foreground">
                   {project?.location || "Location not specified"}
                 </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Building Totals */}
+          <div className="mt-6 pt-6 border-t border-border/50">
+            <h4 className="font-medium mb-4">Building Totals</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <Square className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="font-semibold text-card-foreground">Total Area:</span>
+                  <span className="text-muted-foreground">{(building.totalArea || 0).toFixed(2)} m²</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="font-semibold text-card-foreground">Total Amount:</span>
+                  <span className="text-muted-foreground">{(building.totalAmount || 0).toFixed(2)} QR</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <Weight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="font-semibold text-card-foreground">Total Weight:</span>
+                  <span className="text-muted-foreground">{(building.totalWeight || 0).toFixed(2)} kg</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <span className="font-semibold text-card-foreground">Total Panels:</span>
+                  <span className="text-muted-foreground">{building.totalPanels || 0}</span>
+                </div>
               </div>
             </div>
           </div>

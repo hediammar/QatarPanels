@@ -353,7 +353,7 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5" />
-            Building Totals
+            Project Totals
           </CardTitle>
         </CardHeader>
         <CardContent>

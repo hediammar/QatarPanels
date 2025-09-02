@@ -835,7 +835,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
 
   const normalizeName = (value?: string) => (value || "").trim().toLowerCase();
 
-  // New function to find existing panel by name
+  // New function to find existing panel by name within the same project
   const findExistingPanelByName = async (panelName: string): Promise<any | null> => {
     if (!panelName?.trim()) return null;
     
@@ -849,11 +849,12 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
           facades(name)
         `)
         .eq('name', panelName.trim())
+        .eq('project_id', projectId) // Only search within the current project
         .single();
 
       if (error) {
         if (error.code === 'PGRST116') {
-          // No rows returned - panel doesn't exist
+          // No rows returned - panel doesn't exist in this project
           return null;
         }
         throw error;
@@ -1146,7 +1147,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         return panel;
       });
 
-      // Check for existing panels
+      // Check for existing panels within the same project
       const existingPanelsMap: { [key: string]: any } = {};
       for (const panel of parsedPanels) {
         if (panel.name?.trim()) {
@@ -1228,7 +1229,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         try {
           console.log('Processing panel:', panel.name);
           
-          // Check if panel already exists
+          // Check if panel already exists within the same project
           const existingPanel = await findExistingPanelByName(panel.name);
 
           // Helper functions that work with local caches
@@ -1343,7 +1344,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
           };
 
           if (existingPanel) {
-            console.log(`Panel "${panel.name}" already exists. Updating...`);
+            console.log(`Panel "${panel.name}" already exists in this project. Updating...`);
             
             // Update existing panel
             const { data: updatedPanel, error: updateError } = await supabase
@@ -1369,14 +1370,14 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               successCount++;
             }
           } else {
-            console.log('Creating new panel with data:', panelData);
+            console.log('Creating new panel (or panel exists in different project):', panelData);
             
             // Create new panel
             const newPanel = await crudOperations.create("panels", panelData);
             // Database triggers will automatically add status history
             results.push({
               success: true,
-              message: `Successfully imported "${panel.name}"`,
+              message: `Successfully created new panel "${panel.name}"`,
               data: newPanel
             });
             successCount++;
@@ -1639,6 +1640,10 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                     <div className="flex items-center gap-3">
                       <CheckCircle className="h-5 w-5 text-green-500" />
                       <span>Buildings and facades will be created automatically if they don't exist</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <span>Panel names only need to be unique within the same project</span>
                     </div>
                   </div>
                 </CardContent>
@@ -2050,7 +2055,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                     })()}
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Existing panels with the same name will be updated automatically
+                    Existing panels with the same name in this project will be updated automatically
                   </div>
                 </div>
               </CardContent>
@@ -2090,11 +2095,11 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                       const newPanelsCount = validPanelsCount - Object.keys(existingPanels).length;
                       const existingPanelsCount = Object.keys(existingPanels).length;
                       if (newPanelsCount > 0 && existingPanelsCount > 0) {
-                        return `Import ${newPanelsCount} New & Update ${existingPanelsCount} Existing`;
+                        return `Create ${newPanelsCount} New & Update ${existingPanelsCount} Existing`;
                       } else if (existingPanelsCount > 0) {
                         return `Update ${existingPanelsCount} Panel${existingPanelsCount !== 1 ? "s" : ""}`;
                       } else {
-                        return `Import ${validPanelsCount} Panel${validPanelsCount !== 1 ? "s" : ""}`;
+                        return `Create ${validPanelsCount} New Panel${validPanelsCount !== 1 ? "s" : ""}`;
                       }
                     })()
                   )}

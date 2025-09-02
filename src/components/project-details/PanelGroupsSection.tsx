@@ -9,7 +9,6 @@ import {
   Edit,
   Grid3X3,
   Package,
-  Plus,
   Search,
   Users,
   X
@@ -33,6 +32,7 @@ import {
 import { Checkbox } from "../ui/checkbox";
 import { useAuth } from "../../contexts/AuthContext";
 import { hasPermission, UserRole } from "../../utils/rolePermissions";
+import { useToastContext } from "../../contexts/ToastContext";
 
 const PANEL_STATUSES = [
   { value: "Produced", label: "Produced" },
@@ -112,6 +112,7 @@ interface UpdatePanelGroupDialogProps {
 
 function UpdateGroupStatusDialog({ isOpen, onOpenChange, groupId, groupName, currentStatus, onStatusUpdate }: UpdateGroupStatusDialogProps) {
   const [groupStatus, setGroupStatus] = useState<PanelStatus>(currentStatus);
+  const { showToast } = useToastContext();
 
   const statusReverseMap: { [key: string]: number } = {
     "Produced": 0,
@@ -135,10 +136,10 @@ function UpdateGroupStatusDialog({ isOpen, onOpenChange, groupId, groupName, cur
       // In a real implementation, you might want to add a status column to the table
       onStatusUpdate();
       onOpenChange(false);
-      alert('Panel group status updated successfully');
+      showToast('Panel group status updated successfully', 'success');
     } catch (err) {
       console.error('Unexpected error:', err);
-      alert('An unexpected error occurred');
+      showToast('An unexpected error occurred', 'error');
     }
   };
 
@@ -198,6 +199,7 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, proj
   const [selectedPanels, setSelectedPanels] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const { showToast } = useToastContext();
 
   useEffect(() => {
     if (isOpen) {
@@ -255,30 +257,34 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, proj
 
   const handleAddPanels = async () => {
     if (selectedPanels.size === 0) {
-      alert("Please select at least one panel");
+      showToast("Please select at least one panel", "error");
       return;
     }
 
     setIsAdding(true);
     try {
-      const { error } = await supabase.rpc('add_panels_to_group', {
-        group_id: groupId,
-        panel_ids: Array.from(selectedPanels)
-      });
+      const panelMemberships = Array.from(selectedPanels).map(panelId => ({
+        panel_group_id: groupId,
+        panel_id: panelId
+      }));
+
+      const { error } = await supabase
+        .from('panel_group_memberships')
+        .insert(panelMemberships);
 
       if (error) {
         console.error('Error adding panels to group:', error);
-        alert('Failed to add panels to group');
+        showToast('Failed to add panels to group', 'error');
         return;
       }
 
       setSelectedPanels(new Set());
       onOpenChange(false);
       onPanelsAdded();
-      alert('Panels added to group successfully');
+      showToast('Panels added to group successfully', 'success');
     } catch (err) {
       console.error('Unexpected error:', err);
-      alert('An unexpected error occurred');
+      showToast('An unexpected error occurred', 'error');
     } finally {
       setIsAdding(false);
     }
@@ -393,6 +399,7 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'panels'>('details');
   const [panelSearchTerm, setPanelSearchTerm] = useState("");
+  const { showToast } = useToastContext();
 
   useEffect(() => {
     if (isOpen) {
@@ -408,6 +415,8 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 
   const loadPanelData = async () => {
     setIsLoading(true);
+    // Reset panel selections when loading new data
+    clearAllSelections();
     try {
       // Fetch current panels in the group using the junction table
       const { data: membershipData, error: membershipError } = await supabase
@@ -510,22 +519,24 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 
   const handleUpdateGroup = async () => {
     if (!groupName.trim()) {
-      alert("Title is required");
+      showToast("Title is required", "error");
       return;
     }
 
     setIsUpdating(true);
     try {
-      // Update group details
-      const { error: updateError } = await supabase.rpc('update_panel_group', {
-        group_id: group.id,
-        group_name: groupName.trim(),
-        group_description: groupDescription.trim() || null
-      });
+      // Update group details directly
+      const { error: updateError } = await supabase
+        .from('panel_groups')
+        .update({
+          name: groupName.trim(),
+          description: groupDescription.trim() || null
+        })
+        .eq('id', group.id);
 
       if (updateError) {
         console.error('Error updating panel group:', updateError);
-        alert('Failed to update panel group');
+        showToast('Failed to update panel group', 'error');
         return;
       }
 
@@ -539,29 +550,36 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 
         if (removeError) {
           console.error('Error removing panels from group:', removeError);
-          alert('Failed to remove some panels from group');
+          showToast('Failed to remove some panels from group', 'error');
         }
       }
 
       // Handle panel additions
       if (selectedPanelsToAdd.size > 0) {
-        const { error: addError } = await supabase.rpc('add_panels_to_group', {
-          group_id: group.id,
-          panel_ids: Array.from(selectedPanelsToAdd)
-        });
+        const panelMemberships = Array.from(selectedPanelsToAdd).map(panelId => ({
+          panel_group_id: group.id,
+          panel_id: panelId
+        }));
+
+        const { error: addError } = await supabase
+          .from('panel_group_memberships')
+          .insert(panelMemberships);
 
         if (addError) {
           console.error('Error adding panels to group:', addError);
-          alert('Failed to add some panels to group');
+          showToast('Failed to add some panels to group', 'error');
         }
       }
 
       onGroupUpdated();
       onOpenChange(false);
-      alert('Panel group updated successfully');
+      showToast('Panel group updated successfully', 'success');
+      
+      // Reset panel selection state after successful update
+      clearAllSelections();
     } catch (err) {
       console.error('Unexpected error:', err);
-      alert('An unexpected error occurred');
+      showToast('An unexpected error occurred', 'error');
     } finally {
       setIsUpdating(false);
     }
@@ -992,16 +1010,30 @@ export function PanelGroupsSection({
   const [panelCountMaxFilter, setPanelCountMaxFilter] = useState("");
   const [dateRangeFilter, setDateRangeFilter] = useState<string>("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isAddNoteDialogOpen, setIsAddNoteDialogOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [isUpdateStatusDialogOpen, setIsUpdateStatusDialogOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<PanelGroupModel | null>(null);
-  const [isAddPanelsDialogOpen, setIsAddPanelsDialogOpen] = useState(false);
   const [isUpdatePanelGroupDialogOpen, setIsUpdatePanelGroupDialogOpen] = useState(false);
+
+  // Form data for new group and note
+  const [newGroupData, setNewGroupData] = useState({
+    name: "",
+    description: ""
+  });
+  
+  const [newNoteData, setNewNoteData] = useState({
+    title: "",
+    content: ""
+  });
+  
+  const [selectedPanelGroups, setSelectedPanelGroups] = useState<string[]>([]);
 
   // RBAC Permission checks
   const { user: currentUser } = useAuth();
+  const { showToast } = useToastContext();
   const canCreatePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canCreate') : false;
   const canUpdatePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canUpdate') : false;
   const canDeletePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canDelete') : false;
@@ -1080,8 +1112,17 @@ export function PanelGroupsSection({
         .eq('id', groupId);
       if (error) {
         console.error('Error deleting group:', error);
+        showToast('Failed to delete panel group', 'error');
       } else {
         onDeleteGroup?.(group);
+        // Refresh both panel groups and panels to ensure totals are updated
+        const [groups, panelsData] = await Promise.all([
+          fetchPanelGroups(projectId),
+          fetchPanels()
+        ]);
+        setPanelGroups(groups);
+        setPanels(panelsData);
+        showToast('Panel group deleted successfully', 'success');
       }
     }
   };
@@ -1108,8 +1149,16 @@ export function PanelGroupsSection({
       .eq('panel_group_id', groupId);
     if (error) {
       console.error('Error updating panel statuses:', error);
+      showToast('Failed to update panel statuses', 'error');
     } else {
-      fetchPanels().then(setPanels);
+      // Refresh both panel groups and panels to ensure totals are updated
+      const [groups, panelsData] = await Promise.all([
+        fetchPanelGroups(projectId),
+        fetchPanels()
+      ]);
+      setPanelGroups(groups);
+      setPanels(panelsData);
+      showToast('Panel statuses updated successfully', 'success');
     }
   };
 
@@ -1118,14 +1167,120 @@ export function PanelGroupsSection({
     setIsUpdateStatusDialogOpen(true);
   };
 
-  const handleAddPanelsToGroup = (group: PanelGroupModel) => {
-    setSelectedGroup(group);
-    setIsAddPanelsDialogOpen(true);
-  };
+
 
   const handleEditGroup = (group: PanelGroupModel) => {
     setSelectedGroup(group);
     setIsUpdatePanelGroupDialogOpen(true);
+  };
+
+  const handleCreateGroup = async () => {
+    if (!newGroupData.name.trim()) {
+      showToast("Title is required", "error");
+      return;
+    }
+
+    try {
+      // Direct insert into panel_groups table
+      const { data, error } = await supabase
+        .from('panel_groups')
+        .insert([{
+          name: newGroupData.name.trim(),
+          description: newGroupData.description.trim() || null,
+          project_id: projectId || null
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating panel group:', error);
+        showToast('Failed to create panel group', 'error');
+        return;
+      }
+
+      if (data) {
+        // Reset form and close dialog
+        setNewGroupData({ name: "", description: "" });
+        setIsAddDialogOpen(false);
+        
+        // Refresh both panel groups and panels to ensure totals are updated
+        const [groups, panelsData] = await Promise.all([
+          fetchPanelGroups(projectId),
+          fetchPanels()
+        ]);
+        setPanelGroups(groups);
+        setPanels(panelsData);
+        
+        showToast('Panel group created successfully', 'success');
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      showToast('An unexpected error occurred', 'error');
+    }
+  };
+
+  const handleCreateNote = async () => {
+    if (!newNoteData.title.trim() || !newNoteData.content.trim()) {
+      showToast("Note title and content are required", "error");
+      return;
+    }
+
+    try {
+      // Create the note with project_id and created_by as null
+      const { data: noteData, error: noteError } = await supabase
+        .from('notes')
+        .insert([{
+          title: newNoteData.title.trim(),
+          content: newNoteData.content.trim(),
+          project_id: projectId || null,
+          created_by: null // Set to null since we can't reference auth.users
+        }])
+        .select()
+        .single();
+
+      if (noteError) throw noteError;
+
+      // Add panel groups to the note if any are selected
+      if (selectedPanelGroups.length > 0) {
+        const notePanelGroups = selectedPanelGroups.map(panelGroupId => ({
+          note_id: noteData.id,
+          panel_group_id: panelGroupId
+        }));
+
+        const { error: addGroupsError } = await supabase
+          .from('note_panel_groups')
+          .insert(notePanelGroups);
+
+        if (addGroupsError) throw addGroupsError;
+      }
+
+      // Reset form and close dialog
+      setNewNoteData({ title: "", content: "" });
+      setSelectedPanelGroups([]);
+      setIsAddNoteDialogOpen(false);
+      
+      // Refresh both panel groups and panels to ensure totals are updated
+      const [groups, panelsData] = await Promise.all([
+        fetchPanelGroups(projectId),
+        fetchPanels()
+      ]);
+      setPanelGroups(groups);
+      setPanels(panelsData);
+      
+      showToast('Note created successfully', 'success');
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      showToast('An unexpected error occurred', 'error');
+    }
+  };
+
+  const resetNewGroupForm = () => {
+    setNewGroupData({ name: "", description: "" });
+  };
+
+  const resetNewNoteForm = () => {
+    setNewNoteData({ title: "", content: "" });
+    setSelectedPanelGroups([]);
   };
 
 
@@ -1210,6 +1365,17 @@ export function PanelGroupsSection({
           <Badge variant="secondary" className="ml-2">
             {filteredGroups.length}
           </Badge>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {canCreatePanelGroups && (
+            <Button onClick={() => setIsAddDialogOpen(true)}>
+              Add Group
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => setIsAddNoteDialogOpen(true)}>
+            Add Note
+          </Button>
         </div>
       </div>
 
@@ -1351,7 +1517,6 @@ export function PanelGroupsSection({
                 </p>
                 {!searchTerm && statusFilter === 'all' && !panelCountMinFilter && !panelCountMaxFilter && dateRangeFilter === 'all' && (
                   <Button onClick={() => setIsAddDialogOpen(true)} className="mt-4">
-                    <Plus className="mr-2 h-4 w-4" />
                     Add Panel Group
                   </Button>
                 )}
@@ -1387,15 +1552,14 @@ export function PanelGroupsSection({
                         </div>
 
                         <div className="flex items-center gap-2">
-                         
-                          
-                          {canUpdatePanelGroups && (
+                          {canDeletePanelGroups && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleAddPanelsToGroup(group)}
+                              onClick={() => handleDelete(group.id)}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
                             >
-                              <Plus className="h-4 w-4" />
+                              <X className="h-4 w-4" />
                             </Button>
                           )}
                           {canUpdatePanelGroups && (
@@ -1494,21 +1658,19 @@ export function PanelGroupsSection({
               groupId={selectedGroup.id}
               groupName={selectedGroup.name}
               currentStatus={selectedGroup.status}
-              onStatusUpdate={() => fetchPanelGroups(projectId).then(setPanelGroups)}
+              onStatusUpdate={async () => {
+                // Refresh both panel groups and panels to ensure totals are updated
+                const [groups, panelsData] = await Promise.all([
+                  fetchPanelGroups(projectId),
+                  fetchPanels()
+                ]);
+                setPanelGroups(groups);
+                setPanels(panelsData);
+              }}
             />
           )}
 
-          {/* Add Panels to Group Dialog */}
-          {selectedGroup && (
-            <AddPanelsToGroupDialog
-              isOpen={isAddPanelsDialogOpen}
-              onOpenChange={setIsAddPanelsDialogOpen}
-              groupId={selectedGroup.id}
-              groupName={selectedGroup.name}
-              projectId={selectedGroup.project_id || ''}
-              onPanelsAdded={() => fetchPanelGroups(projectId).then(setPanelGroups)}
-            />
-          )}
+
 
           {/* Update Panel Group Dialog */}
           {selectedGroup && (
@@ -1516,7 +1678,15 @@ export function PanelGroupsSection({
               isOpen={isUpdatePanelGroupDialogOpen}
               onOpenChange={setIsUpdatePanelGroupDialogOpen}
               group={selectedGroup}
-              onGroupUpdated={() => fetchPanelGroups(projectId).then(setPanelGroups)}
+              onGroupUpdated={async () => {
+                // Refresh both panel groups and panels to ensure totals are updated
+                const [groups, panelsData] = await Promise.all([
+                  fetchPanelGroups(projectId),
+                  fetchPanels()
+                ]);
+                setPanelGroups(groups);
+                setPanels(panelsData);
+              }}
             />
           )}
 
@@ -1567,6 +1737,140 @@ export function PanelGroupsSection({
           )}
         </CardContent>
       </Card>
+
+      {/* Add Group Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Panel Group</DialogTitle>
+            <DialogDescription>
+              Create a new panel group to organize your panels
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Title *</Label>
+              <Input
+                id="name"
+                placeholder="Enter a Title"
+                value={newGroupData.name}
+                onChange={(e) => setNewGroupData({ ...newGroupData, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                placeholder="Enter group Description (optional)"
+                value={newGroupData.description}
+                onChange={(e) => setNewGroupData({ ...newGroupData, description: e.target.value })}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAddDialogOpen(false);
+                resetNewGroupForm();
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleCreateGroup}>
+              Create Group
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Note Dialog */}
+      <Dialog open={isAddNoteDialogOpen} onOpenChange={setIsAddNoteDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create New Note</DialogTitle>
+            <DialogDescription>
+              Create a note and optionally group panel groups under it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="title">Title</Label>
+              <Input
+                id="title"
+                value={newNoteData.title}
+                onChange={(e) => setNewNoteData({ ...newNoteData, title: e.target.value })}
+                placeholder="Enter note title"
+              />
+            </div>
+            <div>
+              <Label htmlFor="content">Content</Label>
+              <Textarea
+                id="content"
+                value={newNoteData.content}
+                onChange={(e) => setNewNoteData({ ...newNoteData, content: e.target.value })}
+                placeholder="Enter note content"
+                rows={4}
+              />
+            </div>
+            <div>
+              <Label>Panel Groups (Optional)</Label>
+              <Select
+                value=""
+                onValueChange={(value) => {
+                  if (value && !selectedPanelGroups.includes(value)) {
+                    setSelectedPanelGroups([...selectedPanelGroups, value]);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select panel groups to add" />
+                </SelectTrigger>
+                <SelectContent>
+                  {panelGroups.map((group) => (
+                    <SelectItem key={group.id} value={group.id}>
+                      {group.name} - {group.project || 'Unknown Project'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedPanelGroups.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  <Label>Selected Panel Groups:</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedPanelGroups.map((groupId) => {
+                      const group = panelGroups.find(g => g.id === groupId);
+                      return (
+                        <Badge
+                          key={groupId}
+                          variant="secondary"
+                          className="cursor-pointer"
+                          onClick={() => setSelectedPanelGroups(selectedPanelGroups.filter(id => id !== groupId))}
+                        >
+                          {group?.name} - {group?.project || 'Unknown Project'}
+                          <span className="ml-1">×</span>
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => {
+                setIsAddNoteDialogOpen(false);
+                resetNewNoteForm();
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreateNote}>
+                Create Note
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

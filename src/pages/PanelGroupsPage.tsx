@@ -9,7 +9,6 @@ import {
   Edit,
   Grid3X3,
   Package,
-  Plus,
   Search,
   Users,
   X
@@ -33,6 +32,7 @@ import {
 import { Checkbox } from "../components/ui/checkbox";
 import { useAuth } from "../contexts/AuthContext";
 import { hasPermission, UserRole } from "../utils/rolePermissions";
+import { useToastContext } from "../contexts/ToastContext";
 
 const PANEL_STATUSES = [
   { value: "Issued For Production", label: "Issued For Production" },
@@ -132,6 +132,7 @@ function UpdateGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }: Upda
   const [groupName, setGroupName] = useState(group.name);
   const [groupDescription, setGroupDescription] = useState(group.description || "");
   const [isUpdating, setIsUpdating] = useState(false);
+  const { showToast } = useToastContext();
 
   const handleUpdateGroup = async () => {
     if (!groupName.trim()) {
@@ -141,11 +142,13 @@ function UpdateGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }: Upda
 
     setIsUpdating(true);
     try {
-      const { error } = await supabase.rpc('update_panel_group', {
-        group_id: group.id,
-        group_name: groupName.trim(),
-        group_description: groupDescription.trim() || null
-      });
+      const { error } = await supabase
+        .from('panel_groups')
+        .update({
+          name: groupName.trim(),
+          description: groupDescription.trim() || null
+        })
+        .eq('id', group.id);
 
       if (error) {
         console.error('Error updating panel group:', error);
@@ -155,10 +158,10 @@ function UpdateGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }: Upda
 
       onGroupUpdated();
       onOpenChange(false);
-      alert('Panel group updated successfully');
+      showToast('Panel group updated successfully', 'success');
     } catch (err) {
       console.error('Unexpected error:', err);
-      alert('An unexpected error occurred');
+      showToast('An unexpected error occurred', 'error');
     } finally {
       setIsUpdating(false);
     }
@@ -216,13 +219,15 @@ function UpdateGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }: Upda
 
 function DeleteGroupDialog({ isOpen, onOpenChange, group, onGroupDeleted }: DeleteGroupDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false);
+  const { showToast } = useToastContext();
 
   const handleDeleteGroup = async () => {
     setIsDeleting(true);
     try {
-      const { error } = await supabase.rpc('delete_panel_group', {
-        group_id: group.id
-      });
+      const { error } = await supabase
+        .from('panel_groups')
+        .delete()
+        .eq('id', group.id);
 
       if (error) {
         console.error('Error deleting panel group:', error);
@@ -232,10 +237,10 @@ function DeleteGroupDialog({ isOpen, onOpenChange, group, onGroupDeleted }: Dele
 
       onGroupDeleted();
       onOpenChange(false);
-      alert('Panel group deleted successfully');
+      showToast('Panel group deleted successfully', 'success');
     } catch (err) {
       console.error('Unexpected error:', err);
-      alert('An unexpected error occurred');
+      showToast('An unexpected error occurred', 'error');
     } finally {
       setIsDeleting(false);
     }
@@ -288,6 +293,7 @@ function CreateGroupDialog({ isOpen, onOpenChange, onGroupCreated }: CreateGroup
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [projects, setProjects] = useState<Array<{id: string, name: string}>>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const { showToast } = useToastContext();
 
   // Fetch projects when dialog opens
   useEffect(() => {
@@ -327,11 +333,15 @@ function CreateGroupDialog({ isOpen, onOpenChange, onGroupCreated }: CreateGroup
 
     setIsCreating(true);
     try {
-      const { data, error } = await supabase.rpc('create_panel_group', {
-        group_name: groupName.trim(),
-        group_description: groupDescription.trim() || null,
-        project_id: selectedProjectId
-      });
+      const { data, error } = await supabase
+        .from('panel_groups')
+        .insert([{
+          name: groupName.trim(),
+          description: groupDescription.trim() || null,
+          project_id: selectedProjectId
+        }])
+        .select()
+        .single();
 
       if (error) {
         console.error('Error creating panel group:', error);
@@ -344,11 +354,11 @@ function CreateGroupDialog({ isOpen, onOpenChange, onGroupCreated }: CreateGroup
         setGroupDescription("");
         onOpenChange(false);
         onGroupCreated();
-        alert('Panel group created successfully');
+        showToast('Panel group created successfully', 'success');
       }
     } catch (err) {
       console.error('Unexpected error:', err);
-      alert('An unexpected error occurred');
+      showToast('An unexpected error occurred', 'error');
     } finally {
       setIsCreating(false);
     }
@@ -428,6 +438,7 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, proj
   const [selectedPanels, setSelectedPanels] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const { showToast } = useToastContext();
 
   useEffect(() => {
     if (isOpen) {
@@ -491,10 +502,14 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, proj
 
     setIsAdding(true);
     try {
-      const { error } = await supabase.rpc('add_panels_to_group', {
-        group_id: groupId,
-        panel_ids: Array.from(selectedPanels)
-      });
+      const panelMemberships = Array.from(selectedPanels).map(panelId => ({
+        panel_group_id: groupId,
+        panel_id: panelId
+      }));
+
+      const { error } = await supabase
+        .from('panel_group_memberships')
+        .insert(panelMemberships);
 
       if (error) {
         console.error('Error adding panels to group:', error);
@@ -505,10 +520,10 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, proj
       setSelectedPanels(new Set());
       onOpenChange(false);
       onPanelsAdded();
-      alert('Panels added to group successfully');
+      showToast('Panels added to group successfully', 'success');
     } catch (err) {
       console.error('Unexpected error:', err);
-      alert('An unexpected error occurred');
+      showToast('An unexpected error occurred', 'error');
     } finally {
       setIsAdding(false);
     }
@@ -615,6 +630,7 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, proj
 function UpdateGroupStatusDialog({ isOpen, onOpenChange, groupId, groupName, currentStatus, onStatusUpdate }: UpdateGroupStatusDialogProps) {
   const [status, setStatus] = useState(currentStatus);
   const [isUpdating, setIsUpdating] = useState(false);
+  const { showToast } = useToastContext();
 
   const handleUpdateStatus = async () => {
     setIsUpdating(true);
@@ -623,10 +639,10 @@ function UpdateGroupStatusDialog({ isOpen, onOpenChange, groupId, groupName, cur
       // In a real implementation, you might want to add a status column to the table
       onStatusUpdate();
       onOpenChange(false);
-      alert('Panel group status updated successfully');
+      showToast('Panel group status updated successfully', 'success');
     } catch (err) {
       console.error('Unexpected error:', err);
-      alert('An unexpected error occurred');
+      showToast('An unexpected error occurred', 'error');
     } finally {
       setIsUpdating(false);
     }
@@ -681,6 +697,7 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'panels'>('details');
   const [panelSearchTerm, setPanelSearchTerm] = useState("");
+  const { showToast } = useToastContext();
 
   useEffect(() => {
     if (isOpen) {
@@ -696,6 +713,9 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 
   const loadPanelData = async () => {
     setIsLoading(true);
+    // Reset panel selections when loading new data
+    setSelectedPanelsToAdd(new Set());
+    setSelectedPanelsToRemove(new Set());
     try {
       // Fetch current panels in the group using the junction table
       const { data: membershipData, error: membershipError } = await supabase
@@ -803,12 +823,14 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 
     setIsUpdating(true);
     try {
-      // Update group details
-      const { error: updateError } = await supabase.rpc('update_panel_group', {
-        group_id: group.id,
-        group_name: groupName.trim(),
-        group_description: groupDescription.trim() || null
-      });
+      // Update group details directly
+      const { error: updateError } = await supabase
+        .from('panel_groups')
+        .update({
+          name: groupName.trim(),
+          description: groupDescription.trim() || null
+        })
+        .eq('id', group.id);
 
       if (updateError) {
         console.error('Error updating panel group:', updateError);
@@ -832,10 +854,14 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 
       // Handle panel additions
       if (selectedPanelsToAdd.size > 0) {
-        const { error: addError } = await supabase.rpc('add_panels_to_group', {
-          group_id: group.id,
-          panel_ids: Array.from(selectedPanelsToAdd)
-        });
+        const panelMemberships = Array.from(selectedPanelsToAdd).map(panelId => ({
+          panel_group_id: group.id,
+          panel_id: panelId
+        }));
+
+        const { error: addError } = await supabase
+          .from('panel_group_memberships')
+          .insert(panelMemberships);
 
         if (addError) {
           console.error('Error adding panels to group:', addError);
@@ -845,10 +871,14 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 
       onGroupUpdated();
       onOpenChange(false);
-      alert('Panel group updated successfully');
+      showToast('Panel group updated successfully', 'success');
+      
+      // Reset panel selection state after successful update
+      setSelectedPanelsToAdd(new Set());
+      setSelectedPanelsToRemove(new Set());
     } catch (err) {
       console.error('Unexpected error:', err);
-      alert('An unexpected error occurred');
+      showToast('An unexpected error occurred', 'error');
     } finally {
       setIsUpdating(false);
     }
@@ -1281,6 +1311,7 @@ export function PanelGroupsPage({
 
   // RBAC Permission checks
   const { user: currentUser } = useAuth();
+  const { showToast } = useToastContext();
   const canCreatePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canCreate') : false;
   const canUpdatePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canUpdate') : false;
   const canDeletePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canDelete') : false;
@@ -1382,13 +1413,26 @@ export function PanelGroupsPage({
   const handleDelete = async (groupId: string) => {
     try {
       onDeleteGroup?.({ id: groupId, name: "Loading...", description: "", panelCount: 0, createdAt: "", project: "" });
-      await supabase.rpc('delete_panel_group', { group_id: groupId });
+      const { error } = await supabase
+        .from('panel_groups')
+        .delete()
+        .eq('id', groupId);
+      
+      if (error) {
+        console.error('Error deleting panel group:', error);
+        onDeleteGroup?.({ id: groupId, name: "Error", description: "", panelCount: 0, createdAt: "", project: "" });
+        showToast('Failed to delete panel group', 'error');
+        return;
+      }
+      
       onDeleteGroup?.({ id: groupId, name: "Deleted", description: "", panelCount: 0, createdAt: "", project: "" });
       await fetchPanelGroups().then(setPanelGroups);
       await fetchPanels().then(setPanels);
+      showToast('Panel group deleted successfully', 'success');
     } catch (err: any) {
       console.error('Error deleting panel group:', err);
       onDeleteGroup?.({ id: groupId, name: "Error", description: "", panelCount: 0, createdAt: "", project: "" });
+      showToast('An unexpected error occurred', 'error');
     }
   };
 
@@ -1475,10 +1519,11 @@ export function PanelGroupsPage({
         </div>
         <div className="flex gap-2">
           <Button onClick={handleOpenCreateGroup} className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
+            <Package className="h-4 w-4" />
             Add Panel Group
           </Button>
         </div>
+        
       </div>
 
       {/* Filters & Search */}
@@ -1596,12 +1641,7 @@ export function PanelGroupsPage({
                     ? 'Try adjusting your filters to see more results.'
                     : 'Get started by creating your first panel group.'}
                 </p>
-                {!searchTerm && !panelCountMinFilter && !panelCountMaxFilter && dateRangeFilter === 'all' && (
-                  <Button onClick={handleOpenCreateGroup} className="mt-4">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Panel Group
-                  </Button>
-                )}
+ 
               </div>
             ) : (
               paginatedGroups.map((group) => {
@@ -1633,33 +1673,26 @@ export function PanelGroupsPage({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenAddPanels(group)}
-                                >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(group)}
-                                >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          
-                          {canDeletePanelGroups && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(group.id)}
-                                  >
-                              <X className="h-4 w-4 text-red-500" />
-                            </Button>
-                          )}
-                        </div>
+                                                 <div className="flex items-center gap-2">
+                           
+                           <Button
+                             variant="ghost"
+                             size="sm"
+                             onClick={() => handleEdit(group)}
+                                 >
+                             <Edit className="h-4 w-4" />
+                           </Button>
+                           
+                           {canDeletePanelGroups && (
+                             <Button
+                               variant="ghost"
+                               size="sm"
+                               onClick={() => handleDelete(group.id)}
+                                   >
+                               <X className="h-4 w-4 text-red-500" />
+                             </Button>
+                           )}
+                         </div>
                       </div>
 
                       {/* Group Summary */}

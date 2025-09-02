@@ -510,7 +510,7 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 
   const handleUpdateGroup = async () => {
     if (!groupName.trim()) {
-      alert("Note is required");
+      alert("Title is required");
       return;
     }
 
@@ -698,10 +698,10 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
               /* Group Details Tab */
               <div className="p-6 space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Note *</Label>
+                  <Label htmlFor="name">Title *</Label>
                   <Input
                     id="name"
-                    placeholder="Enter a Note"
+                    placeholder="Enter a Title"
                     value={groupName}
                     onChange={(e) => setGroupName(e.target.value)}
                   />

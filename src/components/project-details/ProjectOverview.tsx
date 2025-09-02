@@ -12,6 +12,8 @@ import {
   TrendingUp,
   Edit,
   Settings,
+  Square,
+  Weight,
 } from "lucide-react";
 import { Project } from "../../pages/ProjectDetailsPage";
 import { useEffect, useState } from "react";
@@ -142,6 +144,15 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
       currency: "USD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
+    }).format(amount || 0);
+  };
+
+  const formatQatarRiyal = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "QAR",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(amount || 0);
   };
 
@@ -336,6 +347,56 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
           </CardContent>
         </Card>
       </div>
+
+      {/* Building Totals Section */}
+      <Card className="qatar-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Building Totals
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Square className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Total Area</span>
+              </div>
+              <div className="text-2xl font-bold text-card-foreground">
+                {(project.total_area || 0).toFixed(2)} m²
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <DollarSign className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Total Amount</span>
+              </div>
+              <div className="text-2xl font-bold text-card-foreground">
+                {formatQatarRiyal(project.total_amount || 0)}
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Weight className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Total Weight</span>
+              </div>
+              <div className="text-2xl font-bold text-card-foreground">
+                {(project.total_weight || 0).toFixed(2)} kg
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Package className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Total Panels</span>
+              </div>
+              <div className="text-2xl font-bold text-card-foreground">
+                {totalPanels}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

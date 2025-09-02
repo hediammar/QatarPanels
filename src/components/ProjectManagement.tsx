@@ -10,9 +10,11 @@ import {
   Package,
   Plus,
   Search,
+  Square,
   Trash2,
   Upload,
-  User
+  User,
+  Weight
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -90,6 +92,9 @@ interface Project {
   estimated_cost: number;
   estimated_panels: number;
   actual_panels: number;
+  total_area: number;
+  total_amount: number;
+  total_weight: number;
 }
 
 export function ProjectManagement() {
@@ -275,19 +280,29 @@ export function ProjectManagement() {
       return;
     }
     
-    // Fetch actual panel counts for each project
+    // Fetch actual panel counts and totals for each project
     const projectsWithPanelCounts = await Promise.all(
       data?.map(async (project) => {
         const panelQuery = supabase
           .from('panels')
-          .select('*', { count: 'exact', head: true })
+          .select('unit_rate_qr_m2, ifp_qty_area_sm, weight')
           .eq('project_id', project.id);
         
-        const { count: panelCount, error: panelError } = await panelQuery;
+        const { data: panelsData, error: panelError } = await panelQuery;
         
         if (panelError) {
-          console.error('Error fetching panel count for project:', project.id, panelError);
+          console.error('Error fetching panel data for project:', project.id, panelError);
         }
+        
+        // Calculate totals from panels data
+        const total_area = panelsData?.reduce((sum, panel) => sum + (panel.ifp_qty_area_sm || 0), 0) || 0;
+        const total_amount = panelsData?.reduce((sum, panel) => {
+          const area = panel.ifp_qty_area_sm || 0;
+          const rate = panel.unit_rate_qr_m2 || 0;
+          return sum + (area * rate);
+        }, 0) || 0;
+        const total_weight = panelsData?.reduce((sum, panel) => sum + (panel.weight || 0), 0) || 0;
+        const actual_panels = panelsData?.length || 0;
         
         return {
           id: project.id,
@@ -300,7 +315,10 @@ export function ProjectManagement() {
           status: project.status,
           estimated_cost: project.estimated_cost,
           estimated_panels: project.estimated_panels,
-          actual_panels: panelCount ?? 0
+          actual_panels,
+          total_area,
+          total_amount,
+          total_weight
         };
       }) || []
     );
@@ -988,6 +1006,15 @@ export function ProjectManagement() {
     }).format(amount || 0);
   };
 
+  const formatQatarRiyal = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "QAR",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount || 0);
+  };
+
   const SortIcon = ({ column }: { column: string }) => {
     if (sortBy !== column) return null;
     return sortOrder === "asc" ? (
@@ -1512,6 +1539,8 @@ export function ProjectManagement() {
         </CardContent>
       </Card>
 
+
+
       {/* Projects Grid */}
       {filteredAndSortedProjects.length === 0 ? (
         <div className="text-center py-12">
@@ -1529,79 +1558,106 @@ export function ProjectManagement() {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {paginatedProjects.map((project) => (
-              <Card
-                key={project.id}
-                className="qatar-card cursor-pointer hover:shadow-xl"
-                onClick={() => handleCardClick(project)}
-              >
-                <CardHeader className="qatar-card-header">
-                  <div className="flex items-start justify-between flex-1">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="qatar-card-title">
-                          {project.name}
-                        </CardTitle>
-                        <ExternalLink className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                              <Card
+                  key={project.id}
+                  className="qatar-card cursor-pointer hover:shadow-xl transition-all duration-200"
+                  onClick={() => handleCardClick(project)}
+                >
+                  <CardHeader className="qatar-card-header pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <CardTitle className="qatar-card-title text-lg leading-tight">
+                            {project.name}
+                          </CardTitle>
+                          <ExternalLink className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                        <p className="qatar-card-subtitle text-xs">
+                          PRJ-{project.id.slice(-4).toUpperCase()}
+                        </p>
                       </div>
-                      <p className="qatar-card-subtitle">
-                        PRJ-{project.id.slice(-4).toUpperCase()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    {getStatusBadge(project.status)}
-                  </div>
-                </CardHeader>
-
-                <CardContent className="qatar-card-content">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="text-card-foreground truncate">{project.location}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm">
-                      <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="text-card-foreground truncate">{project.customer_name}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm">
-                      <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="text-muted-foreground">
-                        {formatDate(project.start_date)} - {formatDate(project.end_date || '')}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm">
-                      <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <span className="text-card-foreground font-medium">
-                        {formatCurrency(project.estimated_cost)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="qatar-card-footer">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Package className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">Panels:</span>
+                      <div className="flex-shrink-0 ml-2">
+                        {getStatusBadge(project.status)}
                       </div>
-                      <div className="text-right">
-                        <span className="text-lg font-bold text-card-foreground">{project.actual_panels}</span>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="qatar-card-content">
+                    <div className="space-y-2.5">
+                      <div className="flex items-center gap-2 text-sm">
+                        <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        <span className="text-card-foreground truncate">{project.location}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-sm">
+                        <User className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        <span className="text-card-foreground truncate">{project.customer_name}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-sm">
+                        <Calendar className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        <span className="text-muted-foreground text-xs">
+                          {formatDate(project.start_date)} - {formatDate(project.end_date || '')}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-sm">
+                        <DollarSign className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        <span className="text-card-foreground font-medium text-sm">
+                          {formatCurrency(project.estimated_cost)}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="qatar-progress flex-1">
-                        <div
-                          className="qatar-progress-bar"
-                          style={{ width: `${project.estimated_panels > 0 ? (project.actual_panels / project.estimated_panels) * 100 : 0}%` }}
-                        ></div>
+                    <div className="qatar-card-footer">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">Panels</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-lg font-bold text-card-foreground">{project.actual_panels}</span>
+                          <span className="text-xs text-muted-foreground ml-1">/ {project.estimated_panels}</span>
+                        </div>
                       </div>
-                      <span className="text-xs text-muted-foreground min-w-[3rem] text-right">
-                        {project.actual_panels}/{project.estimated_panels}
-                      </span>
-                    </div>
+
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="qatar-progress flex-1 h-2">
+                          <div
+                            className="qatar-progress-bar h-full"
+                            style={{ width: `${project.estimated_panels > 0 ? (project.actual_panels / project.estimated_panels) * 100 : 0}%` }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      {/* Project Totals - Compact & Aesthetic */}
+                      <div className="pt-3 border-t border-border/30">
+                        <div className="grid grid-cols-3 gap-3 text-xs">
+                          <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                            <Square className="h-3.5 w-3.5 text-primary mb-1" />
+                            <span className="text-muted-foreground text-[10px] uppercase tracking-wide">Area</span>
+                            <span className="font-semibold text-card-foreground text-xs">
+                              {(project.total_area || 0).toFixed(1)} m²
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                            <DollarSign className="h-3.5 w-3.5 text-green-600 mb-1" />
+                            <span className="text-muted-foreground text-[10px] uppercase tracking-wide">Amount</span>
+                            <span className="font-semibold text-card-foreground text-xs">
+                              {formatQatarRiyal(project.total_amount || 0)}
+                            </span>
+                          </div>
+                          <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                            <Weight className="h-3.5 w-3.5 text-orange-600 mb-1" />
+                            <span className="text-muted-foreground text-[10px] uppercase tracking-wide">Weight</span>
+                            <span className="font-semibold text-card-foreground text-xs">
+                              {(project.total_weight || 0).toFixed(1)} kg
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+
 
           <div className="flex items-center gap-2 pt-2 border-t border-border/50">
             {canUpdateProjects && (

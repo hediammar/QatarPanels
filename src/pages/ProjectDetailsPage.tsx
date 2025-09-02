@@ -39,6 +39,9 @@ export interface Project {
   status: "active" | "completed" | "on-hold";
   estimated_cost: number;
   estimated_panels: number;
+  total_area?: number;
+  total_amount?: number;
+  total_weight?: number;
 }
 
 export function ProjectDetailsPage() {
@@ -83,6 +86,25 @@ export function ProjectDetailsPage() {
       }
 
       if (projectData) {
+        // Fetch panels for this project to calculate totals
+        const { data: panelsData, error: panelsError } = await supabase
+          .from('panels')
+          .select('unit_rate_qr_m2, ifp_qty_area_sm, weight')
+          .eq('project_id', projectId);
+
+        if (panelsError) {
+          console.error('Error fetching panel data for project:', projectId, panelsError);
+        }
+
+        // Calculate totals from panels data
+        const total_area = panelsData?.reduce((sum, panel) => sum + (panel.ifp_qty_area_sm || 0), 0) || 0;
+        const total_amount = panelsData?.reduce((sum, panel) => {
+          const area = panel.ifp_qty_area_sm || 0;
+          const rate = panel.unit_rate_qr_m2 || 0;
+          return sum + (area * rate);
+        }, 0) || 0;
+        const total_weight = panelsData?.reduce((sum, panel) => sum + (panel.weight || 0), 0) || 0;
+
         const formattedProject: Project = {
           id: projectData.id,
           name: projectData.name,
@@ -93,6 +115,9 @@ export function ProjectDetailsPage() {
           status: projectData.status,
           estimated_cost: projectData.estimated_cost,
           estimated_panels: projectData.estimated_panels,
+          total_area,
+          total_amount,
+          total_weight
         };
 
         setProject(formattedProject);
@@ -123,6 +148,25 @@ export function ProjectDetailsPage() {
         }
 
         if (fallbackData) {
+          // Fetch panels for this project to calculate totals
+          const { data: panelsData, error: panelsError } = await supabase
+            .from('panels')
+            .select('unit_rate_qr_m2, ifp_qty_area_sm, weight')
+            .eq('project_id', projectId);
+
+          if (panelsError) {
+            console.error('Error fetching panel data for project:', projectId, panelsError);
+          }
+
+          // Calculate totals from panels data
+          const total_area = panelsData?.reduce((sum, panel) => sum + (panel.ifp_qty_area_sm || 0), 0) || 0;
+          const total_amount = panelsData?.reduce((sum, panel) => {
+            const area = panel.ifp_qty_area_sm || 0;
+            const rate = panel.unit_rate_qr_m2 || 0;
+            return sum + (area * rate);
+          }, 0) || 0;
+          const total_weight = panelsData?.reduce((sum, panel) => sum + (panel.weight || 0), 0) || 0;
+
           const formattedProject: Project = {
             id: fallbackData.id,
             name: fallbackData.name,
@@ -133,6 +177,9 @@ export function ProjectDetailsPage() {
             status: fallbackData.status,
             estimated_cost: fallbackData.estimated_cost,
             estimated_panels: fallbackData.estimated_panels,
+            total_area,
+            total_amount,
+            total_weight
           };
 
           setProject(formattedProject);

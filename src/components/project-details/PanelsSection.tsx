@@ -3253,7 +3253,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                         <>
                           This will update the status of {selectedPanels.size} selected panel(s) to the new status.
                           <br />
-                          <strong>Note:</strong> Only valid status transitions will be allowed.
+                          <strong>Title:</strong> Only valid status transitions will be allowed.
                         </>
                       )}
                     </p>

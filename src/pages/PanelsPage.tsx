@@ -28,6 +28,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import {
   AlertDialog,
@@ -165,6 +166,7 @@ interface ImportedPanel {
 export function PanelsPage() {
   const { showToast } = useToastContext();
   const { user: currentUser } = useAuth();
+  const navigate = useNavigate();
   const [panels, setPanels] = useState<PanelModel[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [filteredBuildings, setFilteredBuildings] = useState<Building[]>([]);
@@ -537,6 +539,10 @@ export function PanelsPage() {
   const handleStatusChange = (panel: PanelModel) => {
     setSelectedPanelForStatusChange(panel);
     setIsStatusChangeDialogOpen(true);
+  };
+
+  const handlePanelClick = (panel: PanelModel) => {
+    navigate(`/panels/${panel.id}`);
   };
 
   const handleStatusChanged = () => {
@@ -1291,7 +1297,10 @@ export function PanelsPage() {
                 <Collapsible key={panel.id} >
                   <div className="border rounded-lg">
                     <CollapsibleTrigger asChild>
-                      <div className="flex items-center justify-between p-4 hover:bg-muted/50 cursor-pointer">
+                      <div 
+                        className="flex items-center justify-between p-4 hover:bg-muted/50 cursor-pointer"
+                        onClick={() => handlePanelClick(panel)}
+                      >
                         <div className="flex items-center space-x-4 flex-1">
                           {isSelectionMode && (
                             <div 

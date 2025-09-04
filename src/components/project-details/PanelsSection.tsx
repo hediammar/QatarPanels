@@ -29,6 +29,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { QRCodeModal } from "../QRCodeModal";
 import {
@@ -179,6 +180,7 @@ interface QRCodeModalProps {
 export function PanelsSection({ projectId, projectName, facadeId, facadeName }: PanelsSectionProps) {
   const { user: currentUser } = useAuth();
   const { showToast } = useToastContext();
+  const navigate = useNavigate();
   const [panels, setPanels] = useState<PanelModel[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [facades, setFacades] = useState<Facade[]>([]);
@@ -599,6 +601,10 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
   const handleStatusChange = (panel: PanelModel) => {
     setSelectedPanelForStatusChange(panel);
     setIsStatusChangeDialogOpen(true);
+  };
+
+  const handlePanelClick = (panel: PanelModel) => {
+    navigate(`/panels/${panel.id}`);
   };
 
   const handleStatusChanged = () => {
@@ -2420,7 +2426,10 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                 <Collapsible key={panel.id} >
                   <div className="border rounded-lg">
                     <CollapsibleTrigger asChild>
-                      <div className="flex items-center justify-between p-4 hover:bg-muted/50 cursor-pointer">
+                      <div 
+                        className="flex items-center justify-between p-4 hover:bg-muted/50 cursor-pointer"
+                        onClick={() => handlePanelClick(panel)}
+                      >
                         <div className="flex items-center space-x-4 flex-1">
                           {isSelectionMode && canUpdatePanels && (
                             <div 

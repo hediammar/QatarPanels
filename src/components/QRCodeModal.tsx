@@ -12,7 +12,7 @@ interface QRCodeModalProps {
 }
 
 export function QRCodeModal({ panel, isOpen, onClose }: QRCodeModalProps) {
-  const qrCodeData = `${window.location.origin}/${panel.id}`;
+  const qrCodeData = `${window.location.origin}/panels/${panel.id}`;
 
   const qrCodeRef = useRef<HTMLCanvasElement>(null);
 

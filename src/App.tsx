@@ -16,6 +16,7 @@ import { FacadesPage } from "./pages/FacadesPage";
 import { PanelsPage } from "./pages/PanelsPage";
 import { BuildingDetailsPage } from "./pages/BuildingDetailsPage";
 import { FacadeDetailsPage } from "./pages/FacadeDetailsPage";
+import { PanelDetailsPage } from "./pages/PanelDetailsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ToastProvider } from "./contexts/ToastContext";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -93,6 +94,13 @@ export default function App() {
               <ProtectedRoute>
                 <Layout>
                   <PanelsPage />
+                </Layout>
+              </ProtectedRoute>
+            } />
+            <Route path="/panels/:id" element={
+              <ProtectedRoute>
+                <Layout>
+                  <PanelDetailsPage />
                 </Layout>
               </ProtectedRoute>
             } />

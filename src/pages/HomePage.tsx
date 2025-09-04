@@ -187,18 +187,27 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
       
       if (projectsError) throw projectsError;
       
-      // Fetch buildings
+      // Fetch buildings with project information
       const { data: buildingsData, error: buildingsError } = await supabase
         .from('buildings')
-        .select('*')
+        .select(`
+          *,
+          projects!inner(name)
+        `)
         .order('name');
       
       if (buildingsError) throw buildingsError;
       
-      // Fetch facades
+      // Fetch facades with project information
       const { data: facadesData, error: facadesError } = await supabase
         .from('facades')
-        .select('*')
+        .select(`
+          *,
+          buildings!inner(
+            name,
+            projects!inner(name)
+          )
+        `)
         .order('name');
       
       if (facadesError) throw facadesError;
@@ -843,9 +852,9 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                                     onClick={() => updateProjectFilter('selectedProjects', 
                                       projectFilters.selectedProjects.filter(id => id !== projectId)
                                     )}
-                                    className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    className="px-2 py-1 text-xs text-white hover:text-destructive hover:bg-destructive/10 rounded"
                                   >
-                                    <X className="h-3 w-3" />
+                                    Clear
                                   </Button>
                                 </div>
                               ) : null;
@@ -901,7 +910,8 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                             .filter(building => 
                               !buildingFilters.selectedBuildings.includes(building.id) &&
                               (!buildingFilters.searchTerm || 
-                               building.name.toLowerCase().includes(buildingFilters.searchTerm.toLowerCase()))
+                               building.name.toLowerCase().includes(buildingFilters.searchTerm.toLowerCase()) ||
+                               building.projects?.name.toLowerCase().includes(buildingFilters.searchTerm.toLowerCase()))
                             )
                             .map((building) => (
                               <div
@@ -913,7 +923,10 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                                   }
                                 }}
                               >
-                                <span className="text-sm font-medium">{building.name}</span>
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium">{building.name}</span>
+                                  <span className="text-xs text-muted-foreground">{building.projects?.name}</span>
+                                </div>
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -926,7 +939,8 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                           {dashboardData.buildings.filter(building => 
                             !buildingFilters.selectedBuildings.includes(building.id) &&
                             (!buildingFilters.searchTerm || 
-                             building.name.toLowerCase().includes(buildingFilters.searchTerm.toLowerCase()))
+                             building.name.toLowerCase().includes(buildingFilters.searchTerm.toLowerCase()) ||
+                             building.projects?.name.toLowerCase().includes(buildingFilters.searchTerm.toLowerCase()))
                           ).length === 0 && (
                             <div className="text-center text-sm text-muted-foreground py-4">
                               {buildingFilters.searchTerm ? 'No buildings found' : 'All buildings selected'}
@@ -949,16 +963,19 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                               const building = dashboardData.buildings.find(b => b.id === buildingId);
                               return building ? (
                                 <div key={buildingId} className="flex items-center justify-between p-2 rounded-md bg-primary/10 border border-primary/20">
-                                  <span className="text-sm font-medium">{building.name}</span>
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-medium">{building.name}</span>
+                                    <span className="text-xs text-muted-foreground">{building.projects?.name}</span>
+                                  </div>
                                   <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => updateBuildingFilter('selectedBuildings', 
                                       buildingFilters.selectedBuildings.filter(id => id !== buildingId)
                                     )}
-                                    className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    className="px-2 py-1 text-xs text-white hover:text-destructive hover:bg-destructive/10 rounded"
                                   >
-                                    <X className="h-3 w-3" />
+                                    Clear
                                   </Button>
                                 </div>
                               ) : null;
@@ -1014,7 +1031,8 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                             .filter(facade => 
                               !facadeFilters.selectedFacades.includes(facade.id) &&
                               (!facadeFilters.searchTerm || 
-                               facade.name.toLowerCase().includes(facadeFilters.searchTerm.toLowerCase()))
+                               facade.name.toLowerCase().includes(facadeFilters.searchTerm.toLowerCase()) ||
+                               facade.buildings?.projects?.name.toLowerCase().includes(facadeFilters.searchTerm.toLowerCase()))
                             )
                             .map((facade) => (
                               <div
@@ -1026,7 +1044,10 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                                   }
                                 }}
                               >
-                                <span className="text-sm font-medium">{facade.name}</span>
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium">{facade.name}</span>
+                                  <span className="text-xs text-muted-foreground">{facade.buildings?.projects?.name}</span>
+                                </div>
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -1039,7 +1060,8 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                           {dashboardData.facades.filter(facade => 
                             !facadeFilters.selectedFacades.includes(facade.id) &&
                             (!facadeFilters.searchTerm || 
-                             facade.name.toLowerCase().includes(facadeFilters.searchTerm.toLowerCase()))
+                             facade.name.toLowerCase().includes(facadeFilters.searchTerm.toLowerCase()) ||
+                             facade.buildings?.projects?.name.toLowerCase().includes(facadeFilters.searchTerm.toLowerCase()))
                           ).length === 0 && (
                             <div className="text-center text-sm text-muted-foreground py-4">
                               {facadeFilters.searchTerm ? 'No facades found' : 'All facades selected'}
@@ -1062,16 +1084,19 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                               const facade = dashboardData.facades.find(f => f.id === facadeId);
                               return facade ? (
                                 <div key={facadeId} className="flex items-center justify-between p-2 rounded-md bg-primary/10 border border-primary/20">
-                                  <span className="text-sm font-medium">{facade.name}</span>
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-medium">{facade.name}</span>
+                                    <span className="text-xs text-muted-foreground">{facade.buildings?.projects?.name}</span>
+                                  </div>
                                   <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => updateFacadeFilter('selectedFacades', 
                                       facadeFilters.selectedFacades.filter(id => id !== facadeId)
                                     )}
-                                    className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    className="px-2 py-1 text-xs text-white hover:text-destructive hover:bg-destructive/10 rounded"
                                   >
-                                    <X className="h-3 w-3" />
+                                    Clear
                                   </Button>
                                 </div>
                               ) : null;
@@ -1319,7 +1344,7 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                         />
                         <span className="text-muted-foreground">{item.status}</span>
                       </div>
-                      <span className="font-medium text-foreground">{item.count}</span>
+                      <span className="font-medium text-foreground">{item.count} ({Math.round((item.count / metrics.counts.panels) * 100)}%)</span>
                     </div>
                   ))}
                   <div className="flex items-center justify-between text-sm pt-2 border-t border-white/20">

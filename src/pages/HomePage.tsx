@@ -15,7 +15,14 @@ import {
   LineChart,
   Line,
   AreaChart,
-  Area
+  Area,
+  ComposedChart,
+  Scatter,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar
 } from "recharts";
 import { 
   Users, 
@@ -32,127 +39,501 @@ import {
   DollarSign,
   Target,
   Activity,
-  BarChart3
+  BarChart3,
+  Filter,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
+  Layers,
+  Factory,
+  Truck,
+  Wrench,
+  GanttChart,
+  PieChart as PieChartIcon,
+  TrendingUp as TrendingUpIcon,
+  CalendarDays,
+  Globe,
+  Zap,
+  Award,
+  Target as TargetIcon,
+  Plus,
+  X
 } from "lucide-react";
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Alert, AlertDescription } from "../components/ui/alert";
-import { Upload, FileSpreadsheet, Trash2, Download, Search, Filter, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Upload, FileSpreadsheet, Trash2, Download, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import * as XLSX from 'xlsx';
+import { supabase } from "../lib/supabase";
 
-// Panel status constants - ONLY the 5 specified statuses
-const PANEL_STATUSES = [
-  "Installed",
+// Enhanced status constants with grouping
+const PRIMARY_STATUSES = [
+  "Issued For Production",
+  "Produced", 
   "Delivered", 
-  "Rejected",
-  "Manufactured",
-  "Inspected"
-] as const;
+  "Installed"
+];
 
-type PanelStatus = typeof PANEL_STATUSES[number];
+const SECONDARY_STATUSES = [
+  "Proceed for Delivery",
+  "Approved Material",
+  "Rejected Material",
+  "Inspected",
+  "Approved Final",
+  "On Hold",
+  "Cancelled",
+  "Broken at Site"
+];
+
+type PrimaryStatus = typeof PRIMARY_STATUSES[number];
+type SecondaryStatus = typeof SECONDARY_STATUSES[number];
+type AllStatus = PrimaryStatus | SecondaryStatus;
+type ChartStatus = AllStatus | 'Rest';
+
+// Status mapping function to convert integer status codes to string values
+const mapStatusToString = (statusCode: number): AllStatus => {
+  switch (statusCode) {
+    case 0: return 'Issued For Production';
+    case 1: return 'Produced';
+    case 2: return 'Delivered';
+    case 3: return 'Installed';
+    case 4: return 'Proceed for Delivery';
+    case 5: return 'Approved Material';
+    case 6: return 'Rejected Material';
+    case 7: return 'Inspected';
+    case 8: return 'Approved Final';
+    case 9: return 'On Hold';
+    case 10: return 'Cancelled';
+    case 11: return 'Broken at Site';
+    default: return 'Issued For Production';
+  }
+};
 
 interface DashboardProps {
   customers: any[];
   projects: any[];
   panels: any[];
+  buildings?: any[];
+  facades?: any[];
 }
 
-export function Dashboard({ customers, projects, panels }: DashboardProps) {
-  // Calculate metrics
-  const totalCustomers = customers.length;
-  const totalProjects = projects.length;
-  const totalPanels = panels.length;
-  
-  // Project status breakdown
-  const activeProjects = projects.filter(p => p.status === 'active').length;
-  const completedProjects = projects.filter(p => p.status === 'completed').length;
-  const onHoldProjects = projects.filter(p => p.status === 'on-hold').length;
-  
-  // Panel status breakdown with only the 5 specified statuses
-  const panelStatusCounts = PANEL_STATUSES.reduce((acc, status) => {
-    acc[status] = panels.filter(p => p.status === status).length;
-    return acc;
-  }, {} as Record<PanelStatus, number>);
+interface FilterState {
+  selectedProject: string;
+  selectedBuilding: string;
+  selectedFacade: string;
+  dateRange: string;
+  statusFilter: string;
+  locationFilter: string;
+}
 
-  // Calculate project financial metrics
-  const totalEstimatedValue = projects.reduce((sum, project) => sum + (project.estimatedCost || 0), 0);
-  const totalEstimatedPanels = projects.reduce((sum, project) => sum + (project.estimatedPanels || 0), 0);
-  const averageProjectValue = totalProjects > 0 ? totalEstimatedValue / totalProjects : 0;
+export function Dashboard({ customers, projects, panels, buildings = [], facades = [] }: DashboardProps) {
+  // Data fetching state
+  const [dashboardData, setDashboardData] = useState({
+    customers: [] as any[],
+    projects: [] as any[],
+    panels: [] as any[],
+    buildings: [] as any[],
+    facades: [] as any[]
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Independent section filters - each section has its own state
+  const [projectFilters, setProjectFilters] = useState({
+    selectedProjects: [] as string[],
+    searchTerm: ''
+  });
+
+  const [buildingFilters, setBuildingFilters] = useState({
+    selectedBuildings: [] as string[],
+    searchTerm: ''
+  });
+
+  const [facadeFilters, setFacadeFilters] = useState({
+    selectedFacades: [] as string[],
+    searchTerm: ''
+  });
+
+  const [pieChartView, setPieChartView] = useState<'primary' | 'secondary'>('primary');
+  const [showFilters, setShowFilters] = useState(true);
+  const [activeSection, setActiveSection] = useState<'projects' | 'buildings' | 'facades'>('projects');
+
+  // Data fetching functions
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('🔍 Dashboard: Starting data fetch...');
+      
+      // Fetch customers
+      const { data: customersData, error: customersError } = await supabase
+        .from('customers')
+        .select('*')
+        .order('name');
+      
+      if (customersError) throw customersError;
+      
+      // Fetch projects
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('projects')
+        .select('*')
+        .order('name');
+      
+      if (projectsError) throw projectsError;
+      
+      // Fetch buildings
+      const { data: buildingsData, error: buildingsError } = await supabase
+        .from('buildings')
+        .select('*')
+        .order('name');
+      
+      if (buildingsError) throw buildingsError;
+      
+      // Fetch facades
+      const { data: facadesData, error: facadesError } = await supabase
+        .from('facades')
+        .select('*')
+        .order('name');
+      
+      if (facadesError) throw facadesError;
+      
+      // Fetch panels
+      const { data: panelsData, error: panelsError } = await supabase
+        .from('panels')
+        .select('*');
+      
+      if (panelsError) throw panelsError;
+      
+      // Fetch panel status histories separately for better performance
+      const { data: statusHistoriesData, error: statusError } = await supabase
+        .from('panel_status_histories')
+        .select('panel_id, status, created_at')
+        .order('created_at', { ascending: false });
+      
+      if (statusError) {
+        console.warn('⚠️ Dashboard: Warning - Could not fetch status histories:', statusError);
+        // Continue without status histories, panels will use default status
+      }
+      
+      // Process panels to get current status
+      const processedPanels = panelsData?.map(panel => {
+        // Find the most recent status for this panel
+        const panelStatuses = statusHistoriesData?.filter(
+          status => status.panel_id === panel.id
+        ) || [];
+        
+        // Get the most recent status, or use the panel's default status
+        const currentStatus = panelStatuses.length > 0 
+          ? panelStatuses[0].status 
+          : panel.status || 1; // Default to status 1 (Produced)
+        
+        // Map status integer to string for display
+        const statusString = mapStatusToString(currentStatus);
+        
+        // Debug logging for status processing
+        console.log(`🔍 Panel ${panel.name}: statusCode=${currentStatus}, mappedStatus=${statusString}`);
+        
+        return {
+          ...panel,
+          status: statusString,
+          statusCode: currentStatus,
+          // Add fallback values for missing data
+          projectId: panel.project_id,
+          buildingId: panel.building_id,
+          facadeId: panel.facade_id
+        };
+      }) || [];
+      
+      console.log('✅ Dashboard: Data fetched successfully');
+      console.log('📊 Dashboard: Customers:', customersData?.length || 0);
+      console.log('📊 Dashboard: Projects:', projectsData?.length || 0);
+      console.log('📊 Dashboard: Buildings:', buildingsData?.length || 0);
+      console.log('📊 Dashboard: Facades:', facadesData?.length || 0);
+      console.log('📊 Dashboard: Panels:', processedPanels.length || 0);
+      console.log('📊 Dashboard: Status Histories:', statusHistoriesData?.length || 0);
+      
+      // Log sample panel data for debugging
+      if (processedPanels.length > 0) {
+        console.log('🔍 Dashboard: Sample panel:', {
+          id: processedPanels[0].id,
+          name: processedPanels[0].name,
+          status: processedPanels[0].status,
+          statusCode: processedPanels[0].statusCode
+        });
+      }
+      
+      setDashboardData({
+        customers: customersData || [],
+        projects: projectsData || [],
+        panels: processedPanels,
+        buildings: buildingsData || [],
+        facades: facadesData || []
+      });
+      
+    } catch (error) {
+      console.error('❌ Dashboard: Error fetching data:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch data on component mount
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  // Section-independent data filtering and aggregation
+  const projectData = useMemo(() => {
+    let filteredPanels = dashboardData.panels;
+    let filteredProjects = dashboardData.projects;
+
+    // Apply project-specific filters
+    if (projectFilters.selectedProjects.length > 0) {
+      filteredPanels = filteredPanels.filter(p => projectFilters.selectedProjects.includes(p.projectId));
+      filteredProjects = filteredProjects.filter(p => projectFilters.selectedProjects.includes(p.id));
+    }
+
+    return { panels: filteredPanels, projects: filteredProjects };
+  }, [dashboardData, projectFilters]);
+
+  const buildingData = useMemo(() => {
+    let filteredPanels = dashboardData.panels;
+    let filteredBuildings = dashboardData.buildings;
+
+    // Apply building-specific filters
+    if (buildingFilters.selectedBuildings.length > 0) {
+      filteredPanels = filteredPanels.filter(p => buildingFilters.selectedBuildings.includes(p.buildingId));
+      filteredBuildings = filteredBuildings.filter(b => buildingFilters.selectedBuildings.includes(b.id));
+    }
+
+    return { panels: filteredPanels, buildings: filteredBuildings };
+  }, [dashboardData, buildingFilters]);
+
+  const facadeData = useMemo(() => {
+    let filteredPanels = dashboardData.panels;
+    let filteredFacades = dashboardData.facades;
+
+    // Apply facade-specific filters
+    if (facadeFilters.selectedFacades.length > 0) {
+      filteredPanels = filteredPanels.filter(p => facadeFilters.selectedFacades.includes(p.facadeId));
+      filteredFacades = filteredFacades.filter(f => facadeFilters.selectedFacades.includes(f.id));
+    }
+
+    return { panels: filteredPanels, facades: filteredFacades };
+  }, [dashboardData, facadeFilters]);
+
+  // Get current section data based on active section
+  const currentSectionData = useMemo(() => {
+    switch (activeSection) {
+      case 'projects': return { panels: projectData.panels, projects: projectData.projects, buildings: [], facades: [] };
+      case 'buildings': return { panels: buildingData.panels, projects: [], buildings: buildingData.buildings, facades: [] };
+      case 'facades': return { panels: facadeData.panels, projects: [], buildings: [], facades: facadeData.facades };
+      default: return { panels: projectData.panels, projects: projectData.projects, buildings: [], facades: [] };
+    }
+  }, [activeSection, projectData, buildingData, facadeData]);
+
+  // Calculate enhanced metrics for current section
+  const metrics = useMemo(() => {
+    const { panels: filteredPanels, projects: filteredProjects, buildings: filteredBuildings, facades: filteredFacades } = currentSectionData;
+    
+    const totalCustomers = dashboardData.customers.length;
+    const totalProjects = filteredProjects?.length || 0;
+    const totalPanels = filteredPanels?.length || 0;
+    const totalBuildings = filteredBuildings?.length || 0;
+    const totalFacades = filteredFacades?.length || 0;
+    
+    // Project metrics
+    const onHoldProjects = filteredProjects.filter(p => p.status === 'on-hold').length;
+    
+    // Financial metrics
+    const projectsToProcess: Array<any> = filteredProjects || [];
+    const totalEstimatedValue = projectsToProcess.reduce((sum: number, project: any) => sum + (project.estimated_cost || 0), 0);
+    const totalEstimatedPanels = projectsToProcess.reduce((sum: number, project: any) => sum + (project.estimated_panels || 0), 0);
+    const averageProjectValue = totalProjects > 0 ? totalEstimatedValue / totalProjects : 0;
   
-  // Panel completion rate (Installed + Delivered = completed)
-  const completedPanelsCount = panelStatusCounts['Installed'] + panelStatusCounts['Delivered'];
-  const panelCompletionRate = totalPanels > 0 ? (completedPanelsCount / totalPanels) * 100 : 0;
+    // Panel status metrics
+    const panelStatusCounts = [...PRIMARY_STATUSES, ...SECONDARY_STATUSES].reduce((acc, status) => {
+      acc[status] = filteredPanels.filter(p => p.status === status).length;
+      return acc;
+    }, {} as Record<AllStatus, number>);
 
-  // Project progress tracking
-  const projectProgress = totalEstimatedPanels > 0 ? (totalPanels / totalEstimatedPanels) * 100 : 0;
-  
-  // Recent activity (last 30 days simulation)
-  const recentProjects = projects.filter(p => {
-    const startDate = new Date(p.startDate);
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    return startDate >= thirtyDaysAgo;
-  }).length;
+    // Primary status metrics
+    const primaryStatusCounts = PRIMARY_STATUSES.reduce((acc, status) => {
+      acc[status] = panelStatusCounts[status];
+      return acc;
+    }, {} as Record<PrimaryStatus, number>);
 
-  // Location-based project distribution
-  const locationData = projects.reduce((acc, project) => {
-    const location = project.location || 'Unknown';
-    acc[location] = (acc[location] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+    // Secondary status metrics
+    const secondaryStatusCounts = SECONDARY_STATUSES.reduce((acc, status) => {
+      acc[status] = panelStatusCounts[status];
+      return acc;
+    }, {} as Record<SecondaryStatus, number>);
 
-  const locationChartData = Object.entries(locationData)
+    // Completion metrics
+    const completedPanelsCount = panelStatusCounts['Installed'] + panelStatusCounts['Delivered'];
+    const panelCompletionRate = totalPanels > 0 ? (completedPanelsCount / totalPanels) * 100 : 0;
+    const projectProgress = totalEstimatedPanels > 0 ? (totalPanels / totalEstimatedPanels) * 100 : 0;
+    
+    // Efficiency metrics
+    // Production Efficiency: panels with status "Produced" or later statuses
+    const productionEfficiency = totalPanels > 0 ? 
+      ((panelStatusCounts['Produced'] + panelStatusCounts['Proceed for Delivery'] + panelStatusCounts['Delivered'] + 
+        panelStatusCounts['Approved Material'] + panelStatusCounts['Rejected Material'] + panelStatusCounts['Installed'] + 
+        panelStatusCounts['Inspected'] + panelStatusCounts['Approved Final']) / totalPanels) * 100 : 0;
+    
+    // Delivery Efficiency: panels with status "Delivered" or later statuses
+    const deliveryEfficiency = totalPanels > 0 ? 
+      ((panelStatusCounts['Delivered'] + panelStatusCounts['Approved Material'] + panelStatusCounts['Installed'] + 
+        panelStatusCounts['Inspected'] + panelStatusCounts['Approved Final']) / totalPanels) * 100 : 0;
+    
+    // Overall Completion: only panels with status "Approved Final"
+    const overallCompletion = totalPanels > 0 ? 
+      (panelStatusCounts['Approved Final'] / totalPanels) * 100 : 0;
+    
+    // Location metrics
+    const locationData = projectsToProcess.reduce((acc: Record<string, number>, project: any) => {
+      const location = project.location || 'Unknown';
+      acc[location] = (acc[location] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    return {
+      counts: {
+        customers: totalCustomers,
+        projects: totalProjects,
+        panels: totalPanels,
+        buildings: totalBuildings,
+        facades: totalFacades,
+        onHoldProjects
+      },
+      financial: {
+        totalEstimatedValue,
+        totalEstimatedPanels,
+        averageProjectValue
+      },
+      status: {
+        primary: primaryStatusCounts,
+        secondary: secondaryStatusCounts,
+        all: panelStatusCounts
+      },
+      efficiency: {
+        panelCompletionRate,
+        projectProgress,
+        productionEfficiency,
+        deliveryEfficiency,
+        overallCompletion
+      },
+      location: locationData
+    };
+  }, [currentSectionData, dashboardData.customers]);
+
+  // Enhanced chart data preparation for current section
+  const chartData = useMemo(() => {
+    const { status, location } = metrics;
+    
+    // Pie chart data based on current view
+    const pieChartData: Array<{ status: ChartStatus; count: number; percentage: number }> = pieChartView === 'primary' 
+      ? PRIMARY_STATUSES.map(statusName => ({
+          status: statusName,
+          count: status.primary[statusName as PrimaryStatus],
+          percentage: metrics.counts.panels > 0 ? 
+            (status.primary[statusName as PrimaryStatus] / metrics.counts.panels) * 100 : 0
+        })).filter(item => item.count > 0)
+      : SECONDARY_STATUSES.map(statusName => ({
+          status: statusName,
+          count: status.secondary[statusName as SecondaryStatus],
+          percentage: metrics.counts.panels > 0 ? 
+            (status.secondary[statusName as SecondaryStatus] / metrics.counts.panels) * 100 : 0
+        })).filter(item => item.count > 0);
+
+    // Add "Rest" slice for pie chart
+    if (pieChartView === 'primary') {
+      const restCount = Object.values(status.secondary).reduce((sum, count) => sum + count, 0);
+      if (restCount > 0) {
+        pieChartData.push({
+          status: 'Rest',
+          count: restCount,
+          percentage: (restCount / metrics.counts.panels) * 100
+        });
+      }
+    } else {
+      const restCount = Object.values(status.primary).reduce((sum, count) => sum + count, 0);
+      if (restCount > 0) {
+        pieChartData.push({
+          status: 'Rest',
+          count: restCount,
+          percentage: (restCount / metrics.counts.panels) * 100
+        });
+      }
+    }
+
+    // Location chart data
+    const locationChartData = Object.entries(location)
     .map(([location, count]) => ({ location, count: count as number }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
 
-  // Panel status chart data for pie chart
-  const panelStatusChartData = PANEL_STATUSES.map(status => ({
-    status,
-    count: panelStatusCounts[status]
-  })).filter(item => item.count > 0);
+    // Timeline data for manufacturing pipeline
+    const timelineData = [
+      { stage: 'Issued For Production', count: status.all['Issued For Production'] || 0, cumulative: status.all['Issued For Production'] || 0 },
+      { stage: 'Produced', count: status.all['Produced'] || 0, cumulative: (status.all['Issued For Production'] || 0) + (status.all['Produced'] || 0) },
+      { stage: 'Delivered', count: status.all['Delivered'] || 0, cumulative: (status.all['Issued For Production'] || 0) + (status.all['Produced'] || 0) + (status.all['Delivered'] || 0) },
+      { stage: 'Installed', count: status.all['Installed'] || 0, cumulative: (status.all['Issued For Production'] || 0) + (status.all['Produced'] || 0) + (status.all['Delivered'] || 0) + (status.all['Installed'] || 0) },
+      { stage: 'Approved Material', count: status.all['Approved Material'] || 0, cumulative: (status.all['Issued For Production'] || 0) + (status.all['Produced'] || 0) + (status.all['Delivered'] || 0) + (status.all['Installed'] || 0) + (status.all['Approved Material'] || 0) },
+      { stage: 'Inspected', count: status.all['Inspected'] || 0, cumulative: (status.all['Issued For Production'] || 0) + (status.all['Produced'] || 0) + (status.all['Delivered'] || 0) + (status.all['Installed'] || 0) + (status.all['Approved Material'] || 0) + (status.all['Inspected'] || 0) },
+      { stage: 'Approved Final', count: status.all['Approved Final'] || 0, cumulative: (status.all['Issued For Production'] || 0) + (status.all['Produced'] || 0) + (status.all['Delivered'] || 0) + (status.all['Installed'] || 0) + (status.all['Approved Material'] || 0) + (status.all['Inspected'] || 0) + (status.all['Approved Final'] || 0) }
+    ];
 
-  // Monthly project trend (simulated)
-  const monthlyTrend = [
-    { month: 'Jan', projects: Math.max(0, totalProjects - 5), value: Math.max(0, totalEstimatedValue - 500000) },
-    { month: 'Feb', projects: Math.max(0, totalProjects - 4), value: Math.max(0, totalEstimatedValue - 400000) },
-    { month: 'Mar', projects: Math.max(0, totalProjects - 3), value: Math.max(0, totalEstimatedValue - 300000) },
-    { month: 'Apr', projects: Math.max(0, totalProjects - 2), value: Math.max(0, totalEstimatedValue - 200000) },
-    { month: 'May', projects: Math.max(0, totalProjects - 1), value: Math.max(0, totalEstimatedValue - 100000) },
-    { month: 'Jun', projects: totalProjects, value: totalEstimatedValue }
-  ];
+    // Efficiency radar chart data
+    const efficiencyData = [
+      { metric: 'Production', value: metrics.efficiency.productionEfficiency },
+      { metric: 'Delivery', value: metrics.efficiency.deliveryEfficiency },
+      { metric: 'Completion', value: metrics.efficiency.overallCompletion },
+      { metric: 'Progress', value: metrics.efficiency.projectProgress }
+    ];
 
-  // Vibrant Qatar theme-aligned color schemes - much brighter and more appealing
-  const STATUS_COLORS: Record<PanelStatus, string> = {
-    'Installed': '#10B981',      // Bright emerald green - success/completion
-    'Delivered': '#3B82F6',      // Bright blue - delivery/transport
-    'Rejected': '#EF4444',       // Bright red - issues/rejection
-    'Manufactured': '#F59E0B',   // Bright amber - manufacturing/production
-    'Inspected': '#8B5CF6'       // Bright purple - quality control
+    return {
+      pieChart: pieChartData,
+      location: locationChartData,
+      timeline: timelineData,
+      efficiency: efficiencyData
+    };
+  }, [metrics, pieChartView]);
+
+  // Enhanced color schemes
+  const STATUS_COLORS: Record<AllStatus, string> = {
+    'Issued For Production': '#F59E0B',   // Amber
+    'Produced': '#10B981',                // Emerald
+    'Delivered': '#3B82F6',               // Blue
+    'Installed': '#059669',               // Green
+    'Proceed for Delivery': '#F97316',    // Orange
+    'Approved Material': '#8B5CF6',       // Purple
+    'Rejected Material': '#EF4444',       // Red
+    'Inspected': '#06B6D4',               // Cyan
+    'Approved Final': '#84CC16',          // Lime
+    'On Hold': '#F59E0B',                 // Amber
+    'Cancelled': '#6B7280',               // Gray
+    'Broken at Site': '#DC2626'           // Red
   };
 
-  // Enhanced chart colors with better contrast and vibrancy
   const CHART_COLORS = {
-    primary: '#DC2626',              // Vibrant red (primary brand)
-    secondary: '#059669',            // Emerald green (success)
-    accent: '#7C3AED',              // Purple (accent)
-    warning: '#D97706',             // Orange (warning)
-    info: '#2563EB',                // Blue (info)
-    success: '#059669',             // Green (success)
-    danger: '#DC2626',              // Red (danger)
-    muted: '#6B7280',               // Gray (muted)
-    mutedForeground: '#D1D5DB',     // Light gray (text)
-    border: '#374151',              // Dark gray (borders)
-    grid: '#4B5563',                // Gray (grid lines)
-    tooltip: '#1F2937',             // Dark gray (tooltip bg)
-    tooltipForeground: '#F9FAFB',   // White (tooltip text)
-    background: '#FFFFFF',          // White backgrounds
-    gradientStart: '#DC2626',       // Red gradient start
-    gradientEnd: '#7C2D12'          // Dark red gradient end
+    primary: '#DC2626',
+    secondary: '#059669',
+    accent: '#7C3AED',
+    warning: '#D97706',
+    info: '#2563EB',
+    success: '#059669',
+    danger: '#DC2626',
+    muted: '#6B7280',
+    gradientStart: '#DC2626',
+    gradientEnd: '#7C2D12'
   };
 
   const formatCurrency = (amount: number) => {
@@ -168,18 +549,31 @@ export function Dashboard({ customers, projects, panels }: DashboardProps) {
     return new Intl.NumberFormat('en-US').format(num);
   };
 
-  const getStatusIcon = (status: PanelStatus) => {
+  const getStatusIcon = (status: AllStatus) => {
     const iconStyle = "h-4 w-4";
     switch (status) {
-      case 'Installed': return <CheckCircle className={`${iconStyle} text-emerald-400`} />;
-      case 'Delivered': return <Package className={`${iconStyle} text-blue-400`} />;
-      case 'Rejected': return <AlertCircle className={`${iconStyle} text-red-400`} />;
-      case 'Manufactured': return <Clock className={`${iconStyle} text-amber-400`} />;
-      case 'Inspected': return <CheckCircle className={`${iconStyle} text-purple-400`} />;
+      case 'Issued For Production': return <Factory className={`${iconStyle} text-amber-400`} />;
+      case 'Produced': return <CheckCircle className={`${iconStyle} text-emerald-400`} />;
+      case 'Delivered': return <Truck className={`${iconStyle} text-blue-400`} />;
+      case 'Installed': return <Wrench className={`${iconStyle} text-green-400`} />;
+      case 'Proceed for Delivery': return <Truck className={`${iconStyle} text-orange-400`} />;
+      case 'Approved Material': return <CheckCircle className={`${iconStyle} text-purple-400`} />;
+      case 'Rejected Material': return <AlertCircle className={`${iconStyle} text-red-400`} />;
+      case 'Inspected': return <CheckCircle className={`${iconStyle} text-cyan-400`} />;
+      case 'Approved Final': return <Award className={`${iconStyle} text-lime-400`} />;
+      case 'On Hold': return <Clock className={`${iconStyle} text-amber-400`} />;
+      case 'Cancelled': return <X className={`${iconStyle} text-gray-400`} />;
+      case 'Broken at Site': return <AlertCircle className={`${iconStyle} text-red-600`} />;
+      default: return <Package className={`${iconStyle} text-gray-400`} />;
     }
   };
 
-  // Enhanced Custom Tooltip with better design
+  const handlePieChartClick = (entry: { status: string }) => {
+    if (entry.status === 'Rest') {
+      setPieChartView(pieChartView === 'primary' ? 'secondary' : 'primary');
+    }
+  };
+
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -202,51 +596,513 @@ export function Dashboard({ customers, projects, panels }: DashboardProps) {
     return null;
   };
 
+  const updateProjectFilter = (key: keyof typeof projectFilters, value: any) => {
+    setProjectFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const updateBuildingFilter = (key: keyof typeof buildingFilters, value: any) => {
+    setBuildingFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const updateFacadeFilter = (key: keyof typeof facadeFilters, value: any) => {
+    setFacadeFilters(prev => ({ ...prev, [key]: value }));
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Enhanced Header with Filters Toggle */}
+      <div className="flex items-center justify-between">
       <div>
-        
-        <p className="text-muted-foreground">Overview of your CRM and precast panel operations</p>
+
+          <p className="text-muted-foreground">Data-driven insights across Projects, Buildings, and Facades</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={fetchDashboardData}
+            disabled={loading}
+            className="flex items-center gap-2"
+          >
+            <Activity className="h-4 w-4" />
+            {loading ? 'Refreshing...' : 'Refresh Data'}
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2"
+          >
+            {showFilters ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {showFilters ? 'Hide Filters' : 'Show Filters'}
+          </Button>
+        </div>
       </div>
 
-      {/* Key Metrics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Loading State */}
+      {loading && (
         <Card className="qatar-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-card-foreground">Total Customers</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-card-foreground">{formatNumber(totalCustomers)}</div>
-            <p className="text-xs text-muted-foreground">
-              Active business relationships
-            </p>
+          <CardContent className="p-12 text-center">
+            <div className="space-y-4">
+              <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+                <Activity className="h-8 w-8 text-primary animate-spin" />
+      </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-medium">Loading Dashboard Data...</h3>
+                <p className="text-muted-foreground">Please wait while we fetch the latest information</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
+      )}
 
+      {/* Error State */}
+      {error && !loading && (
+        <Alert className="border-destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            <div className="flex items-center justify-between">
+              <span>Error loading dashboard data: {error}</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={fetchDashboardData}
+                className="ml-4"
+              >
+                Retry
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Main Dashboard Content - Only show when not loading and no errors */}
+      {!loading && !error && (
+        <>
+          {/* Navigation Tabs for Three Main Axes */}
+          <Card className="qatar-card">
+            <CardContent className="p-0">
+              <div className="flex border-b">
+                <button
+                  onClick={() => setActiveSection('projects')}
+                  className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                    activeSection === 'projects'
+                      ? 'border-b-2 border-primary text-primary bg-primary/5'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 justify-center">
+                    <FolderOpen className="h-4 w-4" />
+                    Projects
+                    <Badge variant="secondary" className="ml-2">
+                      {metrics.counts.projects}
+                    </Badge>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveSection('buildings')}
+                  className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                    activeSection === 'buildings'
+                      ? 'border-b-2 border-primary text-primary bg-primary/5'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 justify-center">
+                    <Building2 className="h-4 w-4" />
+                    Buildings
+                    <Badge variant="secondary" className="ml-2">
+                      {metrics.counts.buildings}
+                    </Badge>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveSection('facades')}
+                  className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                    activeSection === 'facades'
+                      ? 'border-b-2 border-primary text-primary bg-primary/5'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 justify-center">
+                    <Layers className="h-4 w-4" />
+                    Facades
+                    <Badge variant="secondary" className="ml-2">
+                      {metrics.counts.facades}
+                    </Badge>
+                  </div>
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+
+      {/* Section-Specific Filter Panel */}
+      {showFilters && (
         <Card className="qatar-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-card-foreground">Active Projects</CardTitle>
-            <FolderOpen className="h-4 w-4 text-muted-foreground" />
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              {activeSection === 'projects' && 'Project Filters'}
+              {activeSection === 'buildings' && 'Building Filters'}
+              {activeSection === 'facades' && 'Facade Filters'}
+            </CardTitle>
+            <CardDescription>
+              {activeSection === 'projects' && 'Filter panels and projects by specific criteria'}
+              {activeSection === 'buildings' && 'Filter panels and buildings by specific criteria'}
+              {activeSection === 'facades' && 'Filter panels and facades by specific criteria'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-card-foreground">{formatNumber(totalProjects)}</div>
-            <p className="text-xs text-muted-foreground">
-              {activeProjects} active, {completedProjects} completed
-            </p>
+            {activeSection === 'projects' && (
+              <div className="space-y-6">
+                {/* Project Selection - Enhanced Multi-select */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold">Projects</Label>
+                    {projectFilters.selectedProjects.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateProjectFilter('selectedProjects', [])}
+                        className="text-xs"
+                      >
+                        Clear All
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {/* Search and Selection Area */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Available Projects with Search */}
+                    <div className="space-y-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search projects..."
+                          className="pl-10"
+                          value={projectFilters.searchTerm || ''}
+                          onChange={(e) => updateProjectFilter('searchTerm', e.target.value)}
+                        />
+                      </div>
+                      
+                      <div className="border rounded-lg p-3 bg-muted/30 max-h-64 overflow-y-auto">
+                        <div className="space-y-2">
+                          {dashboardData.projects
+                            .filter(project => 
+                              !projectFilters.selectedProjects.includes(project.id) &&
+                              (!projectFilters.searchTerm || 
+                               project.name.toLowerCase().includes(projectFilters.searchTerm.toLowerCase()))
+                            )
+                            .map((project) => (
+                              <div
+                                key={project.id}
+                                className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                                onClick={() => {
+                                  if (!projectFilters.selectedProjects.includes(project.id)) {
+                                    updateProjectFilter('selectedProjects', [...projectFilters.selectedProjects, project.id]);
+                                  }
+                                }}
+                              >
+                                <span className="text-sm font-medium">{project.name}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          {dashboardData.projects.filter(project => 
+                            !projectFilters.selectedProjects.includes(project.id) &&
+                            (!projectFilters.searchTerm || 
+                             project.name.toLowerCase().includes(projectFilters.searchTerm.toLowerCase()))
+                          ).length === 0 && (
+                            <div className="text-center text-sm text-muted-foreground py-4">
+                              {projectFilters.searchTerm ? 'No projects found' : 'All projects selected'}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Selected Projects */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium text-muted-foreground">
+                        Selected Projects ({projectFilters.selectedProjects.length})
+                      </Label>
+                      
+                      <div className="border rounded-lg p-3 bg-muted/30 max-h-64 overflow-y-auto">
+                        {projectFilters.selectedProjects.length > 0 ? (
+                          <div className="space-y-2">
+                            {projectFilters.selectedProjects.map((projectId) => {
+                              const project = dashboardData.projects.find(p => p.id === projectId);
+                              return project ? (
+                                <div key={projectId} className="flex items-center justify-between p-2 rounded-md bg-primary/10 border border-primary/20">
+                                  <span className="text-sm font-medium">{project.name}</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => updateProjectFilter('selectedProjects', 
+                                      projectFilters.selectedProjects.filter(id => id !== projectId)
+                                    )}
+                                    className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              ) : null;
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center text-sm text-muted-foreground py-4">
+                            No projects selected
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeSection === 'buildings' && (
+              <div className="space-y-6">
+                {/* Building Selection - Enhanced Multi-select */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold">Buildings</Label>
+                    {buildingFilters.selectedBuildings.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateBuildingFilter('selectedBuildings', [])}
+                        className="text-xs"
+                      >
+                        Clear All
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {/* Search and Selection Area */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Available Buildings with Search */}
+                    <div className="space-y-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search buildings..."
+                          className="pl-10"
+                          value={buildingFilters.searchTerm || ''}
+                          onChange={(e) => updateBuildingFilter('searchTerm', e.target.value)}
+                        />
+                      </div>
+                      
+                      <div className="border rounded-lg p-3 bg-muted/30 max-h-64 overflow-y-auto">
+                        <div className="space-y-2">
+                          {dashboardData.buildings
+                            .filter(building => 
+                              !buildingFilters.selectedBuildings.includes(building.id) &&
+                              (!buildingFilters.searchTerm || 
+                               building.name.toLowerCase().includes(buildingFilters.searchTerm.toLowerCase()))
+                            )
+                            .map((building) => (
+                              <div
+                                key={building.id}
+                                className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                                onClick={() => {
+                                  if (!buildingFilters.selectedBuildings.includes(building.id)) {
+                                    updateBuildingFilter('selectedBuildings', [...buildingFilters.selectedBuildings, building.id]);
+                                  }
+                                }}
+                              >
+                                <span className="text-sm font-medium">{building.name}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          {dashboardData.buildings.filter(building => 
+                            !buildingFilters.selectedBuildings.includes(building.id) &&
+                            (!buildingFilters.searchTerm || 
+                             building.name.toLowerCase().includes(buildingFilters.searchTerm.toLowerCase()))
+                          ).length === 0 && (
+                            <div className="text-center text-sm text-muted-foreground py-4">
+                              {buildingFilters.searchTerm ? 'No buildings found' : 'All buildings selected'}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Selected Buildings */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium text-muted-foreground">
+                        Selected Buildings ({buildingFilters.selectedBuildings.length})
+                      </Label>
+                      
+                      <div className="border rounded-lg p-3 bg-muted/30 max-h-64 overflow-y-auto">
+                        {buildingFilters.selectedBuildings.length > 0 ? (
+                          <div className="space-y-2">
+                            {buildingFilters.selectedBuildings.map((buildingId) => {
+                              const building = dashboardData.buildings.find(b => b.id === buildingId);
+                              return building ? (
+                                <div key={buildingId} className="flex items-center justify-between p-2 rounded-md bg-primary/10 border border-primary/20">
+                                  <span className="text-sm font-medium">{building.name}</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => updateBuildingFilter('selectedBuildings', 
+                                      buildingFilters.selectedBuildings.filter(id => id !== buildingId)
+                                    )}
+                                    className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              ) : null;
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center text-sm text-muted-foreground py-4">
+                            No buildings selected
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeSection === 'facades' && (
+              <div className="space-y-6">
+                {/* Facade Selection - Enhanced Multi-select */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-base font-semibold">Facades</Label>
+                    {facadeFilters.selectedFacades.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateFacadeFilter('selectedFacades', [])}
+                        className="text-xs"
+                      >
+                        Clear All
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {/* Search and Selection Area */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Available Facades with Search */}
+                    <div className="space-y-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search facades..."
+                          className="pl-10"
+                          value={facadeFilters.searchTerm || ''}
+                          onChange={(e) => updateFacadeFilter('searchTerm', e.target.value)}
+                        />
+                      </div>
+                      
+                      <div className="border rounded-lg p-3 bg-muted/30 max-h-64 overflow-y-auto">
+                        <div className="space-y-2">
+                          {dashboardData.facades
+                            .filter(facade => 
+                              !facadeFilters.selectedFacades.includes(facade.id) &&
+                              (!facadeFilters.searchTerm || 
+                               facade.name.toLowerCase().includes(facadeFilters.searchTerm.toLowerCase()))
+                            )
+                            .map((facade) => (
+                              <div
+                                key={facade.id}
+                                className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                                onClick={() => {
+                                  if (!facadeFilters.selectedFacades.includes(facade.id)) {
+                                    updateFacadeFilter('selectedFacades', [...facadeFilters.selectedFacades, facade.id]);
+                                  }
+                                }}
+                              >
+                                <span className="text-sm font-medium">{facade.name}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          {dashboardData.facades.filter(facade => 
+                            !facadeFilters.selectedFacades.includes(facade.id) &&
+                            (!facadeFilters.searchTerm || 
+                             facade.name.toLowerCase().includes(facadeFilters.searchTerm.toLowerCase()))
+                          ).length === 0 && (
+                            <div className="text-center text-sm text-muted-foreground py-4">
+                              {facadeFilters.searchTerm ? 'No facades found' : 'All facades selected'}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Selected Facades */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium text-muted-foreground">
+                        Selected Facades ({facadeFilters.selectedFacades.length})
+                      </Label>
+                      
+                      <div className="border rounded-lg p-3 bg-muted/30 max-h-64 overflow-y-auto">
+                        {facadeFilters.selectedFacades.length > 0 ? (
+                          <div className="space-y-2">
+                            {facadeFilters.selectedFacades.map((facadeId) => {
+                              const facade = dashboardData.facades.find(f => f.id === facadeId);
+                              return facade ? (
+                                <div key={facadeId} className="flex items-center justify-between p-2 rounded-md bg-primary/10 border border-primary/20">
+                                  <span className="text-sm font-medium">{facade.name}</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => updateFacadeFilter('selectedFacades', 
+                                      facadeFilters.selectedFacades.filter(id => id !== facadeId)
+                                    )}
+                                    className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              ) : null;
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center text-sm text-muted-foreground py-4">
+                            No facades selected
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
+      )}
 
+      {/* Enhanced Key Metrics Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
         <Card className="qatar-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-card-foreground">Total Panels</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-card-foreground">{formatNumber(totalPanels)}</div>
+            <div className="text-2xl font-bold text-card-foreground">{formatNumber(metrics.counts.panels)}</div>
             <p className="text-xs text-muted-foreground">
-              {panelStatusCounts.Installed} installed ({panelCompletionRate.toFixed(1)}% complete)
+              {metrics.efficiency.panelCompletionRate.toFixed(1)}% completion rate
             </p>
           </CardContent>
         </Card>
@@ -257,52 +1113,58 @@ export function Dashboard({ customers, projects, panels }: DashboardProps) {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-card-foreground">{formatCurrency(totalEstimatedValue)}</div>
+            <div className="text-2xl font-bold text-card-foreground">{formatCurrency(metrics.financial.totalEstimatedValue)}</div>
             <p className="text-xs text-muted-foreground">
-              Avg: {formatCurrency(averageProjectValue)} per project
+              Avg: {formatCurrency(metrics.financial.averageProjectValue)} per project
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Panel Status Overview */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        {PANEL_STATUSES.map((status) => (
+      {/* Enhanced Panel Status Overview */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {PRIMARY_STATUSES.map((status) => (
           <Card key={status} className="qatar-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-card-foreground">{status}</CardTitle>
               {getStatusIcon(status)}
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-card-foreground">{panelStatusCounts[status]}</div>
+              <div className="text-2xl font-bold text-card-foreground">{metrics.status.primary[status]}</div>
               <p className="text-xs text-muted-foreground">
-                {totalPanels > 0 ? ((panelStatusCounts[status] / totalPanels) * 100).toFixed(1) : 0}% of total
+                {metrics.counts.panels > 0 ? ((metrics.status.primary[status] / metrics.counts.panels) * 100).toFixed(1) : 0}% of total
               </p>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Progress and Analytics */}
+      {/* Enhanced Progress and Analytics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card className="qatar-card">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2 text-card-foreground">
               <Target className="h-5 w-5" />
-              Manufacturing Progress
+              Manufacturing Pipeline
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-card-foreground">Panel Production</span>
-                <span className="text-sm text-muted-foreground">
-                  {totalPanels} / {totalEstimatedPanels}
+                <span className="text-sm font-medium text-card-foreground">Production Progress</span>
+                <span className="text-muted-foreground">
+                  {metrics.status.primary['Produced'] + metrics.status.primary['Delivered'] + 
+                   metrics.status.primary['Installed'] + metrics.status.secondary['Approved Material'] + metrics.status.secondary['Rejected Material'] + 
+                   metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']} / {metrics.counts.panels}
                 </span>
               </div>
-              <Progress value={Math.min(projectProgress, 100)} className="h-2" />
+              <Progress value={metrics.counts.panels > 0 ? ((metrics.status.primary['Produced'] + metrics.status.primary['Delivered'] + 
+                metrics.status.primary['Installed'] + metrics.status.secondary['Approved Material'] + metrics.status.secondary['Rejected Material'] + 
+                metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']) / metrics.counts.panels) * 100 : 0} className="h-2" />
               <p className="text-xs text-muted-foreground mt-1">
-                {projectProgress.toFixed(1)}% of estimated panels produced
+                {metrics.counts.panels > 0 ? (((metrics.status.primary['Produced'] + metrics.status.primary['Delivered'] + 
+                  metrics.status.primary['Installed'] + metrics.status.secondary['Approved Material'] + metrics.status.secondary['Rejected Material'] + 
+                  metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']) / metrics.counts.panels) * 100).toFixed(1) : 0}% panels produced
               </p>
             </div>
             
@@ -310,12 +1172,12 @@ export function Dashboard({ customers, projects, panels }: DashboardProps) {
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-card-foreground">Installation Rate</span>
                 <span className="text-sm text-muted-foreground">
-                  {panelStatusCounts.Installed} / {totalPanels}
+                  {metrics.status.primary['Installed']} / {metrics.counts.panels}
                 </span>
               </div>
-              <Progress value={totalPanels > 0 ? (panelStatusCounts.Installed / totalPanels) * 100 : 0} className="h-2" />
+              <Progress value={metrics.counts.panels > 0 ? (metrics.status.primary['Installed'] / metrics.counts.panels) * 100 : 0} className="h-2" />
               <p className="text-xs text-muted-foreground mt-1">
-                {totalPanels > 0 ? ((panelStatusCounts.Installed / totalPanels) * 100).toFixed(1) : 0}% panels installed
+                {metrics.counts.panels > 0 ? ((metrics.status.primary['Installed'] / metrics.counts.panels) * 100).toFixed(1) : 0}% panels installed
               </p>
             </div>
           </CardContent>
@@ -325,34 +1187,32 @@ export function Dashboard({ customers, projects, panels }: DashboardProps) {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2 text-card-foreground">
               <Activity className="h-5 w-5" />
-              Quality Metrics
+              Efficiency Metrics
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                <span className="text-sm text-card-foreground">Quality Pass Rate</span>
+                <span className="text-sm text-card-foreground">Production Efficiency</span>
               </div>
               <Badge variant="secondary">
-                {totalPanels > 0 
-                  ? (((totalPanels - panelStatusCounts.Rejected) / totalPanels) * 100).toFixed(1) 
-                  : 100}%
+                {metrics.efficiency.productionEfficiency.toFixed(1)}%
               </Badge>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                <span className="text-sm text-card-foreground">Inspected</span>
+                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                <span className="text-sm text-card-foreground">Delivery Efficiency</span>
               </div>
-              <Badge variant="secondary">{panelStatusCounts.Inspected}</Badge>
+              <Badge variant="secondary">{metrics.efficiency.deliveryEfficiency.toFixed(1)}%</Badge>
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                <span className="text-sm text-card-foreground">Rejected</span>
+                <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                <span className="text-sm text-card-foreground">Overall Completion</span>
               </div>
-              <Badge variant="destructive">{panelStatusCounts.Rejected}</Badge>
+              <Badge variant="secondary">{metrics.efficiency.overallCompletion.toFixed(1)}%</Badge>
             </div>
           </CardContent>
         </Card>
@@ -367,103 +1227,147 @@ export function Dashboard({ customers, projects, panels }: DashboardProps) {
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-card-foreground">Avg Project Value</span>
-              <span className="text-sm font-medium text-card-foreground">{formatCurrency(averageProjectValue)}</span>
+              <span className="text-sm font-medium text-card-foreground">{formatCurrency(metrics.financial.averageProjectValue)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-card-foreground">Avg Panels/Project</span>
               <span className="text-sm font-medium text-card-foreground">
-                {totalProjects > 0 ? Math.round(totalEstimatedPanels / totalProjects) : 0}
+                {metrics.counts.projects > 0 ? Math.round(metrics.financial.totalEstimatedPanels / metrics.counts.projects) : 0}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-card-foreground">Manufacturing Rate</span>
               <span className="text-sm font-medium text-card-foreground">
-                {totalEstimatedPanels > 0 ? ((totalPanels / totalEstimatedPanels) * 100).toFixed(1) : 0}%
+                {metrics.efficiency.projectProgress.toFixed(1)}%
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-card-foreground">Installation Rate</span>
               <span className="text-sm font-medium text-card-foreground">
-                {totalPanels > 0 ? ((panelStatusCounts.Installed / totalPanels) * 100).toFixed(1) : 0}%
+                {metrics.counts.panels > 0 ? ((metrics.status.primary['Installed'] / metrics.counts.panels) * 100).toFixed(1) : 0}%
               </span>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts Section */}
+      {/* Enhanced Charts Section */}
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Panel Status Distribution */}
+        {/* Interactive Panel Status Distribution */}
         <Card className="qatar-card">
           <CardHeader>
-            <CardTitle className="text-lg text-card-foreground">Panel Status Distribution</CardTitle>
-            <CardDescription className="text-muted-foreground">Current status breakdown of all panels</CardDescription>
+            <CardTitle className="text-lg text-card-foreground flex items-center gap-2">
+              <PieChartIcon className="h-5 w-5" />
+              Panel Status Distribution
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPieChartView(pieChartView === 'primary' ? 'secondary' : 'primary')}
+                className="ml-auto h-6 px-2 text-xs"
+              >
+                {pieChartView === 'primary' ? 'Show Details' : 'Show Overview'}
+              </Button>
+            </CardTitle>
+            <CardDescription className="text-muted-foreground">
+              {pieChartView === 'primary' 
+                ? 'Primary statuses with grouped secondary statuses' 
+                : 'Detailed breakdown of secondary statuses'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={panelStatusChartData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ status, count, percent }) => 
-                      `${status}: ${(percent ? percent * 100 : 0).toFixed(0)}%`
-                    }
-                    outerRadius={80}
-                    fill={CHART_COLORS.primary}
-                    dataKey="count"
-                    stroke="#ffffff"
-                    strokeWidth={2}
-                  >
-                    {panelStatusChartData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={STATUS_COLORS[entry.status as PanelStatus]} 
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center h-80">
+                <div className="h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={chartData.pieChart}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        innerRadius={60}
+                        outerRadius={100}
+                        fill={CHART_COLORS.primary}
+                        dataKey="count"
+                        nameKey="status"
+                        stroke="#ffffff"
+                        strokeWidth={2}
+                        paddingAngle={2}
+                        onClick={handlePieChartClick}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        {chartData.pieChart.map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={entry.status === 'Rest' ? '#6B7280' : STATUS_COLORS[entry.status as AllStatus] || '#9CA3AF'} 
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: any, name: any) => [`${name} : ${value}`, 'Count']} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-2">
+                  {chartData.pieChart.map((item) => (
+                    <div key={item.status} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <span 
+                          className="inline-block h-3 w-3 rounded-sm" 
+                          style={{ 
+                            backgroundColor: item.status === 'Rest' ? '#6B7280' : STATUS_COLORS[item.status as AllStatus] || '#9CA3AF' 
+                          }} 
+                        />
+                        <span className="text-muted-foreground">{item.status}</span>
+                      </div>
+                      <span className="font-medium text-foreground">{item.count}</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between text-sm pt-2 border-t border-white/20">
+                    <span className="text-muted-foreground">Total Panels</span>
+                    <span className="font-medium text-foreground">{metrics.counts.panels}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Panel Processing Pipeline */}
+        {/* Manufacturing Timeline */}
         <Card className="qatar-card">
           <CardHeader>
-            <CardTitle className="text-lg text-card-foreground">Processing Pipeline</CardTitle>
-            <CardDescription className="text-muted-foreground">Panel status flow and quantities</CardDescription>
+            <CardTitle className="text-lg text-card-foreground">Manufacturing Pipeline</CardTitle>
+            <CardDescription className="text-muted-foreground">Panel progression through production stages</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={panelStatusChartData}>
+                <ComposedChart data={chartData.timeline}>
+                  <defs>
+                    <linearGradient id="colorArea" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={CHART_COLORS.success} stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor={CHART_COLORS.success} stopOpacity={0.1}/>
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
                   <XAxis 
-                    dataKey="status" 
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
+                    dataKey="stage" 
                     tick={{ fill: '#ffffff80', fontSize: 12 }}
                   />
                   <YAxis tick={{ fill: '#ffffff80', fontSize: 12 }} />
                   <Tooltip content={<CustomTooltip />} />
+                  <Area 
+                    type="monotone" 
+                    dataKey="cumulative" 
+                    stroke={CHART_COLORS.success}
+                    fill="url(#colorArea)"
+                    strokeWidth={2}
+                  />
                   <Bar 
                     dataKey="count" 
-                    fill={CHART_COLORS.primary}
-                    radius={[4, 4, 0, 0]}
-                  >
-                    {panelStatusChartData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={STATUS_COLORS[entry.status as PanelStatus]} 
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
+                    fill={CHART_COLORS.warning}
+                    radius={[2, 2, 0, 0]}
+                  />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -478,7 +1382,7 @@ export function Dashboard({ customers, projects, panels }: DashboardProps) {
           <CardContent>
             <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart layout="vertical" data={locationChartData}>
+                <BarChart layout="vertical" data={chartData.location}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
                   <XAxis 
                     type="number" 
@@ -502,64 +1406,214 @@ export function Dashboard({ customers, projects, panels }: DashboardProps) {
           </CardContent>
         </Card>
 
-        {/* Manufacturing Timeline */}
+        {/* Efficiency Radar Chart */}
         <Card className="qatar-card">
           <CardHeader>
-            <CardTitle className="text-lg text-card-foreground">Manufacturing Progress</CardTitle>
-            <CardDescription className="text-muted-foreground">Panel production and completion trend</CardDescription>
+            <CardTitle className="text-lg text-card-foreground">Efficiency Overview</CardTitle>
+            <CardDescription className="text-muted-foreground">Multi-dimensional performance metrics</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
               <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={[
-                  { status: 'Manufactured', count: panelStatusCounts.Manufactured, cumulative: panelStatusCounts.Manufactured },
-                  { status: 'Inspected', count: panelStatusCounts.Inspected, cumulative: panelStatusCounts.Manufactured + panelStatusCounts.Inspected },
-                  { status: 'Delivered', count: panelStatusCounts.Delivered, cumulative: panelStatusCounts.Manufactured + panelStatusCounts.Inspected + panelStatusCounts.Delivered },
-                  { status: 'Installed', count: panelStatusCounts.Installed, cumulative: panelStatusCounts.Manufactured + panelStatusCounts.Inspected + panelStatusCounts.Delivered + panelStatusCounts.Installed }
-                ]}>
-                  <defs>
-                    <linearGradient id="colorArea" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={CHART_COLORS.success} stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor={CHART_COLORS.success} stopOpacity={0.1}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
-                  <XAxis 
-                    dataKey="status" 
+                <RadarChart data={chartData.efficiency}>
+                  <PolarGrid stroke="#ffffff20" />
+                  <PolarAngleAxis 
+                    dataKey="metric" 
                     tick={{ fill: '#ffffff80', fontSize: 12 }}
                   />
-                  <YAxis tick={{ fill: '#ffffff80', fontSize: 12 }} />
+                  <PolarRadiusAxis 
+                    tick={{ fill: '#ffffff80', fontSize: 12 }}
+                    domain={[0, 100]}
+                  />
+                  <Radar
+                    name="Efficiency"
+                    dataKey="value"
+                    stroke={CHART_COLORS.primary}
+                    fill={CHART_COLORS.primary}
+                    fillOpacity={0.3}
+                  />
                   <Tooltip content={<CustomTooltip />} />
-                  <Area 
-                    type="monotone" 
-                    dataKey="cumulative" 
-                    stroke={CHART_COLORS.success}
-                    fill="url(#colorArea)"
-                    strokeWidth={2}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="count" 
-                    stroke={CHART_COLORS.warning}
-                    strokeWidth={3}
-                    dot={{ fill: CHART_COLORS.warning, strokeWidth: 2, r: 4 }}
-                  />
-                </AreaChart>
+                </RadarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent Projects Activity */}
+      {/* Section-Specific Content */}
+      {activeSection === 'projects' && (
       <Card className="qatar-card">
         <CardHeader>
-          <CardTitle className="text-lg text-card-foreground">Recent Projects</CardTitle>
-          <CardDescription className="text-muted-foreground">Latest project activity and updates</CardDescription>
+            <CardTitle className="text-lg text-card-foreground">Project Insights & Analytics</CardTitle>
+            <CardDescription className="text-muted-foreground">Comprehensive project performance and financial metrics</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Project Financial Overview */}
+          <div className="space-y-4">
+                <h4 className="font-medium text-card-foreground">Financial Performance</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/20">
+                    <span className="text-sm text-muted-foreground">Total Project Value</span>
+                    <span className="font-semibold text-card-foreground">{formatCurrency(metrics.financial.totalEstimatedValue)}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/20">
+                    <span className="text-sm text-muted-foreground">Average Project Value</span>
+                    <span className="font-semibold text-card-foreground">{formatCurrency(metrics.financial.averageProjectValue)}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/20">
+                    <span className="text-sm text-muted-foreground">Total Estimated Panels</span>
+                    <span className="font-semibold text-card-foreground">{formatNumber(metrics.financial.totalEstimatedPanels)}</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Project Overview */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-card-foreground">Project Overview</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-orange-500/20">
+                    <span className="text-sm text-orange-700 dark:text-orange-300">On Hold Projects</span>
+                    <Badge variant="secondary" className="bg-orange-500 text-white">{metrics.counts.onHoldProjects}</Badge>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeSection === 'buildings' && (
+        <Card className="qatar-card">
+          <CardHeader>
+            <CardTitle className="text-lg text-card-foreground">Building Infrastructure Insights</CardTitle>
+            <CardDescription className="text-muted-foreground">Building performance, capacity, and operational metrics</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Building Overview */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-card-foreground">Building Overview</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/20">
+                    <span className="text-sm text-muted-foreground">Total Buildings</span>
+                    <span className="font-semibold text-card-foreground">{formatNumber(metrics.counts.buildings)}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/20">
+                    <span className="text-sm text-muted-foreground">Buildings per Project</span>
+                    <span className="font-semibold text-card-foreground">
+                      {metrics.counts.projects > 0 ? (metrics.counts.buildings / metrics.counts.projects).toFixed(1) : 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/20">
+                    <span className="text-sm text-muted-foreground">Panels per Building</span>
+                    <span className="font-semibold text-card-foreground">
+                      {metrics.counts.buildings > 0 ? (metrics.counts.panels / metrics.counts.buildings).toFixed(1) : 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Building Performance */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-card-foreground">Performance Metrics</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-purple-500/20">
+                    <span className="text-sm text-purple-700 dark:text-purple-300">Installation Efficiency</span>
+                    <Badge variant="secondary" className="bg-purple-500 text-white">
+                      {metrics.efficiency.panelCompletionRate.toFixed(1)}%
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-cyan-500/20">
+                    <span className="text-sm text-cyan-700 dark:text-cyan-300">Production Rate</span>
+                    <Badge variant="secondary" className="bg-cyan-500 text-white">
+                      {metrics.efficiency.projectProgress.toFixed(1)}%
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeSection === 'facades' && (
+        <Card className="qatar-card">
+          <CardHeader>
+            <CardTitle className="text-lg text-card-foreground">Facade Engineering Insights</CardTitle>
+            <CardDescription className="text-muted-foreground">Facade design, manufacturing, and installation analytics</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Facade Overview */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-card-foreground">Facade Overview</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/20">
+                    <span className="text-sm text-muted-foreground">Total Facades</span>
+                    <span className="font-semibold text-card-foreground">{formatNumber(metrics.counts.facades)}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/20">
+                    <span className="text-sm text-muted-foreground">Facades per Building</span>
+                    <span className="font-semibold text-card-foreground">
+                      {metrics.counts.buildings > 0 ? (metrics.counts.facades / metrics.counts.buildings).toFixed(1) : 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/20">
+                    <span className="text-sm text-muted-foreground">Panels per Facade</span>
+                    <span className="font-semibold text-card-foreground">
+                      {metrics.counts.facades > 0 ? (metrics.counts.panels / metrics.counts.facades).toFixed(1) : 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Manufacturing Pipeline */}
+              <div className="space-y-4">
+                <h4 className="font-medium text-card-foreground">Manufacturing Pipeline</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-amber-500/20">
+                    <span className="text-sm text-amber-700 dark:text-amber-300">Issued for Production</span>
+                    <Badge variant="secondary" className="bg-amber-500 text-white">
+                      {metrics.status.primary['Issued for Production']}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-emerald-500/20">
+                    <span className="text-sm text-emerald-700 dark:text-emerald-300">Produced</span>
+                    <Badge variant="secondary" className="bg-emerald-500 text-white">
+                      {metrics.status.primary['Produced']}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center p-3 rounded-lg bg-blue-500/20">
+                    <span className="text-sm text-blue-700 dark:text-blue-300">Delivered</span>
+                    <Badge variant="secondary" className="bg-blue-500 text-white">
+                      {metrics.status.primary['Delivered']}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Enhanced Recent Projects Activity */}
+      <Card className="qatar-card">
+        <CardHeader>
+          <CardTitle className="text-lg text-card-foreground">
+            {activeSection === 'projects' && 'Recent Projects'}
+            {activeSection === 'buildings' && 'Recent Building Updates'}
+            {activeSection === 'facades' && 'Recent Facade Activities'}
+          </CardTitle>
+          <CardDescription className="text-muted-foreground">
+            {activeSection === 'projects' && 'Latest project activity and updates'}
+            {activeSection === 'buildings' && 'Latest building construction and modification updates'}
+            {activeSection === 'facades' && 'Latest facade design and installation updates'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {projects.slice(0, 5).map((project) => (
+                         {dashboardData.projects.slice(0, 5).map((project) => (
               <div key={project.id} className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-white/5 backdrop-blur-sm">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/20">
@@ -578,7 +1632,7 @@ export function Dashboard({ customers, projects, panels }: DashboardProps) {
                       </span>
                       <span className="flex items-center gap-1">
                         <DollarSign className="h-3 w-3" />
-                        {formatCurrency(project.estimatedCost || 0)}
+                        {formatCurrency(project.estimated_cost || 0)}
                       </span>
                     </div>
                   </div>
@@ -597,6 +1651,8 @@ export function Dashboard({ customers, projects, panels }: DashboardProps) {
           </div>
         </CardContent>
       </Card>
+        </>
+      )}
     </div>
   );
 }
@@ -1214,9 +2270,9 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All customers</SelectItem>
-                        {uniqueCustomers.map((customer) => (
-                          <SelectItem key={customer} value={customer}>
-                            {customer}
+                        {customers.map((customer) => (
+                          <SelectItem key={customer.id} value={customer.id}>
+                            {customer.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1614,9 +2670,11 @@ interface HomePageProps {
   customers?: any[];
   projects?: any[];
   panels?: any[];
+  buildings?: any[];
+  facades?: any[];
 }
 
-export function HomePage({ customers = [], projects = [], panels = [] }: HomePageProps) {
+export function HomePage({ customers = [], projects = [], panels = [], buildings = [], facades = [] }: HomePageProps) {
   const [currentView, setCurrentView] = useState<'dashboard' | 'bulk-import'>('dashboard');
   const [importedProjects, setImportedProjects] = useState<any[]>([]);
 
@@ -1641,7 +2699,7 @@ export function HomePage({ customers = [], projects = [], panels = [] }: HomePag
               Bulk Import Projects
             </Button> */}
           </div>
-          <Dashboard customers={customers} projects={projects} panels={panels} />
+          <Dashboard customers={customers} projects={projects} panels={panels} buildings={buildings} facades={facades} />
         </div>
       ) : (
         <BulkImportPage 

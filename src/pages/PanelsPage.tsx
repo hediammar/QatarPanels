@@ -30,6 +30,8 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
+import QRCode from "qrcode";
+import { jsPDF } from "jspdf";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -548,6 +550,93 @@ export function PanelsPage() {
   const handleStatusChanged = () => {
     // Explicitly refresh data to ensure UI reflects latest status
     fetchData();
+  };
+
+  const handleBulkQRCodeDownload = async () => {
+    if (filteredPanels.length === 0) {
+      showToast("No panels to generate QR codes for", "error");
+      return;
+    }
+
+    try {
+      showToast("Generating QR codes PDF...", "success");
+      
+      // Create new PDF document
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      const qrSize = 60;
+      const spacing = 10;
+      const textHeight = 10;
+      
+      // Calculate layout: 3 QR codes per row
+      const qrCodesPerRow = 3;
+      const availableWidth = pageWidth - (2 * margin);
+      const qrWithSpacing = qrSize + spacing;
+      const startX = margin + (availableWidth - (qrCodesPerRow * qrWithSpacing - spacing)) / 2;
+      
+      let currentY = margin;
+      let currentRow = 0;
+      let currentCol = 0;
+      
+      for (let i = 0; i < filteredPanels.length; i++) {
+        const panel = filteredPanels[i];
+        
+        // Check if we need a new page
+        if (currentY + qrSize + (textHeight * 2) + spacing > pageHeight - margin) {
+          pdf.addPage();
+          currentY = margin;
+          currentRow = 0;
+          currentCol = 0;
+        }
+        
+        // Calculate position for current QR code
+        const x = startX + (currentCol * qrWithSpacing);
+        const y = currentY;
+        
+        // Generate QR code data URL - same format as QRCodeModal
+        const qrCodeData = `${window.location.origin}/panels/${panel.id}`;
+        const qrDataURL = await QRCode.toDataURL(qrCodeData, {
+          width: qrSize,
+          margin: 1,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          }
+        });
+        
+        // Add QR code image to PDF
+        pdf.addImage(qrDataURL, 'PNG', x, y, qrSize, qrSize);
+        
+        // Add panel name below QR code
+        const panelName = panel.name.length > 20 ? panel.name.substring(0, 17) + '...' : panel.name;
+        pdf.setFontSize(8);
+        pdf.text(panelName, x + qrSize/2, y + qrSize + 5, { align: 'center' });
+        
+        // Add project name below panel name
+        const projectName = panel.project_name ? (panel.project_name.length > 20 ? panel.project_name.substring(0, 17) + '...' : panel.project_name) : 'No Project';
+        pdf.setFontSize(7);
+        pdf.text(projectName, x + qrSize/2, y + qrSize + 12, { align: 'center' });
+        
+        // Move to next position
+        currentCol++;
+        if (currentCol >= qrCodesPerRow) {
+          currentCol = 0;
+          currentRow++;
+          currentY += qrSize + (textHeight * 2) + spacing;
+        }
+      }
+      
+      // Save the PDF
+      const fileName = `panels_qr_codes_${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
+      
+      showToast(`QR codes PDF generated successfully with ${filteredPanels.length} panels`, "success");
+    } catch (error) {
+      console.error("Error generating QR codes PDF:", error);
+      showToast("Error generating QR codes PDF", "error");
+    }
   };
 
   const confirmDeletePanel = async () => {
@@ -1146,6 +1235,14 @@ export function PanelsPage() {
               </Button>
             </>
           )}
+          <Button 
+            variant="outline" 
+            onClick={handleBulkQRCodeDownload}
+            disabled={filteredPanels.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Bulk Download QRCode
+          </Button>
           {canCreatePanels && (
             <Button onClick={() => setIsAddPanelDialogOpen(true)} disabled={!canCreatePanels}>
               <Plus className="h-4 w-4 mr-2" />

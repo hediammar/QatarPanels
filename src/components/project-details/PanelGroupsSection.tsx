@@ -872,6 +872,23 @@ async function fetchPanelGroups(projectId?: string): Promise<PanelGroupModel[]> 
     return [];
   }
 
+  // Fetch project names for all unique project IDs
+  const projectIds = Array.from(new Set(data.map(group => group.project_id).filter(Boolean)));
+  let projectsMap = new Map<string, string>();
+  
+  if (projectIds.length > 0) {
+    const { data: projectsData, error: projectsError } = await supabase
+      .from('projects')
+      .select('id, name')
+      .in('id', projectIds);
+
+    if (projectsError) {
+      console.error('Error fetching projects:', projectsError);
+    } else {
+      projectsMap = new Map(projectsData?.map(p => [p.id, p.name]) || []);
+    }
+  }
+
   // Get panel count for each group using the new junction table
   const groupsWithCounts = await Promise.all(
     data.map(async (group) => {
@@ -883,18 +900,16 @@ async function fetchPanelGroups(projectId?: string): Promise<PanelGroupModel[]> 
       if (countError) {
         console.error('Error fetching panel count for group:', group.id, countError);
         return {
-    id: group.id,
-    name: group.name,
-    description: group.description || '',
+          id: group.id,
+          name: group.name,
+          description: group.description || '',
           panelCount: 0,
           status: "Produced" as PanelStatus,
-    createdAt: new Date(group.created_at).toISOString(),
-          project: 'Unknown',
+          createdAt: new Date(group.created_at).toISOString(),
+          project: projectsMap.get(group.project_id || '') || 'Unknown Project',
           project_id: group.project_id || '',
         };
       }
-
-      // Panel groups are no longer tied to specific projects
 
       return {
         id: group.id,
@@ -903,7 +918,7 @@ async function fetchPanelGroups(projectId?: string): Promise<PanelGroupModel[]> 
         panelCount: panelCountData?.length || 0,
         status: "Produced" as PanelStatus,
         createdAt: new Date(group.created_at).toISOString(),
-        project: '', // No longer tied to specific projects
+        project: projectsMap.get(group.project_id || '') || 'Unknown Project',
         project_id: group.project_id || '',
       };
     })
@@ -1547,7 +1562,14 @@ export function PanelGroupsSection({
                             )}
                           </Button>
                           <div>
-                            <CardTitle className="text-lg">{group.name}</CardTitle>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              {group.name}
+                              {group.project && (
+                                <Badge className="bg-red-600 text-white text-xs px-2 py-1 rounded-md">
+                                  {group.project}
+                                </Badge>
+                              )}
+                            </CardTitle>
                             <p className="text-sm text-muted-foreground">
                               {group.description}
                             </p>

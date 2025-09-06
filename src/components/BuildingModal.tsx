@@ -263,13 +263,32 @@ export function BuildingModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      {trigger && (
-        <DialogTrigger asChild>
-          {trigger}
-        </DialogTrigger>
-      )}
-      <DialogContent className="max-w-2xl bg-card border-border">
+    <>
+      <style>
+        {`
+          .fixed-width-select .select-trigger {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            flex-shrink: 1 !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+          }
+          .fixed-width-select .select-trigger * {
+            max-width: 100% !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+          }
+        `}
+      </style>
+      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+        {trigger && (
+          <DialogTrigger asChild>
+            {trigger}
+          </DialogTrigger>
+        )}
+        <DialogContent className="max-w-2xl bg-card border-border">
         <DialogHeader>
           <DialogTitle className="text-card-foreground">
             {editingBuilding ? 'Edit Building' : 'Create New Building'}
@@ -287,98 +306,6 @@ export function BuildingModal({
                 className="bg-input border-border text-foreground placeholder:text-muted-foreground"
                 required
               />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="project" className="text-card-foreground">Project *</Label>
-              <Select 
-                value={formData.project_id} 
-                onValueChange={(value) => setFormData({ ...formData, project_id: value })}
-                disabled={projectsLoading}
-              >
-                <SelectTrigger className="bg-input border-border text-foreground">
-                  <SelectValue placeholder={projectsLoading ? "Loading projects..." : "Select project"} />
-                </SelectTrigger>
-                <SelectContent className="bg-popover border-border">
-                  {projects.length === 0 && !projectsLoading ? (
-                    <SelectItem value="" disabled className="text-popover-foreground">
-                      No projects available
-                    </SelectItem>
-                  ) : (
-                    projects.map((project) => {
-                      console.log('🔍 BuildingModal: Rendering project in dropdown:', project);
-                      return (
-                        <SelectItem 
-                          key={project.id} 
-                          value={project.id} 
-                          className="text-popover-foreground"
-                        >
-                          {project.name} {project.customer ? `- ${project.customer}` : ''}
-                        </SelectItem>
-                      );
-                    })
-                  )}
-                </SelectContent>
-              </Select>
-              {projectsLoading && (
-                <p className="text-xs text-muted-foreground">Loading projects...</p>
-              )}
-              {!projectsLoading && projects.length === 0 && (
-                <div className="text-xs text-destructive space-y-1">
-                  <p>No projects found. Please create a project first.</p>
-                  <p>You can create projects from the Projects page.</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => {
-                      setProjectsLoading(true);
-                      // Trigger a re-fetch
-                      const fetchProjects = async () => {
-                        try {
-                          const { data, error } = await supabase
-                            .from('projects')
-                            .select(`
-                              id, 
-                              name, 
-                              customers (name)
-                            `)
-                            .order('name');
-                          
-                          if (error) {
-                            console.error('Error fetching projects:', error);
-                            showToast('Failed to load projects', 'error');
-                            setProjects([]);
-                            return;
-                          }
-                          
-                          const transformedProjects: Project[] = (data as any[])?.map((project: any) => ({
-                            id: project.id,
-                            name: project.name,
-                            customer: project.customers?.name || ''
-                          })) || [];
-                          
-                          setProjects(transformedProjects);
-                        } catch (error) {
-                          console.error('Error fetching projects:', error);
-                          showToast('Failed to load projects', 'error');
-                          setProjects([]);
-                        } finally {
-                          setProjectsLoading(false);
-                        }
-                      };
-                      fetchProjects();
-                    }}
-                    className="mt-2"
-                  >
-                    Retry
-                  </Button>
-                </div>
-              )}
-              {!projectsLoading && projects.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {projects.length} project{projects.length !== 1 ? 's' : ''} available
-                </p>
-              )}
             </div>
             
             <div className="space-y-2">
@@ -400,6 +327,121 @@ export function BuildingModal({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="project" className="text-card-foreground">Project *</Label>
+            <div className="w-full overflow-hidden fixed-width-select" style={{ maxWidth: '100%', width: '100%' }}>
+              <Select 
+                value={formData.project_id} 
+                onValueChange={(value) => setFormData({ ...formData, project_id: value })}
+                disabled={projectsLoading}
+              >
+                <SelectTrigger 
+                  className="bg-input border-border text-foreground w-full max-w-full min-w-0 truncate" 
+                  style={{ 
+                    width: '100%', 
+                    maxWidth: '100%', 
+                    minWidth: '0', 
+                    flexShrink: 1, 
+                    overflow: 'hidden',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <SelectValue placeholder={projectsLoading ? "Loading projects..." : "Select project"}>
+                    {formData.project_id ? (() => {
+                      const selectedProject = projects.find(p => p.id === formData.project_id);
+                      if (selectedProject) {
+                        const fullName = `${selectedProject.name}${selectedProject.customer ? ` - ${selectedProject.customer}` : ''}`;
+                        return fullName.length > 50 ? `${fullName.substring(0, 50)}...` : fullName;
+                      }
+                      return "Select project";
+                    })() : "Select project"}
+                  </SelectValue>
+                </SelectTrigger>
+              <SelectContent className="bg-popover border-border max-h-[300px] overflow-y-auto">
+                {projects.length === 0 && !projectsLoading ? (
+                  <SelectItem value="" disabled className="text-popover-foreground">
+                    No projects available
+                  </SelectItem>
+                ) : (
+                  projects.map((project) => {
+                    console.log('🔍 BuildingModal: Rendering project in dropdown:', project);
+                    return (
+                      <SelectItem 
+                        key={project.id} 
+                        value={project.id} 
+                        className="text-popover-foreground"
+                      >
+                        <div className="truncate max-w-full">
+                          {project.name} {project.customer ? `- ${project.customer}` : ''}
+                        </div>
+                      </SelectItem>
+                    );
+                  })
+                )}
+              </SelectContent>
+              </Select>
+            </div>
+            {projectsLoading && (
+              <p className="text-xs text-muted-foreground">Loading projects...</p>
+            )}
+            {!projectsLoading && projects.length === 0 && (
+              <div className="text-xs text-destructive space-y-1">
+                <p>No projects found. Please create a project first.</p>
+                <p>You can create projects from the Projects page.</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    setProjectsLoading(true);
+                    // Trigger a re-fetch
+                    const fetchProjects = async () => {
+                      try {
+                        const { data, error } = await supabase
+                          .from('projects')
+                          .select(`
+                            id, 
+                            name, 
+                            customers (name)
+                          `)
+                          .order('name');
+                        
+                        if (error) {
+                          console.error('Error fetching projects:', error);
+                          showToast('Failed to load projects', 'error');
+                          setProjects([]);
+                          return;
+                        }
+                        
+                        const transformedProjects: Project[] = (data as any[])?.map((project: any) => ({
+                          id: project.id,
+                          name: project.name,
+                          customer: project.customers?.name || ''
+                        })) || [];
+                        
+                        setProjects(transformedProjects);
+                      } catch (error) {
+                        console.error('Error fetching projects:', error);
+                        showToast('Failed to load projects', 'error');
+                        setProjects([]);
+                      } finally {
+                        setProjectsLoading(false);
+                      }
+                    };
+                    fetchProjects();
+                  }}
+                  className="mt-2"
+                >
+                  Retry
+                </Button>
+              </div>
+            )}
+            {!projectsLoading && projects.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {projects.length} project{projects.length !== 1 ? 's' : ''} available
+              </p>
+            )}
           </div>
           
           <div className="space-y-2">
@@ -442,6 +484,7 @@ export function BuildingModal({
         </form>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 

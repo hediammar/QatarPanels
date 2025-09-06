@@ -1037,6 +1037,7 @@ export function PanelGroupsSection({
   const canCreatePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canCreate') : false;
   const canUpdatePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canUpdate') : false;
   const canDeletePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canDelete') : false;
+  const canCreateNotes = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'notes', 'canCreate') : false;
 
   useEffect(() => {
     async function loadData() {
@@ -1373,9 +1374,11 @@ export function PanelGroupsSection({
               Add Group
             </Button>
           )}
-          <Button variant="outline" onClick={() => setIsAddNoteDialogOpen(true)}>
-            Add Note
-          </Button>
+          {canCreateNotes && (
+            <Button variant="outline" onClick={() => setIsAddNoteDialogOpen(true)}>
+              Add Note
+            </Button>
+          )}
         </div>
       </div>
 

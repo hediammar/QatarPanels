@@ -1518,10 +1518,12 @@ export function PanelGroupsPage({
           </Badge>
         </div>
         <div className="flex gap-2">
-          <Button onClick={handleOpenCreateGroup} className="flex items-center gap-2">
-            <Package className="h-4 w-4" />
-            Add Panel Group
-          </Button>
+          {canCreatePanelGroups && (
+            <Button onClick={handleOpenCreateGroup} className="flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              Add Panel Group
+            </Button>
+          )}
         </div>
         
       </div>
@@ -1673,26 +1675,28 @@ export function PanelGroupsPage({
                           </div>
                         </div>
 
-                                                 <div className="flex items-center gap-2">
-                           
-                           <Button
-                             variant="ghost"
-                             size="sm"
-                             onClick={() => handleEdit(group)}
-                                 >
-                             <Edit className="h-4 w-4" />
-                           </Button>
-                           
-                           {canDeletePanelGroups && (
-                             <Button
-                               variant="ghost"
-                               size="sm"
-                               onClick={() => handleDelete(group.id)}
-                                   >
-                               <X className="h-4 w-4 text-red-500" />
-                             </Button>
-                           )}
-                         </div>
+                        <div className="flex items-center gap-2">
+                          {canUpdatePanelGroups && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(group)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
+                          
+                          {canDeletePanelGroups && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(group.id)}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
 
                       {/* Group Summary */}

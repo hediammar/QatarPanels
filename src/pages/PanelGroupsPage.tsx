@@ -37,17 +37,16 @@ import { useToastContext } from "../contexts/ToastContext";
 const PANEL_STATUSES = [
   { value: "Issued For Production", label: "Issued For Production" },
   { value: "Produced", label: "Produced" },
-  { value: "Inspected", label: "Inspected" },
-  { value: "Approved Material", label: "Approved Material" },
-  { value: "Rejected Material", label: "Rejected Material" },
-  { value: "Issued", label: "Issued" },
   { value: "Proceed for Delivery", label: "Proceed for Delivery" },
   { value: "Delivered", label: "Delivered" },
+  { value: "Approved Material", label: "Approved Material" },
+  { value: "Rejected Material", label: "Rejected Material" },
   { value: "Installed", label: "Installed" },
-  { value: "Approved Final", label: "Approved Final" },
-  { value: "Broken at Site", label: "Broken at Site" },
+  { value: "Inspected", label: "Inspected" },
+  { value: "Approved Final", label: "Approved Final" }, 
   { value: "On Hold", label: "On Hold" },
   { value: "Cancelled", label: "Cancelled" },
+  { value: "Broken at Site", label: "Broken at Site" },
 ] as const;
 
 type PanelStatus = (typeof PANEL_STATUSES)[number]["value"];
@@ -1275,17 +1274,16 @@ function mapPanelStatus(status: number): PanelStatus {
   const statusMap: { [key: number]: PanelStatus } = {
     0: "Issued For Production",
     1: "Produced",
-    2: "Inspected",
-    3: "Approved Material",
-    4: "Rejected Material",
-    5: "Issued",
-    6: "Proceed for Delivery",
-    7: "Delivered",
-    8: "Installed",
-    9: "Approved Final",
-    10: "Broken at Site",
-    11: "On Hold",
-    12: "Cancelled",
+    2: "Proceed for Delivery",
+    3: "Delivered",
+    4: "Approved Material",
+    5: "Rejected Material",
+    6: "Installed",
+    7: "Inspected",
+    8: "Approved Final",
+    9: "On Hold",
+    10: "Cancelled",
+    11: "Broken at Site",
   };
 
   return statusMap[status] || "Issued For Production";

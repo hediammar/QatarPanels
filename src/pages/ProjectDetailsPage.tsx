@@ -10,6 +10,7 @@ import { BuildingsSection } from "../components/project-details/BuildingsSection
 import { PanelGroupsSection } from "../components/project-details/PanelGroupsSection";
 import { PanelsSection } from "../components/project-details/PanelsSection";
 import { ProjectOverview } from "../components/project-details/ProjectOverview";
+import { NotesSection } from "../components/project-details/NotesSection";
 import { Button } from "../components/ui/button";
 import {
   Tabs,
@@ -322,11 +323,12 @@ export function ProjectDetailsPage() {
 
       {/* Tabbed Sections */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="buildings">Buildings</TabsTrigger>
           <TabsTrigger value="facades">Facades</TabsTrigger>
           <TabsTrigger value="panel-groups">Panel Groups</TabsTrigger>
           <TabsTrigger value="panels">Panels</TabsTrigger>
+          <TabsTrigger value="notes">Notes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="buildings" className="space-y-6">
@@ -355,6 +357,13 @@ export function ProjectDetailsPage() {
 
         <TabsContent value="panels" className="space-y-6">
           <PanelsSection
+            projectId={project.id}
+            projectName={project.name}
+          />
+        </TabsContent>
+
+        <TabsContent value="notes" className="space-y-6">
+          <NotesSection
             projectId={project.id}
             projectName={project.name}
           />

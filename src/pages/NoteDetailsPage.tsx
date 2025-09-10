@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, FileText, Edit, Trash2, FolderOpen, Users, ChevronUp, ChevronDown, Package, Plus, X } from "lucide-react";
+import { ArrowLeft, FileText, Edit, Trash2, FolderOpen, Users, ChevronUp, ChevronDown, Package, Plus, X, TrendingUp, Clock, User, MapPin, Square, DollarSign, Weight } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -14,6 +14,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { hasPermission, UserRole } from "../utils/rolePermissions";
 import { useToastContext } from "../contexts/ToastContext";
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 
 interface Note {
   id: string;
@@ -117,18 +118,17 @@ function PanelGroupCard({ panelGroup, navigate }: { panelGroup: PanelGroup; navi
   const mapPanelStatus = (status: number): string => {
     const statusMap: { [key: number]: string } = {
       0: "Issued For Production",
-      1: "Produced",
-      2: "Inspected",
-      3: "Approved Material",
-      4: "Rejected Material",
-      5: "Issued",
-      6: "Proceed for Delivery",
-      7: "Delivered",
-      8: "Installed",
-      9: "Approved Final",
-      10: "Broken at Site",
-      11: "On Hold",
-      12: "Cancelled",
+    1: "Produced",
+    2: "Proceed for Delivery",
+    3: "Delivered",
+    4: "Approved Material",
+    5: "Rejected Material",
+    6: "Installed",
+    7: "Inspected",
+    8: "Approved Final",
+    9: "On Hold",
+    10: "Cancelled",
+    11: "Broken at Site",
     };
     return statusMap[status] || "Issued For Production";
   };
@@ -249,9 +249,48 @@ export function NoteDetailsPage() {
   const [availablePanelGroups, setAvailablePanelGroups] = useState<Array<{id: string, name: string, project_name: string}>>([]);
   const [selectedPanelGroups, setSelectedPanelGroups] = useState<string[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [panelStatusCounts, setPanelStatusCounts] = useState<Record<string, number>>({});
+  const [totalPanels, setTotalPanels] = useState<number>(0);
 
   const canEditNotes = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'notes', 'canUpdate') : false;
   const canDeleteNotes = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'notes', 'canDelete') : false;
+
+  // Panel status domain used across the app
+  const PANEL_STATUSES = [
+    'Issued For Production',
+    'Produced',
+    'Proceed for Delivery',
+    'Delivered',
+    'Approved Material',
+    'Rejected Material',
+    'Installed',
+    'Inspected',
+    'Approved Final',
+    'On Hold',
+    'Cancelled',
+    'Broken at Site',
+  ] as const;
+
+  const statusMap: { [key: number]: string } = Object.fromEntries(
+    PANEL_STATUSES.map((status, index) => [index, status])
+  );
+
+  // Color palette per status
+  const STATUS_COLORS: Record<string, string> = {
+    "Issued For Production": "#E11D48",
+    Produced: "#F59E0B",
+    Inspected: "#8B5CF6",
+    "Approved Material": "#22C55E",
+    "Rejected Material": "#EF4444",
+    
+    "Proceed for Delivery": "#06B6D4",
+    Delivered: "#3B82F6",
+    Installed: "#10B981",
+    "Approved Final": "#84CC16",
+    "Broken at Site": "#F97316",
+    "On Hold": "#A3A3A3",
+    Cancelled: "#475569",
+  };
 
   useEffect(() => {
     if (id) {
@@ -358,7 +397,7 @@ export function NoteDetailsPage() {
             // Then get panel details
             const { data: panelsData, error: panelsError } = await supabase
               .from('panels')
-              .select('ifp_qty_area_sm, unit_rate_qr_m2, weight')
+              .select('ifp_qty_area_sm, unit_rate_qr_m2, weight, status')
               .in('id', panelIds);
 
             if (panelsError) {
@@ -392,6 +431,36 @@ export function NoteDetailsPage() {
             };
           })
         );
+
+        // Calculate overall panel status counts and totals for all panel groups
+        const allPanelIds = new Set<string>();
+        for (const group of panelGroupsWithTotals) {
+          const { data: membershipData } = await supabase
+            .from('panel_group_memberships')
+            .select('panel_id')
+            .eq('panel_group_id', group.id);
+          
+          membershipData?.forEach(m => allPanelIds.add(m.panel_id));
+        }
+
+        if (allPanelIds.size > 0) {
+          const { data: allPanelsData } = await supabase
+            .from('panels')
+            .select('status')
+            .in('id', Array.from(allPanelIds));
+
+          // Calculate panel status counts
+          const counts: Record<string, number> = {};
+          for (const panel of allPanelsData || []) {
+            const statusName = statusMap[panel.status] || "Unknown";
+            counts[statusName] = (counts[statusName] || 0) + 1;
+          }
+          setPanelStatusCounts(counts);
+          setTotalPanels(allPanelsData?.length || 0);
+        } else {
+          setPanelStatusCounts({});
+          setTotalPanels(0);
+        }
 
         setNote({
           ...noteData,
@@ -539,6 +608,24 @@ export function NoteDetailsPage() {
     });
   };
 
+  const formatQatarRiyal = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "QAR",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount || 0);
+  };
+
+  const getProgress = () => {
+    if (totalPanels === 0) return 0;
+    return Math.round(((panelStatusCounts["Installed"] || 0) / totalPanels) * 100);
+  };
+
+  const pieData = Object.entries(panelStatusCounts)
+    .filter(([, count]) => count > 0)
+    .map(([status, count]) => ({ name: status, value: count }));
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -580,125 +667,326 @@ export function NoteDetailsPage() {
         </Button>
       </div>
 
-      {/* Note Overview */}
-      <Card className="qatar-card">
-        <CardHeader className="qatar-card-header">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <CardTitle className="qatar-card-title text-2xl">
-                  {note.title}
-                </CardTitle>
-                <Badge variant="outline" className="text-xs">
-                  {note.panel_groups.length} panel groups
-                </Badge>
-              </div>
-              <p className="qatar-card-subtitle">
-                NT-{note.id.slice(-4).toUpperCase()}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              {canEditNotes && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={openEditDialog}
-                >
-                  <Edit className="h-3 w-3 mr-1" />
-                  Edit
-                </Button>
-              )}
-              {canDeleteNotes && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDelete}
-                  className="border-red-400/50 text-red-400 hover:bg-red-400/10"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
+      {/* Note Header */}
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+        <div className="space-y-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold text-foreground">{note.title}</h1>
+            <Badge variant="outline" className="text-xs">
+              {note.panel_groups.length} panel groups
+            </Badge>
           </div>
-        </CardHeader>
+          <p className="text-muted-foreground">
+            NT-{note.id.slice(-4).toUpperCase()}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {canEditNotes && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openEditDialog}
+            >
+              <Edit className="h-3 w-3 mr-1" />
+              Edit
+            </Button>
+          )}
+          {canDeleteNotes && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDelete}
+              className="border-red-400/50 text-red-400 hover:bg-red-400/10"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      </div>
 
-        <CardContent className="qatar-card-content">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
+      {/* Note Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Content Card */}
+        <Card className="qatar-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Content</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm font-medium">
+              {note.content ? 'Has content' : 'No content provided'}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Note Details
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Created By Card */}
+        <Card className="qatar-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Created By</CardTitle>
+            <User className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold">{note.created_by || 'Unknown user'}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Author
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Panel Groups Card */}
+        <Card className="qatar-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Panel Groups</CardTitle>
+            <FolderOpen className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold">{note.panel_groups.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Associated Groups
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Created Date Card */}
+        <Card className="qatar-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Created</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold">
+              {formatDate(note.created_at)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Creation Date
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Note Details Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Manufacturing Pipeline and Efficiency Metrics */}
+        <div className="space-y-4">
+          {/* Manufacturing Pipeline */}
+          <Card className="qatar-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Manufacturing Pipeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div>
-                <h4 className="font-medium mb-2">Content</h4>
-                <p className="text-muted-foreground">
-                  {note.content || "No content provided"}
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">Production Progress</span>
+                  <span className="text-muted-foreground">
+                    {(panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                     (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                     (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                     (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)} / {totalPanels}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${totalPanels > 0 ? 
+                        (((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                         (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                         (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / totalPanels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {totalPanels > 0 ? 
+                    ((((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                      (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                      (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / totalPanels) * 100).toFixed(1) : 0}% panels produced
                 </p>
               </div>
               
               <div>
-                <h4 className="font-medium mb-2">Created</h4>
-                <p className="text-muted-foreground">
-                  {formatDate(note.created_at)}
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">Installation Rate</span>
+                  <span className="text-sm text-muted-foreground">
+                    {panelStatusCounts['Installed'] || 0} / {totalPanels}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${totalPanels > 0 ? 
+                        ((panelStatusCounts['Installed'] || 0) / totalPanels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {totalPanels > 0 ? 
+                    (((panelStatusCounts['Installed'] || 0) / totalPanels) * 100).toFixed(1) : 0}% panels installed
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Efficiency Metrics */}
+          <Card className="qatar-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Efficiency Metrics
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  <span className="text-sm text-card-foreground">Production Efficiency</span>
+                </div>
+                <Badge variant="secondary">
+                  {totalPanels > 0 ? 
+                    ((((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                      (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                      (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / totalPanels) * 100).toFixed(1) : 0}%
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <span className="text-sm text-card-foreground">Delivery Efficiency</span>
+                </div>
+                <Badge variant="secondary">
+                  {totalPanels > 0 ? 
+                    (((panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                      (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
+                      (panelStatusCounts['Approved Final'] || 0)) / totalPanels * 100).toFixed(1) : 0}%
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                  <span className="text-sm text-card-foreground">Overall Completion</span>
+                </div>
+                <Badge variant="secondary">
+                  {totalPanels > 0 ? 
+                    (((panelStatusCounts['Approved Final'] || 0) / totalPanels) * 100).toFixed(1) : 0}%
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Note Progress with Pie Chart */}
+        <Card className="qatar-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Progress Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {totalPanels === 0 ? (
+              <div className="text-center text-sm text-muted-foreground py-10">
+                No panels yet for this note
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Installed vs Total</span>
+                  <span className="font-medium">{getProgress()}%</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                  <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                          {pieData.map((entry) => (
+                            <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || "#999999"} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value: any, name: any) => [`${value} (${Math.round(((value as number) / totalPanels) * 100)}%)`, name]} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="space-y-2">
+                    {['Issued For Production', 'Produced', 'Delivered', 'Installed'].map((status) => {
+                      const count = panelStatusCounts[status] || 0;
+                      return (
+                        <div key={status} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: STATUS_COLORS[status] || "#999999" }} />
+                            <span className="text-muted-foreground">{status}</span>
+                          </div>
+                          <span className="font-medium text-foreground">{count}</span>
+                        </div>
+                      );
+                    })}
+                    <div className="flex items-center justify-between text-sm pt-2 border-t">
+                      <span className="text-muted-foreground">Total Panels</span>
+                      <span className="font-medium text-foreground">{totalPanels}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Note Totals Section */}
+      <Card className="qatar-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Note Totals
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Square className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Total Area</span>
+              </div>
+              <div className="text-2xl font-bold text-card-foreground">
+                {note.panel_groups.reduce((sum, group) => sum + group.total_area, 0).toFixed(2)} m²
               </div>
             </div>
-
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-medium mb-2">Created By</h4>
-                <p className="text-muted-foreground">
-                  {note.created_by || "Unknown user"}
-                </p>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <DollarSign className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Total Amount</span>
               </div>
-
-              <div>
-                <h4 className="font-medium mb-2">Note ID</h4>
-                <p className="text-muted-foreground font-mono text-sm">
-                  {note.id}
-                </p>
+              <div className="text-2xl font-bold text-card-foreground">
+                {formatQatarRiyal(note.panel_groups.reduce((sum, group) => sum + group.total_amount, 0))}
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Weight className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Total Weight</span>
+              </div>
+              <div className="text-2xl font-bold text-card-foreground">
+                {note.panel_groups.reduce((sum, group) => sum + group.total_weight, 0).toFixed(2)} kg
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Package className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Total Panels</span>
+              </div>
+              <div className="text-2xl font-bold text-card-foreground">
+                {totalPanels}
               </div>
             </div>
           </div>
-
-          {/* Note Totals */}
-          {note.panel_groups.length > 0 && (
-            <div className="mt-6 pt-6 border-t">
-              <h4 className="font-medium mb-4">Note Totals</h4>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-muted/30 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FolderOpen className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Total Panel Groups</span>
-                  </div>
-                  <p className="text-2xl font-bold">{note.panel_groups.length}</p>
-                </div>
-                <div className="bg-muted/30 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Total Panels</span>
-                  </div>
-                  <p className="text-2xl font-bold">
-                    {note.panel_groups.reduce((sum, group) => sum + group.total_panels, 0)}
-                  </p>
-                </div>
-                <div className="bg-muted/30 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Total Area</span>
-                  </div>
-                  <p className="text-2xl font-bold">
-                    {note.panel_groups.reduce((sum, group) => sum + group.total_area, 0).toFixed(2)} m²
-                  </p>
-                </div>
-                <div className="bg-muted/30 rounded-lg p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Total Amount</span>
-                  </div>
-                  <p className="text-2xl font-bold">
-                    {note.panel_groups.reduce((sum, group) => sum + group.total_amount, 0).toFixed(2)} QR
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 

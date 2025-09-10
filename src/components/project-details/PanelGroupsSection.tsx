@@ -35,19 +35,18 @@ import { hasPermission, UserRole } from "../../utils/rolePermissions";
 import { useToastContext } from "../../contexts/ToastContext";
 
 const PANEL_STATUSES = [
+  { value: "Issued For Production", label: "Issued For Production" },
   { value: "Produced", label: "Produced" },
-  { value: "Checked", label: "Checked" },
-  { value: "Inspected", label: "Inspected" },
-  { value: "Approved Material", label: "Approved Material" },
-  { value: "Rejected Material", label: "Rejected Material" },
-  { value: "Issued", label: "Issued" },
   { value: "Proceed for Delivery", label: "Proceed for Delivery" },
   { value: "Delivered", label: "Delivered" },
+  { value: "Approved Material", label: "Approved Material" },
+  { value: "Rejected Material", label: "Rejected Material" },
   { value: "Installed", label: "Installed" },
+  { value: "Inspected", label: "Inspected" },
   { value: "Approved Final", label: "Approved Final" },
-  { value: "Broken at Site", label: "Broken at Site" },
   { value: "On Hold", label: "On Hold" },
   { value: "Cancelled", label: "Cancelled" },
+  { value: "Broken at Site", label: "Broken at Site" },
 ] as const;
 
 type PanelStatus = (typeof PANEL_STATUSES)[number]["value"];
@@ -115,19 +114,18 @@ function UpdateGroupStatusDialog({ isOpen, onOpenChange, groupId, groupName, cur
   const { showToast } = useToastContext();
 
   const statusReverseMap: { [key: string]: number } = {
-    "Produced": 0,
-    "Checked": 1,
-    "Inspected": 2,
-    "Approved Material": 3,
-    "Rejected Material": 4,
-    "Issued": 5,
-    "Proceed for Delivery": 6,
-    "Delivered": 7,
-    "Installed": 8,
-    "Approved Final": 9,
-    "Broken at Site": 10,
-    "On Hold": 11,
-    "Cancelled": 12,
+    "Issued For Production": 0,
+    "Produced": 1,
+    "Proceed for Delivery": 2,
+    "Delivered": 3,
+    "Approved Material": 4,
+    "Rejected Material": 5,
+    "Installed": 6,
+    "Inspected": 7,
+    "Approved Final": 8,
+    "On Hold": 9,
+    "Cancelled": 10,
+    "Broken at Site": 11,
   };
 
   const handleUpdateStatus = async () => {
@@ -983,22 +981,21 @@ async function fetchPanels(): Promise<PanelModel[]> {
 
 function mapPanelStatus(status: number): PanelStatus {
   const statusMap: { [key: number]: PanelStatus } = {
-    0: "Produced",
-    1: "Checked",
-    2: "Inspected",
-    3: "Approved Material",
-    4: "Rejected Material",
-    5: "Issued",
-    6: "Proceed for Delivery",
-    7: "Delivered",
-    8: "Installed",
-    9: "Approved Final",
-    10: "Broken at Site",
-    11: "On Hold",
-    12: "Cancelled",
+    0: "Issued For Production",
+    1: "Produced",
+    2: "Proceed for Delivery",
+    3: "Delivered",
+    4: "Approved Material",
+    5: "Rejected Material",
+    6: "Installed",
+    7: "Inspected",
+    8: "Approved Final",
+    9: "On Hold",
+    10: "Cancelled",
+    11: "Broken at Site",
   };
 
-  return statusMap[status] || "Produced";
+  return statusMap[status] || "Issued For Production";
 }
 
 export function PanelGroupsSection({
@@ -1137,19 +1134,18 @@ export function PanelGroupsSection({
 
   const handleBulkStatusUpdate = async (groupId: string, newStatus: PanelStatus) => {
     const statusMap: { [key: string]: number } = {
+      "Issued For Production": 0,
       "Produced": 1,
-      "Checked": 2,
-      "Inspected": 3,
+      "Proceed for Delivery": 2,
+      "Delivered": 3,
       "Approved Material": 4,
       "Rejected Material": 5,
-      "Issued": 6,
-      "Proceed for Delivery": 7,
-      "Delivered": 8,
-      "Installed": 9,
-      "Approved Final": 10,
+      "Installed": 6,
+      "Inspected": 7,
+      "Approved Final": 8,
+      "On Hold": 9,
+      "Cancelled": 10,
       "Broken at Site": 11,
-      "On Hold": 12,
-      "Cancelled": 13,
     };
     const { error } = await supabase
       .from('panels')

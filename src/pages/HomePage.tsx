@@ -100,11 +100,11 @@ const mapStatusToString = (statusCode: number): AllStatus => {
   switch (statusCode) {
     case 0: return 'Issued For Production';
     case 1: return 'Produced';
-    case 2: return 'Delivered';
-    case 3: return 'Installed';
-    case 4: return 'Proceed for Delivery';
-    case 5: return 'Approved Material';
-    case 6: return 'Rejected Material';
+    case 2: return 'Proceed for Delivery';
+    case 3: return 'Delivered';
+    case 4: return 'Approved Material';
+    case 5: return 'Rejected Material';
+    case 6: return 'Installed';
     case 7: return 'Inspected';
     case 8: return 'Approved Final';
     case 9: return 'On Hold';
@@ -387,24 +387,24 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
 
     // Completion metrics
     const completedPanelsCount = panelStatusCounts['Installed'] + panelStatusCounts['Delivered'];
-    const panelCompletionRate = totalPanels > 0 ? (completedPanelsCount / totalPanels) * 100 : 0;
+    const panelCompletionRate = totalEstimatedPanels > 0 ? (completedPanelsCount / totalEstimatedPanels) * 100 : 0;
     const projectProgress = totalEstimatedPanels > 0 ? (totalPanels / totalEstimatedPanels) * 100 : 0;
     
     // Efficiency metrics
     // Production Efficiency: panels with status "Produced" or later statuses
-    const productionEfficiency = totalPanels > 0 ? 
+    const productionEfficiency = totalEstimatedPanels > 0 ? 
       ((panelStatusCounts['Produced'] + panelStatusCounts['Proceed for Delivery'] + panelStatusCounts['Delivered'] + 
         panelStatusCounts['Approved Material'] + panelStatusCounts['Rejected Material'] + panelStatusCounts['Installed'] + 
-        panelStatusCounts['Inspected'] + panelStatusCounts['Approved Final']) / totalPanels) * 100 : 0;
+        panelStatusCounts['Inspected'] + panelStatusCounts['Approved Final']) / totalEstimatedPanels) * 100 : 0;
     
     // Delivery Efficiency: panels with status "Delivered" or later statuses
-    const deliveryEfficiency = totalPanels > 0 ? 
+    const deliveryEfficiency = totalEstimatedPanels > 0 ? 
       ((panelStatusCounts['Delivered'] + panelStatusCounts['Approved Material'] + panelStatusCounts['Installed'] + 
-        panelStatusCounts['Inspected'] + panelStatusCounts['Approved Final']) / totalPanels) * 100 : 0;
+        panelStatusCounts['Inspected'] + panelStatusCounts['Approved Final']) / totalEstimatedPanels) * 100 : 0;
     
     // Overall Completion: only panels with status "Approved Final"
-    const overallCompletion = totalPanels > 0 ? 
-      (panelStatusCounts['Approved Final'] / totalPanels) * 100 : 0;
+    const overallCompletion = totalEstimatedPanels > 0 ? 
+      (panelStatusCounts['Approved Final'] / totalEstimatedPanels) * 100 : 0;
     
     // Location metrics
     const locationData = projectsToProcess.reduce((acc: Record<string, number>, project: any) => {
@@ -1180,16 +1180,12 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                 <span className="text-muted-foreground">
                   {metrics.status.primary['Produced'] + metrics.status.primary['Delivered'] + 
                    metrics.status.primary['Installed'] + metrics.status.secondary['Approved Material'] + metrics.status.secondary['Rejected Material'] + 
-                   metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']} / {metrics.counts.panels}
+                   metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']} / {metrics.financial.totalEstimatedPanels}
                 </span>
               </div>
-              <Progress value={metrics.counts.panels > 0 ? ((metrics.status.primary['Produced'] + metrics.status.primary['Delivered'] + 
-                metrics.status.primary['Installed'] + metrics.status.secondary['Approved Material'] + metrics.status.secondary['Rejected Material'] + 
-                metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']) / metrics.counts.panels) * 100 : 0} className="h-2" />
+              <Progress value={metrics.efficiency.productionEfficiency} className="h-2" />
               <p className="text-xs text-muted-foreground mt-1">
-                {metrics.counts.panels > 0 ? (((metrics.status.primary['Produced'] + metrics.status.primary['Delivered'] + 
-                  metrics.status.primary['Installed'] + metrics.status.secondary['Approved Material'] + metrics.status.secondary['Rejected Material'] + 
-                  metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']) / metrics.counts.panels) * 100).toFixed(1) : 0}% panels produced
+                {metrics.efficiency.productionEfficiency.toFixed(1)}% panels produced
               </p>
             </div>
             
@@ -1197,12 +1193,12 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-card-foreground">Installation Rate</span>
                 <span className="text-sm text-muted-foreground">
-                  {metrics.status.primary['Installed']} / {metrics.counts.panels}
+                  {metrics.status.primary['Installed']} / {metrics.financial.totalEstimatedPanels}
                 </span>
               </div>
-              <Progress value={metrics.counts.panels > 0 ? (metrics.status.primary['Installed'] / metrics.counts.panels) * 100 : 0} className="h-2" />
+              <Progress value={metrics.financial.totalEstimatedPanels > 0 ? (metrics.status.primary['Installed'] / metrics.financial.totalEstimatedPanels) * 100 : 0} className="h-2" />
               <p className="text-xs text-muted-foreground mt-1">
-                {metrics.counts.panels > 0 ? ((metrics.status.primary['Installed'] / metrics.counts.panels) * 100).toFixed(1) : 0}% panels installed
+                {metrics.financial.totalEstimatedPanels > 0 ? ((metrics.status.primary['Installed'] / metrics.financial.totalEstimatedPanels) * 100).toFixed(1) : 0}% panels installed
               </p>
             </div>
           </CardContent>
@@ -1269,7 +1265,7 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
             <div className="flex items-center justify-between">
               <span className="text-sm text-card-foreground">Installation Rate</span>
               <span className="text-sm font-medium text-card-foreground">
-                {metrics.counts.panels > 0 ? ((metrics.status.primary['Installed'] / metrics.counts.panels) * 100).toFixed(1) : 0}%
+                {metrics.financial.totalEstimatedPanels > 0 ? ((metrics.status.primary['Installed'] / metrics.financial.totalEstimatedPanels) * 100).toFixed(1) : 0}%
               </span>
             </div>
           </CardContent>

@@ -634,17 +634,9 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
           panel.dwgNo.toLowerCase().includes(panelSearchTerm.toLowerCase())
         );
 
-    // Sort: selected panels first, then by name
-    return filtered.sort((a, b) => {
-      const aSelected = a.isInGroup ? selectedPanelsToRemove.has(a.id) : selectedPanelsToAdd.has(a.id);
-      const bSelected = b.isInGroup ? selectedPanelsToRemove.has(b.id) : selectedPanelsToAdd.has(b.id);
-      
-      if (aSelected && !bSelected) return -1;
-      if (!aSelected && bSelected) return 1;
-      
-      return a.name.localeCompare(b.name);
-    });
-  }, [currentPanels, availablePanels, selectedPanelsToAdd, selectedPanelsToRemove, panelSearchTerm]);
+    // Sort alphabetically by name only (static sort)
+    return filtered.sort((a, b) => a.name.localeCompare(b.name));
+  }, [currentPanels, availablePanels, panelSearchTerm]);
 
   const togglePanelSelection = (panel: PanelModel & { isInGroup: boolean }) => {
     if (panel.isInGroup) {

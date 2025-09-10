@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Building2, Edit, Trash2, Square, DollarSign, Weight, Package } from "lucide-react";
+import { ArrowLeft, Building2, Edit, Trash2, Square, DollarSign, Weight, Package, TrendingUp, Clock, User, MapPin } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -12,6 +12,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { hasPermission, UserRole } from "../utils/rolePermissions";
 import { useToastContext } from "../contexts/ToastContext";
 import { crudOperations } from "../utils/userTracking";
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 
 interface Building {
   id: string;
@@ -60,9 +61,48 @@ export function BuildingDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("facades");
+  const [panelStatusCounts, setPanelStatusCounts] = useState<Record<string, number>>({});
+  const [totalPanels, setTotalPanels] = useState<number>(0);
 
   const canEditBuildings = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'buildings', 'canUpdate') : false;
   const canDeleteBuildings = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'buildings', 'canDelete') : false;
+
+  // Panel status domain used across the app
+  const PANEL_STATUSES = [
+    'Issued For Production',
+    'Produced',
+    'Proceed for Delivery',
+    'Delivered',
+    'Approved Material',
+    'Rejected Material',
+    'Installed',
+    'Inspected',
+    'Approved Final',
+    'On Hold',
+    'Cancelled',
+    'Broken at Site',
+  ] as const;
+
+  const statusMap: { [key: number]: string } = Object.fromEntries(
+    PANEL_STATUSES.map((status, index) => [index, status])
+  );
+
+  // Color palette per status
+  const STATUS_COLORS: Record<string, string> = {
+    "Issued For Production": "#E11D48",
+    Produced: "#F59E0B",
+    Inspected: "#8B5CF6",
+    "Approved Material": "#22C55E",
+    "Rejected Material": "#EF4444",
+    Issued: "#2563EB",
+    "Proceed for Delivery": "#06B6D4",
+    Delivered: "#3B82F6",
+    Installed: "#10B981",
+    "Approved Final": "#84CC16",
+    "Broken at Site": "#F97316",
+    "On Hold": "#A3A3A3",
+    Cancelled: "#475569",
+  };
 
   useEffect(() => {
     if (id) {
@@ -95,13 +135,14 @@ export function BuildingDetailsPage() {
       }
 
       if (buildingData) {
-        // Fetch panels for this building to calculate totals
+        // Fetch panels for this building to calculate totals and status counts
         const { data: panelsData, error: panelsError } = await supabase
           .from('panels')
           .select(`
             unit_rate_qr_m2,
             ifp_qty_area_sm,
-            weight
+            weight,
+            status
           `)
           .eq('building_id', buildingId);
 
@@ -118,6 +159,15 @@ export function BuildingDetailsPage() {
         }, 0) || 0;
         const totalWeight = panelsData?.reduce((sum, panel) => sum + (panel.weight || 0), 0) || 0;
         const totalPanels = panelsData?.length || 0;
+
+        // Calculate panel status counts
+        const counts: Record<string, number> = {};
+        for (const panel of panelsData || []) {
+          const statusName = statusMap[panel.status] || "Unknown";
+          counts[statusName] = (counts[statusName] || 0) + 1;
+        }
+        setPanelStatusCounts(counts);
+        setTotalPanels(totalPanels);
 
         const buildingWithTotals = {
           ...buildingData,
@@ -208,6 +258,25 @@ export function BuildingDetailsPage() {
     });
   };
 
+  const formatQatarRiyal = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "QAR",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount || 0);
+  };
+
+  const getProgress = () => {
+    if (!project || !project.estimated_panels || project.estimated_panels === 0)
+      return 0;
+    return Math.round(((panelStatusCounts["Installed"] || 0) / project.estimated_panels) * 100);
+  };
+
+  const pieData = Object.entries(panelStatusCounts)
+    .filter(([, count]) => count > 0)
+    .map(([status, count]) => ({ name: status, value: count }));
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -249,144 +318,347 @@ export function BuildingDetailsPage() {
         </Button>
       </div>
 
-      {/* Building Overview */}
-      <Card className="qatar-card">
-        <CardHeader className="qatar-card-header">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <CardTitle className="qatar-card-title text-2xl">
-                  {building.name}
-                </CardTitle>
-                {getStatusBadge(building.status)}
-              </div>
-              <p className="qatar-card-subtitle">
-                BLD-{building.id.slice(-4).toUpperCase()}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              {canEditBuildings && (
-                <BuildingModalTrigger
-                  onSubmit={async (data: Omit<Building, "id" | "created_at" | "updated_at">) => {
-                    const { error } = await supabase
-                      .from('buildings')
-                      .update({
-                        name: data.name,
-                        project_id: data.project_id,
-                        status: data.status,
-                        description: data.description,
-                        updated_at: new Date().toISOString()
-                      })
-                      .eq('id', building.id);
-
-                    if (error) {
-                      console.error('Error updating building:', error);
-                      showToast('Error updating building', 'error');
-                      return;
-                    }
-
-                    setBuilding({ ...building, ...data, updated_at: new Date().toISOString() });
-                    showToast('Building updated successfully', 'success');
-                  }}
-                  editingBuilding={building}
-                  currentProject={project ? {
-                    id: project.id,
-                    name: project.name,
-                    customer: customer?.name
-                  } : undefined}
-                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                />
-              )}
-              {canDeleteBuildings && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDelete}
-                  className="border-red-400/50 text-red-400 hover:bg-red-400/10"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
+      {/* Building Header */}
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+        <div className="space-y-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold text-foreground">{building.name}</h1>
+            {getStatusBadge(building.status)}
           </div>
-        </CardHeader>
+          <p className="text-muted-foreground">
+            BLD-{building.id.slice(-4).toUpperCase()}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {canEditBuildings && (
+            <BuildingModalTrigger
+              onSubmit={async (data: Omit<Building, "id" | "created_at" | "updated_at">) => {
+                const { error } = await supabase
+                  .from('buildings')
+                  .update({
+                    name: data.name,
+                    project_id: data.project_id,
+                    status: data.status,
+                    description: data.description,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', building.id);
 
-        <CardContent className="qatar-card-content">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
+                if (error) {
+                  console.error('Error updating building:', error);
+                  showToast('Error updating building', 'error');
+                  return;
+                }
+
+                setBuilding({ ...building, ...data, updated_at: new Date().toISOString() });
+                showToast('Building updated successfully', 'success');
+              }}
+              editingBuilding={building}
+              currentProject={project ? {
+                id: project.id,
+                name: project.name,
+                customer: customer?.name
+              } : undefined}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            />
+          )}
+          {canDeleteBuildings && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDelete}
+              className="border-red-400/50 text-red-400 hover:bg-red-400/10"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Building Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Project Card */}
+        <Card className="qatar-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Project</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold">{project?.name || 'No Project'}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {customer?.name || 'No Customer'}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Location Card */}
+        <Card className="qatar-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Location</CardTitle>
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold">{project?.location || 'Unknown'}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Project Site
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Description Card */}
+        <Card className="qatar-card">
+          <CardHeader className="flex items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">Description</CardTitle>
+            <Edit className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm font-medium">
+              {building.description || "No description provided"}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Building Details
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Timeline Card */}
+        <Card className="qatar-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Created</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold">
+              {formatDate(building.created_at)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Building Date
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Building Details Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Manufacturing Pipeline and Efficiency Metrics */}
+        <div className="space-y-4">
+          {/* Manufacturing Pipeline */}
+          <Card className="qatar-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Manufacturing Pipeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div>
-                <h4 className="font-medium mb-2">Description</h4>
-                <p className="text-muted-foreground">
-                  {building.description || "No description provided"}
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">Production Progress</span>
+                  <span className="text-muted-foreground">
+                    {(panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                     (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                     (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                     (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)} / {project?.estimated_panels || 0}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${project && project.estimated_panels && project.estimated_panels > 0 ? 
+                        (((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                         (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                         (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {project && project.estimated_panels && project.estimated_panels > 0 ? 
+                    ((((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                      (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                      (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(1) : 0}% panels produced
                 </p>
               </div>
               
               <div>
-                <h4 className="font-medium mb-2">Project</h4>
-                <p className="text-muted-foreground">
-                  {project?.name || "Unknown project"}
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">Installation Rate</span>
+                  <span className="text-sm text-muted-foreground">
+                    {panelStatusCounts['Installed'] || 0} / {project?.estimated_panels || 0}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${project && project.estimated_panels && project.estimated_panels > 0 ? 
+                        ((panelStatusCounts['Installed'] || 0) / project.estimated_panels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {project && project.estimated_panels && project.estimated_panels > 0 ? 
+                    (((panelStatusCounts['Installed'] || 0) / project.estimated_panels) * 100).toFixed(1) : 0}% panels installed
                 </p>
               </div>
+            </CardContent>
+          </Card>
 
-              <div>
-                <h4 className="font-medium mb-2">Customer</h4>
-                <p className="text-muted-foreground">
-                  {customer?.name || "Unknown customer"}
-                </p>
+          {/* Efficiency Metrics */}
+          <Card className="qatar-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Efficiency Metrics
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  <span className="text-sm text-card-foreground">Production Efficiency</span>
+                </div>
+                <Badge variant="secondary">
+                  {project && project.estimated_panels && project.estimated_panels > 0 ? 
+                    ((((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                      (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                      (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(1) : 0}%
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <span className="text-sm text-card-foreground">Delivery Efficiency</span>
+                </div>
+                <Badge variant="secondary">
+                  {project && project.estimated_panels && project.estimated_panels > 0 ? 
+                    (((panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                      (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
+                      (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels * 100).toFixed(1) : 0}%
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                  <span className="text-sm text-card-foreground">Overall Completion</span>
+                </div>
+                <Badge variant="secondary">
+                  {project && project.estimated_panels && project.estimated_panels > 0 ? 
+                    (((panelStatusCounts['Approved Final'] || 0) / (project.estimated_panels || 1)) * 100).toFixed(1) : 0}%
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Building Progress with Pie Chart */}
+        <Card className="qatar-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Progress Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {totalPanels === 0 ? (
+              <div className="text-center text-sm text-muted-foreground py-10">
+                No panels yet for this building
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Installed vs Estimated</span>
+                  <span className="font-medium">{getProgress()}%</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                  <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                          {pieData.map((entry) => (
+                            <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || "#999999"} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value: any, name: any) => [`${value} (${Math.round(((value as number) / totalPanels) * 100)}%)`, name]} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="space-y-2">
+                    {['Issued For Production', 'Produced', 'Delivered', 'Installed'].map((status) => {
+                      const count = panelStatusCounts[status] || 0;
+                      return (
+                        <div key={status} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: STATUS_COLORS[status] || "#999999" }} />
+                            <span className="text-muted-foreground">{status}</span>
+                          </div>
+                          <span className="font-medium text-foreground">{count}</span>
+                        </div>
+                      );
+                    })}
+                    <div className="flex items-center justify-between text-sm pt-2 border-t">
+                      <span className="text-muted-foreground">Total Panels</span>
+                      <span className="font-medium text-foreground">{totalPanels}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Estimated Panels</span>
+                      <span className="font-medium text-foreground">{project?.estimated_panels || 0}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Building Totals Section */}
+      <Card className="qatar-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Building Totals
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Square className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Total Area</span>
+              </div>
+              <div className="text-2xl font-bold text-card-foreground">
+                {(building.totalArea || 0).toFixed(2)} m²
               </div>
             </div>
-
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-medium mb-2">Created</h4>
-                <p className="text-muted-foreground">
-                  {formatDate(building.created_at)}
-                </p>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <DollarSign className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Total Amount</span>
               </div>
-
-              <div>
-                <h4 className="font-medium mb-2">Last Updated</h4>
-                <p className="text-muted-foreground">
-                  {formatDate(building.updated_at)}
-                </p>
-              </div>
-
-              <div>
-                <h4 className="font-medium mb-2">Location</h4>
-                <p className="text-muted-foreground">
-                  {project?.location || "Location not specified"}
-                </p>
+              <div className="text-2xl font-bold text-card-foreground">
+                {formatQatarRiyal(building.totalAmount || 0)}
               </div>
             </div>
-          </div>
-
-          {/* Building Totals */}
-          <div className="mt-6 pt-6 border-t border-border/50">
-            <h4 className="font-medium mb-4">Building Totals</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <Square className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="font-semibold text-card-foreground">Total Area:</span>
-                  <span className="text-muted-foreground">{(building.totalArea || 0).toFixed(2)} m²</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="font-semibold text-card-foreground">Total Amount:</span>
-                  <span className="text-muted-foreground">{(building.totalAmount || 0).toFixed(2)} QR</span>
-                </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Weight className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Total Weight</span>
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <Weight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="font-semibold text-card-foreground">Total Weight:</span>
-                  <span className="text-muted-foreground">{(building.totalWeight || 0).toFixed(2)} kg</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="font-semibold text-card-foreground">Total Panels:</span>
-                  <span className="text-muted-foreground">{building.totalPanels || 0}</span>
-                </div>
+              <div className="text-2xl font-bold text-card-foreground">
+                {(building.totalWeight || 0).toFixed(2)} kg
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Package className="h-5 w-5 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">Total Panels</span>
+              </div>
+              <div className="text-2xl font-bold text-card-foreground">
+                {totalPanels}
               </div>
             </div>
           </div>

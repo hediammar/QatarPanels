@@ -32,19 +32,18 @@ interface ProjectOverviewProps {
 export function ProjectOverview({ project, customer, onEdit, onSettings }: ProjectOverviewProps) {
   // Panel status domain used across the app
   const PANEL_STATUSES = [
-    "Issued For Production",
-    "Produced",
-    "Inspected",
-    "Approved Material",
-    "Rejected Material",
-    "Issued",
-    "Proceed for Delivery",
-    "Delivered",
-    "Installed",
-    "Approved Final",
-    "Broken at Site",
-    "On Hold",
-    "Cancelled",
+  'Issued For Production',
+  'Produced',
+  'Proceed for Delivery',
+  'Delivered',
+  'Approved Material',
+  'Rejected Material',
+  'Installed',
+  'Inspected',
+  'Approved Final',
+  'On Hold',
+  'Cancelled',
+  'Broken at Site',
   ] as const;
 
   const statusMap: { [key: number]: string } = Object.fromEntries(
@@ -266,29 +265,119 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
 
       {/* Project Details Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Project Timeline */}
-        <Card className="qatar-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Project Timeline
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Start Date</span>
-              <span className="font-medium">{formatDate(project.start_date)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">End Date</span>
-              <span className="font-medium">{formatDate(project.end_date)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-muted-foreground">Status</span>
-              {getStatusBadge(project.status)}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Manufacturing Pipeline and Efficiency Metrics */}
+        <div className="space-y-4">
+          {/* Manufacturing Pipeline */}
+          <Card className="qatar-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Manufacturing Pipeline
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">Production Progress</span>
+                  <span className="text-muted-foreground">
+                    {(panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                     (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                     (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                     (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)} / {project.estimated_panels || 0}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${project.estimated_panels > 0 ? 
+                        (((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                         (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                         (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {project.estimated_panels > 0 ? 
+                    ((((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                      (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                      (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(1) : 0}% panels produced
+                </p>
+              </div>
+              
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">Installation Rate</span>
+                  <span className="text-sm text-muted-foreground">
+                    {panelStatusCounts['Installed'] || 0} / {project.estimated_panels || 0}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${project.estimated_panels > 0 ? 
+                        ((panelStatusCounts['Installed'] || 0) / project.estimated_panels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {project.estimated_panels > 0 ? 
+                    (((panelStatusCounts['Installed'] || 0) / project.estimated_panels) * 100).toFixed(1) : 0}% panels installed
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Efficiency Metrics */}
+          <Card className="qatar-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Efficiency Metrics
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                  <span className="text-sm text-card-foreground">Production Efficiency</span>
+                </div>
+                <Badge variant="secondary">
+                  {project.estimated_panels > 0 ? 
+                    ((((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                      (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                      (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(1) : 0}%
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <span className="text-sm text-card-foreground">Delivery Efficiency</span>
+                </div>
+                <Badge variant="secondary">
+                  {project.estimated_panels > 0 ? 
+                    (((panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                      (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
+                      (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels * 100).toFixed(1) : 0}%
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                  <span className="text-sm text-card-foreground">Overall Completion</span>
+                </div>
+                <Badge variant="secondary">
+                  {project.estimated_panels > 0 ? 
+                    (((panelStatusCounts['Approved Final'] || 0) / project.estimated_panels) * 100).toFixed(1) : 0}%
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Project Progress with Pie Chart */}
         <Card className="qatar-card">
@@ -323,15 +412,18 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                     </ResponsiveContainer>
                   </div>
                   <div className="space-y-2">
-                    {pieData.map((item) => (
-                      <div key={item.name} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: STATUS_COLORS[item.name] || "#999999" }} />
-                          <span className="text-muted-foreground">{item.name}</span>
+                    {['Issued For Production', 'Produced', 'Delivered', 'Installed'].map((status) => {
+                      const count = panelStatusCounts[status] || 0;
+                      return (
+                        <div key={status} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: STATUS_COLORS[status] || "#999999" }} />
+                            <span className="text-muted-foreground">{status}</span>
+                          </div>
+                          <span className="font-medium text-foreground">{count}</span>
                         </div>
-                        <span className="font-medium text-foreground">{item.value}</span>
-                      </div>
-                    ))}
+                      );
+                    })}
                     <div className="flex items-center justify-between text-sm pt-2 border-t">
                       <span className="text-muted-foreground">Total Panels</span>
                       <span className="font-medium text-foreground">{totalPanels}</span>

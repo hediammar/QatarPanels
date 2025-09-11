@@ -502,6 +502,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
 
     // If facadeId is provided, filter panels by that specific facade
     if (facadeId) {
+      console.log(`Filtering panels by facade_id: ${facadeId}`);
       panelQuery = panelQuery.eq("facade_id", facadeId);
     }
 
@@ -516,6 +517,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         building_name: panel.buildings?.name,
         facade_name: panel.facades?.name,
       })) || [];
+      console.log(`Fetched ${formattedData.length} panels for facade ${facadeId}:`, formattedData.map(p => ({ name: p.name, facade_id: p.facade_id, building_name: p.building_name })));
       setPanels(formattedData);
     }
     setLoading(false);
@@ -850,23 +852,21 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         .from('panels')
         .select(`
           *,
-          projects!inner(name, customer_id),
+          projects!inner(name),
           buildings(name),
           facades(name)
         `)
         .eq('name', panelName.trim())
         .eq('project_id', projectId) // Only search within the current project
-        .single();
+        .limit(1);
 
       if (error) {
-        if (error.code === 'PGRST116') {
-          // No rows returned - panel doesn't exist in this project
-          return null;
-        }
-        throw error;
+        console.error('Error finding existing panel:', error);
+        return null;
       }
 
-      return data;
+      // Return the first result if found, otherwise null
+      return data && data.length > 0 ? data[0] : null;
     } catch (error) {
       console.error('Error finding existing panel:', error);
       return null;
@@ -880,10 +880,13 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
     return match?.id;
   };
 
-  const findFacadeIdByName = (name?: string): string | undefined => {
+  const findFacadeIdByName = (name?: string, buildingId?: string): string | undefined => {
     if (!name) return undefined;
     const target = normalizeName(name);
-    const match = facades.find((f) => normalizeName(f.name) === target);
+    const match = facades.find((f) => 
+      normalizeName(f.name) === target && 
+      (!buildingId || f.building_id === buildingId)
+    );
     return match?.id;
   };
 
@@ -924,13 +927,9 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
     if (!facadeName || !buildingId) return null;
     
     // First check if facade already exists in this building
-    const existingFacadeId = findFacadeIdByName(facadeName);
+    const existingFacadeId = findFacadeIdByName(facadeName, buildingId);
     if (existingFacadeId) {
-      // Verify it belongs to the correct building
-      const facade = facades.find(f => f.id === existingFacadeId);
-      if (facade && facade.building_id === buildingId) {
-        return existingFacadeId;
-      }
+      return existingFacadeId;
     }
 
     // Create new facade
@@ -1123,7 +1122,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         const buildingNameFromRow = row["Building Name"] || row["building_name"] || undefined;
         const facadeNameFromRow = row["Facade Name"] || row["facade_name"] || undefined;
         const resolvedBuildingId = row["Building ID"] || row["building_id"] || findBuildingIdByName(buildingNameFromRow);
-        const resolvedFacadeId = row["Facade ID"] || row["facade_id"] || findFacadeIdByName(facadeNameFromRow);
+        const resolvedFacadeId = row["Facade ID"] || row["facade_id"] || findFacadeIdByName(facadeNameFromRow, resolvedBuildingId);
         const issuedForProductionRaw = row["Issued for Production Date"] || row["issued_for_production_date"] || undefined;
         const issuedForProductionISO = parseExcelDateToISO(issuedForProductionRaw);
         const panel: ImportedPanel = {
@@ -1246,22 +1245,31 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
             return match?.id;
           };
 
-          const findFacadeIdByNameLocal = (name?: string): string | undefined => {
+          const findFacadeIdByNameLocal = (name?: string, buildingId?: string): string | undefined => {
             if (!name) return undefined;
             const target = normalizeName(name);
-            const match = localFacades.find((f) => normalizeName(f.name) === target);
+            const match = localFacades.find((f) => 
+              normalizeName(f.name) === target && 
+              (!buildingId || f.building_id === buildingId)
+            );
             return match?.id;
           };
 
           // Resolve building and facade IDs using local caches
           let resolvedBuildingId = panel.building_id;
           let resolvedFacadeId = panel.facade_id;
+          console.log(`Initial values for panel ${panel.name}: resolvedFacadeId=${resolvedFacadeId}, facadeId=${facadeId}`);
+          
+          // Note: Removed facade context override to allow proper building → facade lookup
 
           // If building name is provided but no building ID, try to find or create building
           if (panel.building_name && !resolvedBuildingId) {
             try {
+              console.log(`Looking for building "${panel.building_name}" in project ${projectId}`);
+              console.log(`Available buildings in project ${projectId}:`, localBuildings.map(b => ({ name: b.name, id: b.id })));
               // First check if building already exists in local cache
               const existingBuildingId = findBuildingIdByNameLocal(panel.building_name);
+              console.log(`Found building ID: ${existingBuildingId}`);
               if (existingBuildingId) {
                 resolvedBuildingId = existingBuildingId;
               } else {
@@ -1291,27 +1299,13 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
             }
             
             try {
-              // First check if facade already exists in local cache
-              const existingFacadeId = findFacadeIdByNameLocal(panel.facade_name);
+              // First check if facade already exists in local cache for the specific building
+              console.log(`Looking for facade "${panel.facade_name}" in building ${resolvedBuildingId}`);
+              console.log(`Available facades in building ${resolvedBuildingId}:`, localFacades.filter(f => f.building_id === resolvedBuildingId).map(f => ({ name: f.name, id: f.id })));
+              const existingFacadeId = findFacadeIdByNameLocal(panel.facade_name, resolvedBuildingId);
+              console.log(`Found facade ID: ${existingFacadeId}`);
               if (existingFacadeId) {
-                // Verify it belongs to the correct building
-                const facade = localFacades.find(f => f.id === existingFacadeId);
-                if (facade && facade.building_id === resolvedBuildingId) {
-                  resolvedFacadeId = existingFacadeId;
-                } else {
-                  // Create new facade with same name but different building
-                  const facadeData = {
-                    name: panel.facade_name,
-                    building_id: resolvedBuildingId,
-                    status: 0, // Default status
-                    description: `Facade created during bulk import for building ${resolvedBuildingId}`,
-                  };
-
-                  console.log('Creating new facade:', facadeData);
-                  const newFacade = await crudOperations.create("facades", facadeData);
-                  localFacades.push({ id: newFacade.id, name: panel.facade_name, building_id: resolvedBuildingId });
-                  resolvedFacadeId = newFacade.id;
-                }
+                resolvedFacadeId = existingFacadeId;
               } else {
                 // Create new facade
                 const facadeData = {
@@ -1332,6 +1326,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
             }
           }
           
+          console.log(`Creating panel ${panel.name} with facade_id: ${resolvedFacadeId}, building_id: ${resolvedBuildingId}`);
           const panelData = {
             name: panel.name,
             type: panel.type,

@@ -181,6 +181,9 @@ export function FacadeDetailsPage() {
         setProject(facadeData.buildings.projects);
         setCustomer(facadeData.buildings.projects.customers);
         console.log("Facade details loaded successfully:", facadeData.name);
+        console.log("Facade ID:", facadeData.id);
+        console.log("Building:", facadeData.buildings.name);
+        console.log("Building ID:", facadeData.buildings.id);
       } else {
         setError("Facade not found");
       }
@@ -302,6 +305,9 @@ export function FacadeDetailsPage() {
       </div>
     );
   }
+
+  // Debug logging
+  console.log("Passing to PanelsSection - facadeId:", facade?.id, "facadeName:", facade?.name, "building:", building?.name);
 
   return (
     <div className="space-y-6">

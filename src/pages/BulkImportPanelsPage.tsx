@@ -971,7 +971,10 @@ export function BulkImportPanelsPage() {
         const findFacadeIdByNameLocal = (name?: string, buildingId?: string): string | undefined => {
           if (!name || !buildingId) return undefined;
           const target = normalizeName(name);
+          console.log(`Looking for facade "${name}" in building ${buildingId}`);
+          console.log(`Available facades:`, localFacades.map(f => ({ name: f.name, building_id: f.building_id })));
           const match = localFacades.find((f) => normalizeName(f.name) === target && f.building_id === buildingId);
+          console.log(`Found facade match:`, match ? { id: match.id, name: match.name, building_id: match.building_id } : null);
           return match?.id;
         };
 
@@ -1069,8 +1072,10 @@ export function BulkImportPanelsPage() {
         // If facade name is provided, find or create facade
         if (row.facade_name && resolvedBuildingId) {
           try {
+            console.log(`Resolving facade for panel ${row.name}: facade_name="${row.facade_name}", building_id="${resolvedBuildingId}"`);
             const existingFacadeId = findFacadeIdByNameLocal(row.facade_name, resolvedBuildingId);
             if (existingFacadeId) {
+              console.log(`Using existing facade ID: ${existingFacadeId}`);
               resolvedFacadeId = existingFacadeId;
             } else {
               // Create new facade

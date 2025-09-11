@@ -1176,6 +1176,53 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
           <CardContent className="space-y-4">
             <div>
               <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-card-foreground">Issued For Production</span>
+                <span className="text-muted-foreground">
+                  {metrics.status.primary['Issued For Production'] + metrics.status.primary['Produced'] + 
+                   metrics.status.primary['Delivered'] + metrics.status.primary['Installed'] + 
+                   metrics.status.secondary['Proceed for Delivery'] + metrics.status.secondary['Approved Material'] + 
+                   metrics.status.secondary['Rejected Material'] + metrics.status.secondary['Inspected'] + 
+                   metrics.status.secondary['Approved Final'] + metrics.status.secondary['On Hold'] + 
+                   metrics.status.secondary['Cancelled'] + metrics.status.secondary['Broken at Site']} / {metrics.financial.totalEstimatedPanels}
+                </span>
+              </div>
+              <Progress value={((metrics.status.primary['Issued For Production'] + metrics.status.primary['Produced'] + 
+                   metrics.status.primary['Delivered'] + metrics.status.primary['Installed'] + 
+                   metrics.status.secondary['Proceed for Delivery'] + metrics.status.secondary['Approved Material'] + 
+                   metrics.status.secondary['Rejected Material'] + metrics.status.secondary['Inspected'] + 
+                   metrics.status.secondary['Approved Final'] + metrics.status.secondary['On Hold'] + 
+                   metrics.status.secondary['Cancelled'] + metrics.status.secondary['Broken at Site']) / metrics.financial.totalEstimatedPanels) * 100} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {(((metrics.status.primary['Issued For Production'] + metrics.status.primary['Produced'] + 
+                   metrics.status.primary['Delivered'] + metrics.status.primary['Installed'] + 
+                   metrics.status.secondary['Proceed for Delivery'] + metrics.status.secondary['Approved Material'] + 
+                   metrics.status.secondary['Rejected Material'] + metrics.status.secondary['Inspected'] + 
+                   metrics.status.secondary['Approved Final'] + metrics.status.secondary['On Hold'] + 
+                   metrics.status.secondary['Cancelled'] + metrics.status.secondary['Broken at Site']) / metrics.financial.totalEstimatedPanels) * 100).toFixed(1)}% panels issued for production
+              </p>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-card-foreground">Delivered Progress</span>
+                <span className="text-muted-foreground">
+                  {metrics.status.primary['Delivered'] + metrics.status.primary['Installed'] + 
+                   metrics.status.secondary['Approved Material'] + metrics.status.secondary['Rejected Material'] + 
+                   metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']} / {metrics.financial.totalEstimatedPanels}
+                </span>
+              </div>
+              <Progress value={((metrics.status.primary['Delivered'] + metrics.status.primary['Installed'] + 
+                   metrics.status.secondary['Approved Material'] + metrics.status.secondary['Rejected Material'] + 
+                   metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']) / metrics.financial.totalEstimatedPanels) * 100} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {(((metrics.status.primary['Delivered'] + metrics.status.primary['Installed'] + 
+                   metrics.status.secondary['Approved Material'] + metrics.status.secondary['Rejected Material'] + 
+                   metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']) / metrics.financial.totalEstimatedPanels) * 100).toFixed(1)}% panels delivered
+              </p>
+            </div>
+            
+            <div>
+              <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-card-foreground">Production Progress</span>
                 <span className="text-muted-foreground">
                   {metrics.status.primary['Produced'] + metrics.status.primary['Delivered'] + 
@@ -1191,7 +1238,22 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
             
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-card-foreground">Installation Rate</span>
+                <span className="text-sm font-medium text-card-foreground">Produced Progress</span>
+                <span className="text-muted-foreground">
+                  {metrics.status.primary['Produced'] + metrics.status.primary['Delivered'] + 
+                   metrics.status.primary['Installed'] + metrics.status.secondary['Approved Material'] + metrics.status.secondary['Rejected Material'] + 
+                   metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']} / {metrics.financial.totalEstimatedPanels}
+                </span>
+              </div>
+              <Progress value={metrics.efficiency.productionEfficiency} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {metrics.efficiency.productionEfficiency.toFixed(1)}% panels produced
+              </p>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-card-foreground">Installation Progress</span>
                 <span className="text-sm text-muted-foreground">
                   {metrics.status.primary['Installed']} / {metrics.financial.totalEstimatedPanels}
                 </span>
@@ -1199,6 +1261,45 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
               <Progress value={metrics.financial.totalEstimatedPanels > 0 ? (metrics.status.primary['Installed'] / metrics.financial.totalEstimatedPanels) * 100 : 0} className="h-2" />
               <p className="text-xs text-muted-foreground mt-1">
                 {metrics.financial.totalEstimatedPanels > 0 ? ((metrics.status.primary['Installed'] / metrics.financial.totalEstimatedPanels) * 100).toFixed(1) : 0}% panels installed
+              </p>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-card-foreground">On Hold Progress</span>
+                <span className="text-sm text-muted-foreground">
+                  {metrics.status.secondary['On Hold']} / {metrics.financial.totalEstimatedPanels}
+                </span>
+              </div>
+              <Progress value={metrics.status.secondary['On Hold'] > 0 ? (metrics.status.secondary['On Hold'] / metrics.financial.totalEstimatedPanels) * 100 : 0} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {metrics.status.secondary['On Hold'] > 0 ? ((metrics.status.secondary['On Hold'] / metrics.financial.totalEstimatedPanels) * 100).toFixed(1) : 0}% panels on hold
+              </p>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-card-foreground">Cancelled Progress</span>
+                <span className="text-sm text-muted-foreground">
+                  {metrics.status.secondary['Cancelled']} / {metrics.financial.totalEstimatedPanels}
+                </span>
+              </div>
+              <Progress value={metrics.status.secondary['Cancelled'] > 0 ? (metrics.status.secondary['Cancelled'] / metrics.financial.totalEstimatedPanels) * 100 : 0} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {metrics.status.secondary['Cancelled'] > 0 ? ((metrics.status.secondary['Cancelled'] / metrics.financial.totalEstimatedPanels) * 100).toFixed(1) : 0}% panels cancelled
+              </p>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-card-foreground">Broken at Site Progress</span>
+                <span className="text-sm text-muted-foreground">
+                  {metrics.status.secondary['Broken at Site']} / {metrics.financial.totalEstimatedPanels}
+                </span>
+              </div>
+              <Progress value={metrics.status.secondary['Broken at Site'] > 0 ? (metrics.status.secondary['Broken at Site'] / metrics.financial.totalEstimatedPanels) * 100 : 0} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {metrics.status.secondary['Broken at Site'] > 0 ? ((metrics.status.secondary['Broken at Site'] / metrics.financial.totalEstimatedPanels) * 100).toFixed(1) : 0}% panels broken at site
               </p>
             </div>
           </CardContent>
@@ -1263,7 +1364,7 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-card-foreground">Installation Rate</span>
+              <span className="text-sm text-card-foreground">Installation Progress</span>
               <span className="text-sm font-medium text-card-foreground">
                 {metrics.financial.totalEstimatedPanels > 0 ? ((metrics.status.primary['Installed'] / metrics.financial.totalEstimatedPanels) * 100).toFixed(1) : 0}%
               </span>

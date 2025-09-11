@@ -767,10 +767,10 @@ export function NoteDetailsPage() {
         </Card>
       </div>
 
-      {/* Note Details Grid */}
+      {/* Note Details Grid - 2x2 Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Manufacturing Pipeline and Efficiency Metrics */}
-        <div className="space-y-4">
+        {/* Left Column */}
+        <div className="space-y-6">
           {/* Manufacturing Pipeline */}
           <Card className="qatar-card">
             <CardHeader>
@@ -780,6 +780,71 @@ export function NoteDetailsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">Issued For Production</span>
+                  <span className="text-muted-foreground">
+                    {(panelStatusCounts['Issued For Production'] || 0) + (panelStatusCounts['Produced'] || 0) + 
+                     (panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
+                     (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
+                     (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
+                     (panelStatusCounts['Approved Final'] || 0) + (panelStatusCounts['On Hold'] || 0) + 
+                     (panelStatusCounts['Cancelled'] || 0) + (panelStatusCounts['Broken at Site'] || 0)} / {totalPanels}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${totalPanels > 0 ? 
+                        (((panelStatusCounts['Issued For Production'] || 0) + (panelStatusCounts['Produced'] || 0) + 
+                         (panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
+                         (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
+                         (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
+                         (panelStatusCounts['Approved Final'] || 0) + (panelStatusCounts['On Hold'] || 0) + 
+                         (panelStatusCounts['Cancelled'] || 0) + (panelStatusCounts['Broken at Site'] || 0)) / totalPanels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {totalPanels > 0 ? 
+                    ((((panelStatusCounts['Issued For Production'] || 0) + (panelStatusCounts['Produced'] || 0) + 
+                      (panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
+                      (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
+                      (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
+                      (panelStatusCounts['Approved Final'] || 0) + (panelStatusCounts['On Hold'] || 0) + 
+                      (panelStatusCounts['Cancelled'] || 0) + (panelStatusCounts['Broken at Site'] || 0)) / totalPanels) * 100).toFixed(1) : 0}% panels issued for production
+                </p>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">Delivered Progress</span>
+                  <span className="text-muted-foreground">
+                    {(panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                     (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                     (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)} / {totalPanels}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${totalPanels > 0 ? 
+                        (((panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                         (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / totalPanels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {totalPanels > 0 ? 
+                    ((((panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                      (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / totalPanels) * 100).toFixed(1) : 0}% panels delivered
+                </p>
+              </div>
+              
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-medium text-card-foreground">Production Progress</span>
@@ -813,7 +878,38 @@ export function NoteDetailsPage() {
               
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-card-foreground">Installation Rate</span>
+                  <span className="text-sm font-medium text-card-foreground">Produced Progress</span>
+                  <span className="text-muted-foreground">
+                    {(panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                     (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                     (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                     (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)} / {totalPanels}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${totalPanels > 0 ? 
+                        (((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                         (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                         (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / totalPanels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {totalPanels > 0 ? 
+                    ((((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                      (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                      (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / totalPanels) * 100).toFixed(1) : 0}% panels produced
+                </p>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">Installation Progress</span>
                   <span className="text-sm text-muted-foreground">
                     {panelStatusCounts['Installed'] || 0} / {totalPanels}
                   </span>
@@ -830,6 +926,72 @@ export function NoteDetailsPage() {
                 <p className="text-xs text-muted-foreground mt-1">
                   {totalPanels > 0 ? 
                     (((panelStatusCounts['Installed'] || 0) / totalPanels) * 100).toFixed(1) : 0}% panels installed
+                </p>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">On Hold Progress</span>
+                  <span className="text-muted-foreground">
+                    {panelStatusCounts['On Hold'] || 0} / {totalPanels}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-orange-500 h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${totalPanels > 0 ? 
+                        ((panelStatusCounts['On Hold'] || 0) / totalPanels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {totalPanels > 0 ? 
+                    (((panelStatusCounts['On Hold'] || 0) / totalPanels) * 100).toFixed(1) : 0}% panels on hold
+                </p>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">Cancelled Progress</span>
+                  <span className="text-muted-foreground">
+                    {panelStatusCounts['Cancelled'] || 0} / {totalPanels}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-red-500 h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${totalPanels > 0 ? 
+                        ((panelStatusCounts['Cancelled'] || 0) / totalPanels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {totalPanels > 0 ? 
+                    (((panelStatusCounts['Cancelled'] || 0) / totalPanels) * 100).toFixed(1) : 0}% panels cancelled
+                </p>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">Broken at Site Progress</span>
+                  <span className="text-muted-foreground">
+                    {panelStatusCounts['Broken at Site'] || 0} / {totalPanels}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-red-600 h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${totalPanels > 0 ? 
+                        ((panelStatusCounts['Broken at Site'] || 0) / totalPanels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {totalPanels > 0 ? 
+                    (((panelStatusCounts['Broken at Site'] || 0) / totalPanels) * 100).toFixed(1) : 0}% panels broken at site
                 </p>
               </div>
             </CardContent>
@@ -883,112 +1045,115 @@ export function NoteDetailsPage() {
           </Card>
         </div>
 
-        {/* Note Progress with Pie Chart */}
-        <Card className="qatar-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Progress Overview
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {totalPanels === 0 ? (
-              <div className="text-center text-sm text-muted-foreground py-10">
-                No panels yet for this note
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Installed vs Total</span>
-                  <span className="font-medium">{getProgress()}%</span>
+        {/* Right Column */}
+        <div className="space-y-6">
+          {/* Progress Overview */}
+          <Card className="qatar-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Progress Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {totalPanels === 0 ? (
+                <div className="text-center text-sm text-muted-foreground py-10">
+                  No panels yet for this note
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                  <div className="h-56">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                          {pieData.map((entry) => (
-                            <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || "#999999"} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(value: any, name: any) => [`${value} (${Math.round(((value as number) / totalPanels) * 100)}%)`, name]} />
-                      </PieChart>
-                    </ResponsiveContainer>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Installed vs Total</span>
+                    <span className="font-medium">{getProgress()}%</span>
                   </div>
-                  <div className="space-y-2">
-                    {['Issued For Production', 'Produced', 'Delivered', 'Installed'].map((status) => {
-                      const count = panelStatusCounts[status] || 0;
-                      return (
-                        <div key={status} className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2">
-                            <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: STATUS_COLORS[status] || "#999999" }} />
-                            <span className="text-muted-foreground">{status}</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                    <div className="h-56">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                            {pieData.map((entry) => (
+                              <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || "#999999"} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value: any, name: any) => [`${value} (${Math.round(((value as number) / totalPanels) * 100)}%)`, name]} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="space-y-2">
+                      {['Issued For Production', 'Produced', 'Delivered', 'Installed'].map((status) => {
+                        const count = panelStatusCounts[status] || 0;
+                        return (
+                          <div key={status} className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: STATUS_COLORS[status] || "#999999" }} />
+                              <span className="text-muted-foreground">{status}</span>
+                            </div>
+                            <span className="font-medium text-foreground">{count}</span>
                           </div>
-                          <span className="font-medium text-foreground">{count}</span>
-                        </div>
-                      );
-                    })}
-                    <div className="flex items-center justify-between text-sm pt-2 border-t">
-                      <span className="text-muted-foreground">Total Panels</span>
-                      <span className="font-medium text-foreground">{totalPanels}</span>
+                        );
+                      })}
+                      <div className="flex items-center justify-between text-sm pt-2 border-t">
+                        <span className="text-muted-foreground">Total Panels</span>
+                        <span className="font-medium text-foreground">{totalPanels}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              )}
+            </CardContent>
+          </Card>
 
-      {/* Note Totals Section */}
-      <Card className="qatar-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Note Totals
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <Square className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Total Area</span>
+          {/* Note Totals */}
+          <Card className="qatar-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Note Totals
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Square className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">Total Area</span>
+                  </div>
+                  <div className="text-2xl font-bold text-card-foreground">
+                    {note.panel_groups.reduce((sum, group) => sum + group.total_area, 0).toFixed(2)} m²
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <DollarSign className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">Total Amount</span>
+                  </div>
+                  <div className="text-2xl font-bold text-card-foreground">
+                    {formatQatarRiyal(note.panel_groups.reduce((sum, group) => sum + group.total_amount, 0))}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Weight className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">Total Weight</span>
+                  </div>
+                  <div className="text-2xl font-bold text-card-foreground">
+                    {note.panel_groups.reduce((sum, group) => sum + group.total_weight, 0).toFixed(2)} kg
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Package className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">Total Panels</span>
+                  </div>
+                  <div className="text-2xl font-bold text-card-foreground">
+                    {totalPanels}
+                  </div>
+                </div>
               </div>
-              <div className="text-2xl font-bold text-card-foreground">
-                {note.panel_groups.reduce((sum, group) => sum + group.total_area, 0).toFixed(2)} m²
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <DollarSign className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Total Amount</span>
-              </div>
-              <div className="text-2xl font-bold text-card-foreground">
-                {formatQatarRiyal(note.panel_groups.reduce((sum, group) => sum + group.total_amount, 0))}
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <Weight className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Total Weight</span>
-              </div>
-              <div className="text-2xl font-bold text-card-foreground">
-                {note.panel_groups.reduce((sum, group) => sum + group.total_weight, 0).toFixed(2)} kg
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <Package className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Total Panels</span>
-              </div>
-              <div className="text-2xl font-bold text-card-foreground">
-                {totalPanels}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       {/* Tabbed Sections */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

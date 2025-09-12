@@ -2994,7 +2994,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                 className="w-full h-11"
               />
             </div>
-            </div>
+          </div>
           </div>
           <DialogFooter className="pt-6 border-t">
             <Button

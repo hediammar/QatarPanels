@@ -146,7 +146,7 @@ export function Layout({ children }: LayoutProps) {
       <div className={`${sidebarCollapsed ? 'w-16' : 'w-64'} qatar-sidebar flex flex-col h-full transition-all duration-300 ease-in-out`}>
         {/* Sidebar Header */}
         <div className="qatar-sidebar-header">
-          <div className="flex items-center justify-between mb-4">
+          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'} mb-4`}>
             {!sidebarCollapsed && (
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
@@ -164,9 +164,14 @@ export function Layout({ children }: LayoutProps) {
               variant="ghost"
               size="sm"
               onClick={toggleSidebar}
-              className={`${sidebarCollapsed ? 'w-8 h-8 p-0' : 'ml-2'} flex-shrink-0 text-sidebar-foreground hover:bg-sidebar-accent`}
+              className={`${sidebarCollapsed ? 'w-10 h-10 p-0' : 'ml-2 w-10 h-10 p-0'} flex-shrink-0 text-sidebar-foreground hover:bg-sidebar-accent`}
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              <LayoutDashboard className="h-4 w-4" />
+              {sidebarCollapsed ? (
+                <Menu className="h-5 w-5" />
+              ) : (
+                <X className="h-5 w-5" />
+              )}
             </Button>
           </div>
 

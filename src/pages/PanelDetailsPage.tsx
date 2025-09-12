@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Package, Edit, Trash2, Square, DollarSign, Weight, Calendar, FileText, QrCode, RefreshCw } from "lucide-react";
+import { ArrowLeft, Package, Edit, Trash2, Square, DollarSign, Weight, Calendar, FileText, QrCode, RefreshCw, Building2, Layers, MapPin } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -362,12 +362,13 @@ export function PanelDetailsPage() {
     });
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-QA', {
-      style: 'currency',
-      currency: 'QAR',
-      minimumFractionDigits: 2
-    }).format(amount);
+  const formatQatarRiyal = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "QAR",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount || 0);
   };
 
   if (loading) {
@@ -434,221 +435,258 @@ export function PanelDetailsPage() {
               navigate(`/projects/${panel.project_id}`);
             }
           }}
-          className="hover:bg-accent"
+          className="hover:bg-accent h-9 text-xs sm:text-sm"
         >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to {facade ? 'Facade' : building ? 'Building' : 'Project'}
+          <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+          <span className="hidden sm:inline">Back to {facade ? 'Facade' : building ? 'Building' : 'Project'}</span>
+          <span className="sm:hidden">Back</span>
         </Button>
       </div>
 
-      {/* Panel Overview */}
-      <Card className="qatar-card">
-        <CardHeader className="qatar-card-header">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <CardTitle className="qatar-card-title text-2xl">
-                  {panel.name}
-                </CardTitle>
-                {getStatusBadge(panel.status)}
-                {getTypeBadge(panel.type)}
-              </div>
-              <p className="qatar-card-subtitle">
-                {panel.issue_transmittal_no || `PNL-${panel.id.slice(-4).toUpperCase()}`}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleViewQRCode}
-                className="hover:bg-accent"
-              >
-                <QrCode className="h-3 w-3" />
-              </Button>
-              {canEditPanels && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleStatusChange}
-                  className="hover:bg-accent"
-                >
-                  <RefreshCw className="h-3 w-3" />
-                </Button>
-              )}
-              {canEditPanels && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={startEditPanel}
-                  className="hover:bg-accent"
-                >
-                  <Edit className="h-3 w-3" />
-                </Button>
-              )}
-              {canDeletePanels && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDelete}
-                  className="border-red-400/50 text-red-400 hover:bg-red-400/10"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
+      {/* Panel Header */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="space-y-2">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">{panel.name}</h1>
+            {getStatusBadge(panel.status)}
+            {getTypeBadge(panel.type)}
           </div>
-        </CardHeader>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            {panel.issue_transmittal_no || `PNL-${panel.id.slice(-4).toUpperCase()}`}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleViewQRCode}
+            className="hover:bg-accent h-9 w-9 sm:h-10 sm:w-10 p-0"
+            title="View QR Code"
+          >
+            <QrCode className="h-4 w-4 sm:h-5 sm:w-5" />
+          </Button>
+          {canEditPanels && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleStatusChange}
+              className="hover:bg-accent h-9 w-9 sm:h-10 sm:w-10 p-0"
+              title="Change Status"
+            >
+              <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5" />
+            </Button>
+          )}
+          {canEditPanels && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={startEditPanel}
+              className="hover:bg-accent h-9 w-9 sm:h-10 sm:w-10 p-0"
+              title="Edit Panel"
+            >
+              <Edit className="h-4 w-4 sm:h-5 sm:w-5" />
+            </Button>
+          )}
+          {canDeletePanels && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDelete}
+              className="border-red-400/50 text-red-400 hover:bg-red-400/10 h-9 w-9 sm:h-10 sm:w-10 p-0"
+              title="Delete Panel"
+            >
+              <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
+            </Button>
+          )}
+        </div>
+      </div>
 
-        <CardContent className="qatar-card-content">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
+      {/* Panel Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Project Card */}
+        <Card className="qatar-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium">Project</CardTitle>
+            <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-lg sm:text-xl font-bold truncate">{project?.name || 'No Project'}</div>
+            <p className="text-xs text-muted-foreground mt-1 truncate">
+              {customer?.name || 'No Customer'}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Building Card */}
+        <Card className="qatar-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium">Building</CardTitle>
+            <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-lg sm:text-xl font-bold truncate">{building?.name || 'No Building'}</div>
+            <p className="text-xs text-muted-foreground mt-1 truncate">
+              {project?.name || 'No Project'}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Facade Card */}
+        <Card className="qatar-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium">Facade</CardTitle>
+            <Layers className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-lg sm:text-xl font-bold truncate">{facade?.name || 'No Facade'}</div>
+            <p className="text-xs text-muted-foreground mt-1 truncate">
+              {building?.name || 'No Building'}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Location Card */}
+        <Card className="qatar-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium">Location</CardTitle>
+            <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-lg sm:text-xl font-bold truncate">{project?.location || 'Unknown'}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Project Site
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Panel Details Grid - 2x2 Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        {/* Left Column */}
+        <div className="space-y-4 sm:space-y-6">
+          {/* Panel Information */}
+          <Card className="qatar-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <FileText className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                Panel Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 sm:space-y-4">
               <div>
-                <h4 className="font-medium mb-2">Drawing Number</h4>
-                <p className="text-muted-foreground">
+                <h4 className="font-medium mb-2 text-sm sm:text-base">Drawing Number</h4>
+                <p className="text-muted-foreground text-xs sm:text-sm">
                   {panel.drawing_number || "Not specified"}
                 </p>
               </div>
               
               <div>
-                <h4 className="font-medium mb-2">Building</h4>
-                <p className="text-muted-foreground">
-                  {building?.name || "Not assigned"}
+                <h4 className="font-medium mb-2 text-sm sm:text-base">Issue Transmittal Number</h4>
+                <p className="text-muted-foreground text-xs sm:text-sm">
+                  {panel.issue_transmittal_no || "Not specified"}
                 </p>
               </div>
 
               <div>
-                <h4 className="font-medium mb-2">Facade</h4>
-                <p className="text-muted-foreground">
-                  {facade?.name || "Not assigned"}
+                <h4 className="font-medium mb-2 text-sm sm:text-base">Panel Type</h4>
+                <p className="text-muted-foreground text-xs sm:text-sm">
+                  {PANEL_TYPES[panel.type] || "Unknown"}
                 </p>
               </div>
 
               <div>
-                <h4 className="font-medium mb-2">Project</h4>
-                <p className="text-muted-foreground">
-                  {project?.name || "Unknown project"}
+                <h4 className="font-medium mb-2 text-sm sm:text-base">Current Status</h4>
+                <p className="text-muted-foreground text-xs sm:text-sm">
+                  {PANEL_STATUSES[panel.status] || "Unknown"}
                 </p>
               </div>
 
               <div>
-                <h4 className="font-medium mb-2">Customer</h4>
-                <p className="text-muted-foreground">
-                  {customer?.name || "Unknown customer"}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-medium mb-2">Created</h4>
-                <p className="text-muted-foreground">
-                  {formatDate(panel.created_at)}
-                </p>
-              </div>
-
-              <div>
-                <h4 className="font-medium mb-2">Last Updated</h4>
-                <p className="text-muted-foreground">
-                  {formatDate(panel.updated_at)}
-                </p>
-              </div>
-
-              <div>
-                <h4 className="font-medium mb-2">Issued for Production</h4>
-                <p className="text-muted-foreground">
+                <h4 className="font-medium mb-2 text-sm sm:text-base">Issued for Production</h4>
+                <p className="text-muted-foreground text-xs sm:text-sm">
                   {panel.issued_for_production_date ? formatDate(panel.issued_for_production_date) : "Not set"}
                 </p>
               </div>
+            </CardContent>
+          </Card>
 
-              <div>
-                <h4 className="font-medium mb-2">Location</h4>
-                <p className="text-muted-foreground">
-                  {project?.location || "Location not specified"}
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* Timeline Information */}
+          
+        </div>
 
-          {/* Panel Specifications */}
-          <div className="mt-6 pt-6 border-t border-border/50">
-            <h4 className="font-medium mb-4">Panel Specifications</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <Square className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="font-semibold text-card-foreground">Area:</span>
-                  <span className="text-muted-foreground">{(panel.ifp_qty_area_sm || 0).toFixed(2)} m²</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="font-semibold text-card-foreground">Unit Rate:</span>
-                  <span className="text-muted-foreground">{formatCurrency(panel.unit_rate_qr_m2 || 0)}/m²</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="font-semibold text-card-foreground">Total Amount:</span>
-                  <span className="text-muted-foreground">{formatCurrency((panel.ifp_qty_area_sm || 0) * (panel.unit_rate_qr_m2 || 0))}</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <Weight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="font-semibold text-card-foreground">Weight:</span>
-                  <span className="text-muted-foreground">{(panel.weight || 0).toFixed(2)} kg</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="font-semibold text-card-foreground">Quantity:</span>
-                  <span className="text-muted-foreground">{panel.ifp_qty_nos || 0} units</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="font-semibold text-card-foreground">Dimension:</span>
-                  <span className="text-muted-foreground">{panel.dimension || "Not specified"}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tabbed Sections */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-1">
-          <TabsTrigger value="details">Details</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="details" className="space-y-6">
+        {/* Right Column */}
+        <div className="space-y-4 sm:space-y-6">
+          {/* Panel Totals */}
           <Card className="qatar-card">
-            <CardHeader className="qatar-card-header">
-              <CardTitle className="qatar-card-title">Additional Information</CardTitle>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <Package className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                Panel Specifications
+              </CardTitle>
             </CardHeader>
-            <CardContent className="qatar-card-content">
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-medium mb-2">Issue Transmittal Number</h4>
-                  <p className="text-muted-foreground">
-                    {panel.issue_transmittal_no || "Not specified"}
-                  </p>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Square className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Area</span>
+                  </div>
+                  <div className="text-lg sm:text-2xl font-bold text-card-foreground">
+                    {(panel.ifp_qty_area_sm || 0).toFixed(2)} m²
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-medium mb-2">Panel Type</h4>
-                  <p className="text-muted-foreground">
-                    {PANEL_TYPES[panel.type] || "Unknown"}
-                  </p>
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Unit Rate</span>
+                  </div>
+                  <div className="text-lg sm:text-2xl font-bold text-card-foreground">
+                    {formatQatarRiyal(panel.unit_rate_qr_m2 || 0)}/m²
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-medium mb-2">Current Status</h4>
-                  <p className="text-muted-foreground">
-                    {PANEL_STATUSES[panel.status] || "Unknown"}
-                  </p>
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Total Amount</span>
+                  </div>
+                  <div className="text-lg sm:text-2xl font-bold text-card-foreground">
+                    {formatQatarRiyal((panel.ifp_qty_area_sm || 0) * (panel.unit_rate_qr_m2 || 0))}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Weight className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Weight</span>
+                  </div>
+                  <div className="text-lg sm:text-2xl font-bold text-card-foreground">
+                    {(panel.weight || 0).toFixed(2)} kg
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Package className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Quantity</span>
+                  </div>
+                  <div className="text-lg sm:text-2xl font-bold text-card-foreground">
+                    {panel.ifp_qty_nos || 0}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Dimension</span>
+                  </div>
+                  <div className="text-lg sm:text-2xl font-bold text-card-foreground">
+                    {panel.dimension || "N/A"}
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
+
+      
 
       {/* Status Change Dialog */}
       <StatusChangeDialog
@@ -667,29 +705,30 @@ export function PanelDetailsPage() {
 
       {/* Edit Panel Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto mx-4 sm:w-full sm:mx-0 rounded-lg">
           <DialogHeader>
-            <DialogTitle>Edit Panel</DialogTitle>
-            <DialogDescription>Update panel information for {panel?.name}</DialogDescription>
+            <DialogTitle className="text-lg sm:text-xl">Edit Panel</DialogTitle>
+            <DialogDescription className="text-sm">Update panel information for {panel?.name}</DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="edit-name">Panel Name *</Label>
+              <Label htmlFor="edit-name" className="text-sm font-medium">Panel Name *</Label>
               <Input
                 id="edit-name"
                 value={newPanelModel.name}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, name: e.target.value })}
                 placeholder="Enter panel name"
+                className="w-full h-11"
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-type">Panel Type *</Label>
+              <Label htmlFor="edit-type" className="text-sm font-medium">Panel Type *</Label>
               <Select
                 value={typeMap[newPanelModel.type]}
                 onValueChange={(value) => setNewPanelModel({ ...newPanelModel, type: typeReverseMap[value] })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -702,12 +741,12 @@ export function PanelDetailsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-status">Status *</Label>
+              <Label htmlFor="edit-status" className="text-sm font-medium">Status *</Label>
               <Select
                 value={statusMap[newPanelModel.status]}
                 onValueChange={(value) => setNewPanelModel({ ...newPanelModel, status: statusReverseMap[value] })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -754,25 +793,27 @@ export function PanelDetailsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-issue_transmittal_no">Issue/Transmittal Number</Label>
+              <Label htmlFor="edit-issue_transmittal_no" className="text-sm font-medium">Issue/Transmittal Number</Label>
               <Input
                 id="edit-issue_transmittal_no"
                 value={newPanelModel.issue_transmittal_no || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, issue_transmittal_no: e.target.value || undefined })}
                 placeholder="Enter issue/transmittal number"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-drawing_number">Drawing Number</Label>
+              <Label htmlFor="edit-drawing_number" className="text-sm font-medium">Drawing Number</Label>
               <Input
                 id="edit-drawing_number"
                 value={newPanelModel.drawing_number || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, drawing_number: e.target.value || undefined })}
                 placeholder="Enter drawing number"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-unit_rate_qr_m2">Unit Rate QR/m²</Label>
+              <Label htmlFor="edit-unit_rate_qr_m2" className="text-sm font-medium">Unit Rate QR/m²</Label>
               <Input
                 id="edit-unit_rate_qr_m2"
                 type="number"
@@ -780,10 +821,11 @@ export function PanelDetailsPage() {
                 value={newPanelModel.unit_rate_qr_m2 || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, unit_rate_qr_m2: e.target.value ? parseFloat(e.target.value) : undefined })}
                 placeholder="Enter unit rate"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-ifp_qty_area_sm">IFP Qty Area SM</Label>
+              <Label htmlFor="edit-ifp_qty_area_sm" className="text-sm font-medium">IFP Qty Area SM</Label>
               <Input
                 id="edit-ifp_qty_area_sm"
                 type="number"
@@ -791,10 +833,11 @@ export function PanelDetailsPage() {
                 value={newPanelModel.ifp_qty_area_sm || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, ifp_qty_area_sm: e.target.value ? parseFloat(e.target.value) : undefined })}
                 placeholder="Enter IFP qty area"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-ifp_qty_nos">IFP Qty Nos</Label>
+              <Label htmlFor="edit-ifp_qty_nos" className="text-sm font-medium">IFP Qty Nos</Label>
               <Input
                 id="edit-ifp_qty_nos"
                 type="number"
@@ -802,10 +845,11 @@ export function PanelDetailsPage() {
                 value={newPanelModel.ifp_qty_nos || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, ifp_qty_nos: e.target.value ? parseInt(e.target.value) : undefined })}
                 placeholder="Enter IFP qty nos"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-weight">Weight (kg)</Label>
+              <Label htmlFor="edit-weight" className="text-sm font-medium">Weight (kg)</Label>
               <Input
                 id="edit-weight"
                 type="number"
@@ -814,26 +858,29 @@ export function PanelDetailsPage() {
                 value={newPanelModel.weight || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, weight: e.target.value ? parseFloat(e.target.value) : undefined })}
                 placeholder="Enter weight in kg"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-dimension">Dimension</Label>
+              <Label htmlFor="edit-dimension" className="text-sm font-medium">Dimension</Label>
               <Input
                 id="edit-dimension"
                 value={newPanelModel.dimension || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, dimension: e.target.value || undefined })}
                 placeholder="Enter dimension (e.g., 2.5m x 1.2m)"
+                className="w-full h-11"
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="pt-6 border-t">
             <Button
               variant="outline"
               onClick={() => setIsEditDialogOpen(false)}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button onClick={handleSavePanel} disabled={isSavingPanel}>
+            <Button onClick={handleSavePanel} disabled={isSavingPanel} className="w-full sm:w-auto">
               {isSavingPanel ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>

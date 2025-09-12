@@ -501,32 +501,34 @@ export function FacadesSection({
                   </div>
                   <div className="flex gap-2">
                     {canUpdateFacades && (
-                      <FacadeModalTrigger
-                        onSubmit={async (data) => {
-                          const { error } = await supabase
-                            .from('facades')
-                            .update({
-                              name: data.name,
-                              building_id: data.building_id,
-                              status: data.status,
-                              description: data.description,
-                              updated_at: new Date().toISOString()
-                            })
-                            .eq('id', facade.id);
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <FacadeModalTrigger
+                          onSubmit={async (data) => {
+                            const { error } = await supabase
+                              .from('facades')
+                              .update({
+                                name: data.name,
+                                building_id: data.building_id,
+                                status: data.status,
+                                description: data.description,
+                                updated_at: new Date().toISOString()
+                              })
+                              .eq('id', facade.id);
 
-                          if (error) {
-                            console.error('Error updating facade:', error);
-                            return;
-                          }
+                            if (error) {
+                              console.error('Error updating facade:', error);
+                              return;
+                            }
 
-                          setFacades(facades.map(f => 
-                            f.id === facade.id ? { ...f, ...data, updated_at: new Date().toISOString() } : f
-                          ));
-                        }}
-                        editingFacade={facade}
-                        currentProject={currentProject}
-                        currentBuilding={currentBuilding}
-                      />
+                            setFacades(facades.map(f => 
+                              f.id === facade.id ? { ...f, ...data, updated_at: new Date().toISOString() } : f
+                            ));
+                          }}
+                          editingFacade={facade}
+                          currentProject={currentProject}
+                          currentBuilding={currentBuilding}
+                        />
+                      </div>
                     )}
                     {canDeleteFacades && (
                       <Button
@@ -536,9 +538,9 @@ export function FacadesSection({
                           e.stopPropagation();
                           handleDelete(facade);
                         }}
-                        className="border-red-400/50 text-red-400 hover:bg-red-400/10"
+                        className="border-red-400/50 text-red-400 hover:bg-red-400/10 h-9 w-9 p-0"
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
                   </div>

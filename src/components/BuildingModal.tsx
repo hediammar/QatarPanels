@@ -519,9 +519,10 @@ export function BuildingModalTrigger({
       currentProjectId={currentProjectId}
       currentProjectName={currentProjectName}
       trigger={
-        <Button className="gap-2" disabled={disabled} onClick={handleClick}>
-          <Plus className="h-4 w-4" />
-          {editingBuilding ? 'Edit Building' : 'Add Building'}
+        <Button className="gap-2 h-9 text-xs sm:text-sm" disabled={disabled} onClick={handleClick}>
+          <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+          <span className="hidden sm:inline">{editingBuilding ? 'Edit Building' : 'Add Building'}</span>
+          <span className="sm:hidden">{editingBuilding ? 'Edit' : 'Add'}</span>
         </Button>
       }
       {...props}

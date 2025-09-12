@@ -317,85 +317,86 @@ export function FacadeDetailsPage() {
           variant="outline"
           size="sm"
           onClick={() => navigate(`/buildings/${facade.building_id}`)}
-          className="hover:bg-accent"
+          className="hover:bg-accent h-9 text-xs sm:text-sm"
         >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Building
+          <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+          <span className="hidden sm:inline">Back to Building</span>
+          <span className="sm:hidden">Back</span>
         </Button>
       </div>
 
       {/* Facade Header */}
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="space-y-2">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold text-foreground">{facade.name}</h1>
-                {getStatusBadge(facade.status)}
-              </div>
-          <p className="text-muted-foreground">
-                FCD-{facade.id.slice(-4).toUpperCase()}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              {canEditFacades && (
-                <FacadeModalTrigger
-                  onSubmit={async (data) => {
-                    const { error } = await supabase
-                      .from('facades')
-                      .update({
-                        name: data.name,
-                        building_id: data.building_id,
-                        status: data.status,
-                        description: data.description,
-                        updated_at: new Date().toISOString()
-                      })
-                      .eq('id', facade.id);
-
-                    if (error) {
-                      console.error('Error updating facade:', error);
-                      showToast('Error updating facade', 'error');
-                      return;
-                    }
-
-                    setFacade({ ...facade, ...data, updated_at: new Date().toISOString() });
-                    showToast('Facade updated successfully', 'success');
-                  }}
-                  editingFacade={facade}
-                  currentProject={project ? {
-                    id: project.id,
-                    name: project.name,
-                    customer: customer?.name
-                  } : undefined}
-                  currentBuilding={building ? {
-                    id: building.id,
-                    name: building.name
-                  } : undefined}
-                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                />
-              )}
-              {canDeleteFacades && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDelete}
-                  className="border-red-400/50 text-red-400 hover:bg-red-400/10"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">{facade.name}</h1>
+            {getStatusBadge(facade.status)}
           </div>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            FCD-{facade.id.slice(-4).toUpperCase()}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {canEditFacades && (
+            <FacadeModalTrigger
+              onSubmit={async (data) => {
+                const { error } = await supabase
+                  .from('facades')
+                  .update({
+                    name: data.name,
+                    building_id: data.building_id,
+                    status: data.status,
+                    description: data.description,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', facade.id);
+
+                if (error) {
+                  console.error('Error updating facade:', error);
+                  showToast('Error updating facade', 'error');
+                  return;
+                }
+
+                setFacade({ ...facade, ...data, updated_at: new Date().toISOString() });
+                showToast('Facade updated successfully', 'success');
+              }}
+              editingFacade={facade}
+              currentProject={project ? {
+                id: project.id,
+                name: project.name,
+                customer: customer?.name
+              } : undefined}
+              currentBuilding={building ? {
+                id: building.id,
+                name: building.name
+              } : undefined}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            />
+          )}
+          {canDeleteFacades && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDelete}
+              className="border-red-400/50 text-red-400 hover:bg-red-400/10 h-9 w-9 p-0"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </div>
 
       {/* Facade Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Building Card */}
         <Card className="qatar-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Building</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-xs sm:text-sm font-medium">Building</CardTitle>
+            <Building2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">{building?.name || 'No Building'}</div>
-            <p className="text-xs text-muted-foreground mt-1">
+            <div className="text-lg sm:text-xl font-bold truncate">{building?.name || 'No Building'}</div>
+            <p className="text-xs text-muted-foreground mt-1 truncate">
               {project?.name || 'No Project'}
             </p>
           </CardContent>
@@ -404,11 +405,11 @@ export function FacadeDetailsPage() {
         {/* Location Card */}
         <Card className="qatar-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Location</CardTitle>
-            <MapPin className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-xs sm:text-sm font-medium">Location</CardTitle>
+            <MapPin className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">{project?.location || 'Unknown'}</div>
+            <div className="text-lg sm:text-xl font-bold truncate">{project?.location || 'Unknown'}</div>
             <p className="text-xs text-muted-foreground mt-1">
               Project Site
             </p>
@@ -418,11 +419,11 @@ export function FacadeDetailsPage() {
         {/* Description Card */}
         <Card className="qatar-card">
           <CardHeader className="flex items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Description</CardTitle>
-            <Edit className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-xs sm:text-sm font-medium">Description</CardTitle>
+            <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
           </CardHeader>
           <CardContent>
-            <div className="text-sm font-medium">
+            <div className="text-xs sm:text-sm font-medium line-clamp-2">
               {facade.description || "No description provided"}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -434,11 +435,11 @@ export function FacadeDetailsPage() {
         {/* Estimated Panels Card */}
         <Card className="qatar-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Estimated Panels</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-xs sm:text-sm font-medium">Estimated Panels</CardTitle>
+            <Package className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">
+            <div className="text-lg sm:text-xl font-bold">
               {project?.estimated_panels || 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -449,22 +450,22 @@ export function FacadeDetailsPage() {
       </div>
 
       {/* Facade Details Grid - 2x2 Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Left Column */}
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Manufacturing Pipeline */}
           <Card className="qatar-card">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                 Manufacturing Pipeline
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 sm:space-y-4">
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-card-foreground">Issued For Production</span>
-                  <span className="text-muted-foreground">
+                  <span className="text-xs sm:text-sm font-medium text-card-foreground">Issued For Production</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">
                     {(panelStatusCounts['Issued For Production'] || 0) + (panelStatusCounts['Produced'] || 0) + 
                      (panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
                      (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
@@ -500,8 +501,8 @@ export function FacadeDetailsPage() {
 
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-card-foreground">Delivered Progress</span>
-                  <span className="text-muted-foreground">
+                  <span className="text-xs sm:text-sm font-medium text-card-foreground">Delivered Progress</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">
                     {(panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
                      (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)} / {project?.estimated_panels || 0}
@@ -528,8 +529,8 @@ export function FacadeDetailsPage() {
               
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-card-foreground">Produced Progress</span>
-                  <span className="text-muted-foreground">
+                  <span className="text-xs sm:text-sm font-medium text-card-foreground">Produced Progress</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">
                     {(panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
                      (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
                      (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
@@ -559,8 +560,8 @@ export function FacadeDetailsPage() {
               
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-card-foreground">Installation Progress</span>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-xs sm:text-sm font-medium text-card-foreground">Installation Progress</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">
                     {panelStatusCounts['Installed'] || 0} / {project?.estimated_panels || 0}
                   </span>
                 </div>
@@ -581,8 +582,8 @@ export function FacadeDetailsPage() {
 
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-card-foreground">On Hold Progress</span>
-                  <span className="text-muted-foreground">
+                  <span className="text-xs sm:text-sm font-medium text-card-foreground">On Hold Progress</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">
                     {panelStatusCounts['On Hold'] || 0} / {project?.estimated_panels || 0}
                   </span>
                 </div>
@@ -603,8 +604,8 @@ export function FacadeDetailsPage() {
 
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-card-foreground">Cancelled Progress</span>
-                  <span className="text-muted-foreground">
+                  <span className="text-xs sm:text-sm font-medium text-card-foreground">Cancelled Progress</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">
                     {panelStatusCounts['Cancelled'] || 0} / {project?.estimated_panels || 0}
                   </span>
                 </div>
@@ -625,8 +626,8 @@ export function FacadeDetailsPage() {
 
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-card-foreground">Broken at Site Progress</span>
-                  <span className="text-muted-foreground">
+                  <span className="text-xs sm:text-sm font-medium text-card-foreground">Broken at Site Progress</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">
                     {panelStatusCounts['Broken at Site'] || 0} / {project?.estimated_panels || 0}
                   </span>
                 </div>
@@ -650,18 +651,18 @@ export function FacadeDetailsPage() {
           {/* Efficiency Metrics */}
           <Card className="qatar-card">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <Clock className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                 Efficiency Metrics
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                  <span className="text-sm text-card-foreground">Production Efficiency</span>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></div>
+                  <span className="text-xs sm:text-sm text-card-foreground">Production Efficiency</span>
                 </div>
-                <Badge variant="secondary">
+                <Badge variant="secondary" className="text-xs">
                   {project && project.estimated_panels && project.estimated_panels > 0 ? 
                     ((((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
                       (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
@@ -671,10 +672,10 @@ export function FacadeDetailsPage() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                  <span className="text-sm text-card-foreground">Delivery Efficiency</span>
+                  <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></div>
+                  <span className="text-xs sm:text-sm text-card-foreground">Delivery Efficiency</span>
                 </div>
-                <Badge variant="secondary">
+                <Badge variant="secondary" className="text-xs">
                   {project && project.estimated_panels && project.estimated_panels > 0 ? 
                     (((panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
                       (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
@@ -683,10 +684,10 @@ export function FacadeDetailsPage() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                  <span className="text-sm text-card-foreground">Overall Completion</span>
+                  <div className="w-2 h-2 rounded-full bg-purple-500 flex-shrink-0"></div>
+                  <span className="text-xs sm:text-sm text-card-foreground">Overall Completion</span>
                 </div>
-                <Badge variant="secondary">
+                <Badge variant="secondary" className="text-xs">
                   {project && project.estimated_panels && project.estimated_panels > 0 ? 
                     (((panelStatusCounts['Approved Final'] || 0) / (project.estimated_panels || 1)) * 100).toFixed(1) : 0}%
                 </Badge>
@@ -696,31 +697,31 @@ export function FacadeDetailsPage() {
         </div>
 
         {/* Right Column */}
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Progress Overview */}
           <Card className="qatar-card">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                 Progress Overview
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {totalPanels === 0 ? (
-                <div className="text-center text-sm text-muted-foreground py-10">
+                <div className="text-center text-xs sm:text-sm text-muted-foreground py-8 sm:py-10">
                   No panels yet for this facade
                 </div>
               ) : (
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Installed vs Estimated</span>
-                    <span className="font-medium">{getProgress()}%</span>
+                    <span className="text-xs sm:text-sm text-muted-foreground">Installed vs Estimated</span>
+                    <span className="font-medium text-sm sm:text-base">{getProgress()}%</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                    <div className="h-56">
+                    <div className="h-48 sm:h-56">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                          <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={40} outerRadius={70} paddingAngle={2}>
                             {pieData.map((entry) => (
                               <Cell key={entry.name} fill={STATUS_COLORS[entry.name] || "#999999"} />
                             ))}
@@ -733,20 +734,20 @@ export function FacadeDetailsPage() {
                       {['Issued For Production', 'Produced', 'Delivered', 'Installed'].map((status) => {
                         const count = panelStatusCounts[status] || 0;
                         return (
-                          <div key={status} className="flex items-center justify-between text-sm">
+                          <div key={status} className="flex items-center justify-between text-xs sm:text-sm">
                             <div className="flex items-center gap-2">
-                              <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: STATUS_COLORS[status] || "#999999" }} />
-                              <span className="text-muted-foreground">{status}</span>
+                              <span className="inline-block h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-sm flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[status] || "#999999" }} />
+                              <span className="text-muted-foreground truncate">{status}</span>
                             </div>
                             <span className="font-medium text-foreground">{count}</span>
                           </div>
                         );
                       })}
-                      <div className="flex items-center justify-between text-sm pt-2 border-t">
+                      <div className="flex items-center justify-between text-xs sm:text-sm pt-2 border-t">
                         <span className="text-muted-foreground">Total Panels</span>
                         <span className="font-medium text-foreground">{totalPanels}</span>
                       </div>
-                      <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center justify-between text-xs sm:text-sm">
                         <span className="text-muted-foreground">Estimated Panels</span>
                         <span className="font-medium text-foreground">{project?.estimated_panels || 0}</span>
                       </div>
@@ -760,46 +761,46 @@ export function FacadeDetailsPage() {
           {/* Facade Totals */}
           <Card className="qatar-card">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Layers className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <Layers className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                 Facade Totals
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <Square className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-sm font-medium text-muted-foreground">Total Area</span>
+                    <Square className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Total Area</span>
                   </div>
-                  <div className="text-2xl font-bold text-card-foreground">
+                  <div className="text-lg sm:text-2xl font-bold text-card-foreground">
                     {(facade.totalArea || 0).toFixed(2)} m²
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <DollarSign className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-sm font-medium text-muted-foreground">Total Amount</span>
+                    <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Total Amount</span>
                   </div>
-                  <div className="text-2xl font-bold text-card-foreground">
+                  <div className="text-lg sm:text-2xl font-bold text-card-foreground">
                     {formatQatarRiyal(facade.totalAmount || 0)}
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <Weight className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-sm font-medium text-muted-foreground">Total Weight</span>
+                    <Weight className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Total Weight</span>
                   </div>
-                  <div className="text-2xl font-bold text-card-foreground">
+                  <div className="text-lg sm:text-2xl font-bold text-card-foreground">
                     {(facade.totalWeight || 0).toFixed(2)} kg
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <Package className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-sm font-medium text-muted-foreground">Total Panels</span>
+                    <Package className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Total Panels</span>
                   </div>
-                  <div className="text-2xl font-bold text-card-foreground">
+                  <div className="text-lg sm:text-2xl font-bold text-card-foreground">
                     {totalPanels}
                   </div>
                 </div>
@@ -810,12 +811,12 @@ export function FacadeDetailsPage() {
       </div>
 
       {/* Tabbed Sections */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-1">
-          <TabsTrigger value="panels">Panels</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+        <TabsList className="grid w-full grid-cols-1 h-auto">
+          <TabsTrigger value="panels" className="text-xs sm:text-sm px-2 py-2 sm:px-3 sm:py-2">Panels</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="panels" className="space-y-6">
+        <TabsContent value="panels" className="space-y-4 sm:space-y-6">
           <PanelsSection
             projectId={building?.project_id || ""}
             projectName={project?.name || ""}

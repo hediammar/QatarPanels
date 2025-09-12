@@ -1395,10 +1395,128 @@ export function PanelsPage() {
                   <div className="border rounded-lg">
                     <CollapsibleTrigger asChild>
                       <div 
-                        className="flex items-center justify-between p-4 hover:bg-muted/50 cursor-pointer"
+                        className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 hover:bg-muted/50 cursor-pointer gap-3 sm:gap-4"
                         onClick={() => handlePanelClick(panel)}
                       >
-                        <div className="flex items-center space-x-4 flex-1">
+                        {/* Mobile Layout */}
+                        <div className="w-full sm:hidden">
+                          {/* Selection checkbox */}
+                          {isSelectionMode && (
+                            <div 
+                              className="flex items-center mb-3"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                togglePanelSelection(panel.id);
+                              }}
+                            >
+                              {selectedPanels.has(panel.id) ? (
+                                <CheckSquare className="h-5 w-5 text-primary" />
+                              ) : (
+                                <Square className="h-5 w-5 text-muted-foreground" />
+                              )}
+                              <span className="ml-2 text-sm font-medium">Select Panel</span>
+                            </div>
+                          )}
+                          
+                          {/* Main panel info */}
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                {!isSelectionMode && (
+                                  <>
+                                    {expandedRows.has(panel.id) ? (
+                                      <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                    )}
+                                  </>
+                                )}
+                                <p className="font-semibold text-base truncate">{panel.name}</p>
+                              </div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <Layers className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                <span className="text-sm text-muted-foreground">{typeMap[panel.type]}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">Status:</span>
+                                <span className="text-xs font-medium text-primary">{statusMap[panel.status]}</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Action buttons - larger icons for better visibility */}
+                          <div className="flex items-center justify-center gap-1 pt-2 border-t border-border/50">
+                            {canChangePanelStatus && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStatusChange(panel);
+                              }}
+                              className="h-9 w-9 p-0"
+                              title="Change Status"
+                            >
+                              <RefreshCw className="h-8 w-8" />
+                            </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewQRCode(panel);
+                              }}
+                              className="h-9 w-9 p-0"
+                              title="View QR Code"
+                            >
+                              <QrCode className="h-8 w-8" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenTimeline(panel);
+                              }}
+                              className="h-9 w-9 p-0"
+                              title="View History"
+                            >
+                              <History className="h-8 w-8" />
+                            </Button>
+                            {canUpdatePanels && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startEditPanel(panel);
+                              }}
+                              className="h-9 w-9 p-0"
+                              title="Edit Panel"
+                            >
+                              <Edit className="h-8 w-8" />
+                            </Button>
+                            )}
+                            {canDeletePanels && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeletePanel(panel);
+                              }}
+                              className="h-9 w-9 p-0 text-destructive hover:text-destructive"
+                              title="Delete Panel"
+                            >
+                              <Trash2 className="h-8 w-8" />
+                            </Button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Desktop Layout */}
+                        <div className="hidden sm:flex items-center space-x-4 flex-1">
                           {isSelectionMode && (
                             <div 
                               className="flex items-center"
@@ -1448,7 +1566,7 @@ export function PanelsPage() {
                             </div>
                           </div>
                         </div>
-                       <div className="flex items-center gap-2">
+                       <div className="hidden sm:flex items-center gap-2">
                           {canChangePanelStatus && (
                             <Button
                               variant="ghost"
@@ -1516,60 +1634,60 @@ export function PanelsPage() {
                       </div>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
-                      <div className="px-4 pb-4 border-t bg-muted/25">
-                        <div className="grid grid-cols-3 gap-4 pt-4">
+                      <div className="px-3 sm:px-4 pb-3 sm:pb-4 border-t bg-muted/25">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 pt-3 sm:pt-4">
                           <div className="space-y-2">
-                            <h4 className="font-medium text-sm">Technical Details</h4>
+                            <h4 className="font-medium text-xs sm:text-sm">Technical Details</h4>
                             <div className="space-y-1">
                               <div className="flex items-center">
-                                <FileText className="mr-2 h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground">Issue/Transmittal Number:</span>
-                                <span className="text-xs ml-2">{panel.issue_transmittal_no || "—"}</span>
+                                <FileText className="mr-2 h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                <span className="text-xs text-muted-foreground">Issue/Transmittal:</span>
+                                <span className="text-xs ml-2 truncate">{panel.issue_transmittal_no || "—"}</span>
                               </div>
                               <div className="flex items-center">
-                                <FileText className="mr-2 h-3 w-3 text-muted-foreground" />
+                                <FileText className="mr-2 h-3 w-3 text-muted-foreground flex-shrink-0" />
                                 <span className="text-xs text-muted-foreground">Drawing Number:</span>
-                                <span className="text-xs ml-2">{panel.drawing_number || "—"}</span>
+                                <span className="text-xs ml-2 truncate">{panel.drawing_number || "—"}</span>
                               </div>
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <h4 className="font-medium text-sm">Quantities</h4>
+                            <h4 className="font-medium text-xs sm:text-sm">Quantities</h4>
                             <div className="space-y-1">
                               <div className="flex items-center">
-                                <Hash className="mr-2 h-3 w-3 text-muted-foreground" />
+                                <Hash className="mr-2 h-3 w-3 text-muted-foreground flex-shrink-0" />
                                 <span className="text-xs text-muted-foreground">Unit Rate QR/m²:</span>
                                 <span className="text-xs ml-2">{panel.unit_rate_qr_m2 || "—"}</span>
                               </div>
                               <div className="flex items-center">
-                                <Hash className="mr-2 h-3 w-3 text-muted-foreground" />
+                                <Hash className="mr-2 h-3 w-3 text-muted-foreground flex-shrink-0" />
                                 <span className="text-xs text-muted-foreground">IFP Qty Area SM:</span>
                                 <span className="text-xs ml-2">{panel.ifp_qty_area_sm || "—"}</span>
                               </div>
                               <div className="flex items-center">
-                                <Hash className="mr-2 h-3 w-3 text-muted-foreground" />
+                                <Hash className="mr-2 h-3 w-3 text-muted-foreground flex-shrink-0" />
                                 <span className="text-xs text-muted-foreground">IFP Qty Nos:</span>
                                 <span className="text-xs ml-2">{panel.ifp_qty_nos || "—"}</span>
                               </div>
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <h4 className="font-medium text-sm">Project Info</h4>
+                            <h4 className="font-medium text-xs sm:text-sm">Project Info</h4>
                             <div className="space-y-1">
                               <div className="flex items-center">
-                                <FolderOpen className="mr-2 h-3 w-3 text-muted-foreground" />
+                                <FolderOpen className="mr-2 h-3 w-3 text-muted-foreground flex-shrink-0" />
                                 <span className="text-xs text-muted-foreground">Project:</span>
-                                <span className="text-xs ml-2">{panel.project_name}</span>
+                                <span className="text-xs ml-2 truncate">{panel.project_name}</span>
                               </div>
                               <div className="flex items-center">
-                                <FolderOpen className="mr-2 h-3 w-3 text-muted-foreground" />
+                                <FolderOpen className="mr-2 h-3 w-3 text-muted-foreground flex-shrink-0" />
                                 <span className="text-xs text-muted-foreground">Building:</span>
-                                <span className="text-xs ml-2">{panel.building_name || "—"}</span>
+                                <span className="text-xs ml-2 truncate">{panel.building_name || "—"}</span>
                               </div>
                               <div className="flex items-center">
-                                <FolderOpen className="mr-2 h-3 w-3 text-muted-foreground" />
+                                <FolderOpen className="mr-2 h-3 w-3 text-muted-foreground flex-shrink-0" />
                                 <span className="text-xs text-muted-foreground">Facade:</span>
-                                <span className="text-xs ml-2">{panel.facade_name || "—"}</span>
+                                <span className="text-xs ml-2 truncate">{panel.facade_name || "—"}</span>
                               </div>
                             </div>
                           </div>
@@ -1582,22 +1700,24 @@ export function PanelsPage() {
             )}
           </div>
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-6">
+            <div className="flex items-center justify-center gap-1 sm:gap-2 mt-4 sm:mt-6 flex-wrap">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
+                className="h-8 w-8 sm:h-9 sm:w-9 p-0"
               >
-                <ChevronsLeft className="h-4 w-4" />
+                <ChevronsLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setCurrentPage(currentPage - 1)}
                 disabled={currentPage === 1}
+                className="h-8 w-8 sm:h-9 sm:w-9 p-0"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </Button>
               <div className="flex items-center gap-1">
                 {Array.from({ length: totalPages }, (_, i) => i + 1)
@@ -1609,7 +1729,7 @@ export function PanelsPage() {
                         variant={currentPage === page ? "default" : "outline"}
                         size="sm"
                         onClick={() => setCurrentPage(page)}
-                        className="w-8 h-8 p-0"
+                        className="w-7 h-7 sm:w-8 sm:h-8 p-0 text-xs sm:text-sm"
                       >
                         {page}
                       </Button>
@@ -1621,16 +1741,18 @@ export function PanelsPage() {
                 size="sm"
                 onClick={() => setCurrentPage(currentPage + 1)}
                 disabled={currentPage === totalPages}
+                className="h-8 w-8 sm:h-9 sm:w-9 p-0"
               >
-                <ChevronRightIcon className="h-4 w-4" />
+                <ChevronRightIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setCurrentPage(totalPages)}
                 disabled={currentPage === totalPages}
+                className="h-8 w-8 sm:h-9 sm:w-9 p-0"
               >
-                <ChevronsRight className="h-4 w-4" />
+                <ChevronsRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </Button>
             </div>
           )}
@@ -1638,14 +1760,14 @@ export function PanelsPage() {
       </Card>
 
       <Dialog open={isAddPanelDialogOpen} onOpenChange={setIsAddPanelDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto mx-4 sm:w-full sm:mx-0 rounded-lg">
           <DialogHeader>
-            <DialogTitle>Add New Panel</DialogTitle>
-            <DialogDescription>Create a new panel</DialogDescription>
+            <DialogTitle className="text-lg sm:text-xl">Add New Panel</DialogTitle>
+            <DialogDescription className="text-sm">Create a new panel</DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="project">Project *</Label>
+              <Label htmlFor="project" className="text-sm font-medium">Project *</Label>
               <Select
                 value={addPanelProjectId}
                 onValueChange={(value) => {
@@ -1663,7 +1785,7 @@ export function PanelsPage() {
                   setFacades(allFacades);
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue placeholder="Select a project" />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
@@ -1676,22 +1798,23 @@ export function PanelsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="name">Panel Name *</Label>
+              <Label htmlFor="name" className="text-sm font-medium">Panel Name *</Label>
               <Input
                 id="name"
                 value={newPanelModel.name}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, name: e.target.value })}
                 placeholder="Enter panel name"
+                className="w-full h-11"
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="type">Panel Type *</Label>
+              <Label htmlFor="type" className="text-sm font-medium">Panel Type *</Label>
               <Select
                 value={typeMap[newPanelModel.type]}
                 onValueChange={(value) => setNewPanelModel({ ...newPanelModel, type: typeReverseMap[value] })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1713,12 +1836,12 @@ export function PanelsPage() {
             />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="status">Status *</Label>
+              <Label htmlFor="status" className="text-sm font-medium">Status *</Label>
               <Select
                 value={statusMap[newPanelModel.status]}
                 disabled
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1729,7 +1852,7 @@ export function PanelsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="building_id">Building</Label>
+              <Label htmlFor="building_id" className="text-sm font-medium">Building</Label>
               <Select
                 value={newPanelModel.building_id || ""}
                 disabled={!addPanelProjectId}
@@ -1742,7 +1865,7 @@ export function PanelsPage() {
                   filterFacadesByBuilding(value || undefined);
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue placeholder="Select building" />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
@@ -1755,13 +1878,13 @@ export function PanelsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="facade_id">Facade</Label>
+              <Label htmlFor="facade_id" className="text-sm font-medium">Facade</Label>
               <Select
                 value={newPanelModel.facade_id || ""}
                 disabled={!addPanelProjectId || !newPanelModel.building_id}
                 onValueChange={(value) => setNewPanelModel({ ...newPanelModel, facade_id: value || undefined })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue placeholder="Select facade" />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
@@ -1774,25 +1897,27 @@ export function PanelsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="issue_transmittal_no">Issue/Transmittal Number</Label>
+              <Label htmlFor="issue_transmittal_no" className="text-sm font-medium">Issue/Transmittal Number</Label>
               <Input
                 id="issue_transmittal_no"
                 value={newPanelModel.issue_transmittal_no || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, issue_transmittal_no: e.target.value || undefined })}
                 placeholder="Enter issue/transmittal number"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="drawing_number">Drawing Number</Label>
+              <Label htmlFor="drawing_number" className="text-sm font-medium">Drawing Number</Label>
               <Input
                 id="drawing_number"
                 value={newPanelModel.drawing_number || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, drawing_number: e.target.value || undefined })}
                 placeholder="Enter drawing number"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="unit_rate_qr_m2">Unit Rate QR/m²</Label>
+              <Label htmlFor="unit_rate_qr_m2" className="text-sm font-medium">Unit Rate QR/m²</Label>
               <Input
                 id="unit_rate_qr_m2"
                 type="number"
@@ -1800,10 +1925,11 @@ export function PanelsPage() {
                 value={newPanelModel.unit_rate_qr_m2 || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, unit_rate_qr_m2: e.target.value ? parseFloat(e.target.value) : undefined })}
                 placeholder="Enter unit rate"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ifp_qty_area_sm">IFP Qty Area SM</Label>
+              <Label htmlFor="ifp_qty_area_sm" className="text-sm font-medium">IFP Qty Area SM</Label>
               <Input
                 id="ifp_qty_area_sm"
                 type="number"
@@ -1811,10 +1937,11 @@ export function PanelsPage() {
                 value={newPanelModel.ifp_qty_area_sm || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, ifp_qty_area_sm: e.target.value ? parseFloat(e.target.value) : undefined })}
                 placeholder="Enter IFP qty area"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ifp_qty_nos">IFP Qty Nos</Label>
+              <Label htmlFor="ifp_qty_nos" className="text-sm font-medium">IFP Qty Nos</Label>
               <Input
                 id="ifp_qty_nos"
                 type="number"
@@ -1822,10 +1949,11 @@ export function PanelsPage() {
                 value={newPanelModel.ifp_qty_nos || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, ifp_qty_nos: e.target.value ? parseInt(e.target.value) : undefined })}
                 placeholder="Enter IFP qty nos"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="weight">Weight (kg)</Label>
+              <Label htmlFor="weight" className="text-sm font-medium">Weight (kg)</Label>
               <Input
                 id="weight"
                 type="number"
@@ -1834,20 +1962,22 @@ export function PanelsPage() {
                 value={newPanelModel.weight || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, weight: e.target.value ? parseFloat(e.target.value) : undefined })}
                 placeholder="Enter weight in kg"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="dimension">Dimension</Label>
+              <Label htmlFor="dimension" className="text-sm font-medium">Dimension</Label>
               <Input
                 id="dimension"
                 value={newPanelModel.dimension || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, dimension: e.target.value || undefined })}
                 placeholder="Enter dimension (e.g., 2.5m x 1.2m)"
+                className="w-full h-11"
               />
             </div>
             
           </div>
-          <DialogFooter>
+          <DialogFooter className="pt-6 border-t">
             <Button
               variant="outline"
               onClick={() => {
@@ -1872,28 +2002,29 @@ export function PanelsPage() {
                 setFacades(allFacades);
                 setFilteredBuildings([]);
               }}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button onClick={handleSavePanel} disabled={!canCreatePanels}>Add Panel</Button>
+            <Button onClick={handleSavePanel} disabled={!canCreatePanels} className="w-full sm:w-auto">Add Panel</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto mx-4 sm:w-full sm:mx-0 rounded-lg">
           <DialogHeader>
-            <DialogTitle>Edit Panel</DialogTitle>
-            <DialogDescription>Update panel information for {editingPanel?.name}</DialogDescription>
+            <DialogTitle className="text-lg sm:text-xl">Edit Panel</DialogTitle>
+            <DialogDescription className="text-sm">Update panel information for {editingPanel?.name}</DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="edit-project">Project *</Label>
+              <Label htmlFor="edit-project" className="text-sm font-medium">Project *</Label>
               <Select
                 value={selectedProjectId}
                 onValueChange={setSelectedProjectId}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue placeholder="Select a project" />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
@@ -1906,12 +2037,13 @@ export function PanelsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-name">Panel Name *</Label>
+              <Label htmlFor="edit-name" className="text-sm font-medium">Panel Name *</Label>
               <Input
                 id="edit-name"
                 value={newPanelModel.name}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, name: e.target.value })}
                 placeholder="Enter panel name"
+                className="w-full h-11"
                 required
               />
             </div>
@@ -1925,12 +2057,12 @@ export function PanelsPage() {
             />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-type">Panel Type *</Label>
+              <Label htmlFor="edit-type" className="text-sm font-medium">Panel Type *</Label>
               <Select
                 value={typeMap[newPanelModel.type]}
                 onValueChange={(value) => setNewPanelModel({ ...newPanelModel, type: typeReverseMap[value] })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1943,12 +2075,12 @@ export function PanelsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-status">Status *</Label>
+              <Label htmlFor="edit-status" className="text-sm font-medium">Status *</Label>
               <Select
                 value={statusMap[newPanelModel.status]}
                 onValueChange={(value) => setNewPanelModel({ ...newPanelModel, status: statusReverseMap[value] })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1986,7 +2118,7 @@ export function PanelsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-building_id">Building</Label>
+              <Label htmlFor="edit-building_id" className="text-sm font-medium">Building</Label>
               <Select
                 value={newPanelModel.building_id || ""}
                 onValueChange={(value) => {
@@ -1998,7 +2130,7 @@ export function PanelsPage() {
                   filterFacadesByBuilding(value || undefined);
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue placeholder="Select building" />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
@@ -2011,12 +2143,12 @@ export function PanelsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-facade_id">Facade</Label>
+              <Label htmlFor="edit-facade_id" className="text-sm font-medium">Facade</Label>
               <Select
                 value={newPanelModel.facade_id || ""}
                 onValueChange={(value) => setNewPanelModel({ ...newPanelModel, facade_id: value || undefined })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue placeholder="Select facade" />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
@@ -2029,25 +2161,27 @@ export function PanelsPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-issue_transmittal_no">Issue/Transmittal Number</Label>
+              <Label htmlFor="edit-issue_transmittal_no" className="text-sm font-medium">Issue/Transmittal Number</Label>
               <Input
                 id="edit-issue_transmittal_no"
                 value={newPanelModel.issue_transmittal_no || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, issue_transmittal_no: e.target.value || undefined })}
                 placeholder="Enter issue/transmittal number"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-drawing_number">Drawing Number</Label>
+              <Label htmlFor="edit-drawing_number" className="text-sm font-medium">Drawing Number</Label>
               <Input
                 id="edit-drawing_number"
                 value={newPanelModel.drawing_number || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, drawing_number: e.target.value || undefined })}
                 placeholder="Enter drawing number"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-unit_rate_qr_m2">Unit Rate QR/m²</Label>
+              <Label htmlFor="edit-unit_rate_qr_m2" className="text-sm font-medium">Unit Rate QR/m²</Label>
               <Input
                 id="edit-unit_rate_qr_m2"
                 type="number"
@@ -2055,10 +2189,11 @@ export function PanelsPage() {
                 value={newPanelModel.unit_rate_qr_m2 || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, unit_rate_qr_m2: e.target.value ? parseFloat(e.target.value) : undefined })}
                 placeholder="Enter unit rate"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-ifp_qty_area_sm">IFP Qty Area SM</Label>
+              <Label htmlFor="edit-ifp_qty_area_sm" className="text-sm font-medium">IFP Qty Area SM</Label>
               <Input
                 id="edit-ifp_qty_area_sm"
                 type="number"
@@ -2066,10 +2201,11 @@ export function PanelsPage() {
                 value={newPanelModel.ifp_qty_area_sm || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, ifp_qty_area_sm: e.target.value ? parseFloat(e.target.value) : undefined })}
                 placeholder="Enter IFP qty area"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-ifp_qty_nos">IFP Qty Nos</Label>
+              <Label htmlFor="edit-ifp_qty_nos" className="text-sm font-medium">IFP Qty Nos</Label>
               <Input
                 id="edit-ifp_qty_nos"
                 type="number"
@@ -2077,10 +2213,11 @@ export function PanelsPage() {
                 value={newPanelModel.ifp_qty_nos || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, ifp_qty_nos: e.target.value ? parseInt(e.target.value) : undefined })}
                 placeholder="Enter IFP qty nos"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-weight">Weight (kg)</Label>
+              <Label htmlFor="edit-weight" className="text-sm font-medium">Weight (kg)</Label>
               <Input
                 id="edit-weight"
                 type="number"
@@ -2089,20 +2226,22 @@ export function PanelsPage() {
                 value={newPanelModel.weight || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, weight: e.target.value ? parseFloat(e.target.value) : undefined })}
                 placeholder="Enter weight in kg"
+                className="w-full h-11"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-dimension">Dimension</Label>
+              <Label htmlFor="edit-dimension" className="text-sm font-medium">Dimension</Label>
               <Input
                 id="edit-dimension"
                 value={newPanelModel.dimension || ""}
                 onChange={(e) => setNewPanelModel({ ...newPanelModel, dimension: e.target.value || undefined })}
                 placeholder="Enter dimension (e.g., 2.5m x 1.2m)"
+                className="w-full h-11"
               />
             </div>
             
           </div>
-          <DialogFooter>
+          <DialogFooter className="pt-6 border-t">
             <Button
               variant="outline"
               onClick={() => {
@@ -2124,25 +2263,26 @@ export function PanelsPage() {
                   issued_for_production_date: undefined,
                 });
               }}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button onClick={handleSavePanel}>Save Changes</Button>
+            <Button onClick={handleSavePanel} className="w-full sm:w-auto">Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[95vw] max-w-md mx-4 sm:w-full sm:mx-0 rounded-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Panel</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-lg sm:text-xl">Delete Panel</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
               Are you sure you want to delete the panel "{panelToDelete?.name}"? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setPanelToDelete(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeletePanel} className="bg-destructive text-destructive-foreground">
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel onClick={() => setPanelToDelete(null)} className="w-full sm:w-auto">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeletePanel} className="bg-destructive text-destructive-foreground w-full sm:w-auto">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -2159,10 +2299,10 @@ export function PanelsPage() {
 
 
       <Dialog open={isTimelineOpen} onOpenChange={setIsTimelineOpen}>
-        <DialogContent className="w-[95vw] h-[90vh] max-w-6xl max-h-[90vh] flex flex-col sm:w-[90vw] md:w-[85vw] lg:w-[80vw]">
+        <DialogContent className="w-[95vw] max-w-6xl max-h-[90vh] overflow-y-auto mx-4 sm:w-[90vw] md:w-[85vw] lg:w-[80vw] sm:mx-0 rounded-lg">
           <DialogHeader className="flex-shrink-0">
-            <DialogTitle>Panel Timeline</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-lg sm:text-xl">Panel Timeline</DialogTitle>
+            <DialogDescription className="text-sm">
               Status history for {selectedPanelForTimeline?.name}
             </DialogDescription>
           </DialogHeader>
@@ -2178,21 +2318,21 @@ export function PanelsPage() {
 
       {/* Bulk Status Update Dialog */}
       <Dialog open={isBulkStatusDialogOpen} onOpenChange={setIsBulkStatusDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] max-w-md mx-4 sm:w-full sm:mx-0 rounded-lg">
           <DialogHeader>
-            <DialogTitle>Update Panel Status</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-lg sm:text-xl">Update Panel Status</DialogTitle>
+            <DialogDescription className="text-sm">
               Update status for {selectedPanels.size} selected panel(s)
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="bulk-status">New Status *</Label>
+              <Label htmlFor="bulk-status" className="text-sm font-medium">New Status *</Label>
               <Select
                 value={statusMap[bulkStatusValue]}
                 onValueChange={(value) => setBulkStatusValue(statusReverseMap[value])}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue placeholder="Select new status" />
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px] overflow-y-auto">
@@ -2222,17 +2362,18 @@ export function PanelsPage() {
               </p>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="pt-6 border-t">
             <Button
               variant="outline"
               onClick={() => {
                 setIsBulkStatusDialogOpen(false);
                 setBulkStatusValue(0);
               }}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
-            <Button onClick={handleBulkStatusUpdate} disabled={bulkStatusValue === 0}>
+            <Button onClick={handleBulkStatusUpdate} disabled={bulkStatusValue === 0} className="w-full sm:w-auto">
               Update Status
             </Button>
           </DialogFooter>
@@ -2241,16 +2382,16 @@ export function PanelsPage() {
 
       {/* Create New Group Dialog */}
       <Dialog open={isCreateGroupDialogOpen} onOpenChange={setIsCreateGroupDialogOpen}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-[95vw] max-w-md mx-4 sm:w-full sm:mx-0 rounded-lg">
         <DialogHeader>
-          <DialogTitle>Create New Panel Group</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg sm:text-xl">Create New Panel Group</DialogTitle>
+          <DialogDescription className="text-sm">
             Create a new panel group with {selectedPanels.size} selected panels
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="group-name">Group Name *</Label>
+            <Label htmlFor="group-name" className="text-sm font-medium">Group Name *</Label>
             <Input
               id="group-name"
               value={newPanelGroupModel.name}
@@ -2258,11 +2399,12 @@ export function PanelsPage() {
                 setNewPanelGroupModel({ ...newPanelGroupModel, name: e.target.value })
               }
               placeholder="Enter group name"
+              className="w-full h-11"
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="status">Status *</Label>
+            <Label htmlFor="status" className="text-sm font-medium">Status *</Label>
             <Select
               value={statusMap[newPanelGroupModel.status]}
               onValueChange={(value) =>
@@ -2272,7 +2414,7 @@ export function PanelsPage() {
                 })
               }
             >
-              <SelectTrigger>
+              <SelectTrigger className="h-11">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -2285,7 +2427,7 @@ export function PanelsPage() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="group-description">Description</Label>
+            <Label htmlFor="group-description" className="text-sm font-medium">Description</Label>
             <Textarea
               id="group-description"
               value={newPanelGroupModel.description}
@@ -2297,6 +2439,7 @@ export function PanelsPage() {
               }
               placeholder="Enter group description (optional)"
               rows={3}
+              className="w-full"
             />
           </div>
           <div className="bg-muted/25 p-3 rounded-lg">
@@ -2305,7 +2448,7 @@ export function PanelsPage() {
             </p>
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="pt-6 border-t">
           <Button
             variant="outline"
             onClick={() => {
@@ -2316,10 +2459,11 @@ export function PanelsPage() {
                 status: 0, // Default to "Issued For Production"
               });
             }}
+            className="w-full sm:w-auto"
           >
             Cancel
           </Button>
-          <Button onClick={handleCreateGroup}>Create Group</Button>
+          <Button onClick={handleCreateGroup} className="w-full sm:w-auto">Create Group</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

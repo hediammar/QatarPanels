@@ -1073,12 +1073,12 @@ export function ProjectManagement() {
                 Add Project
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl">
-              <DialogHeader>
-                <DialogTitle>
+            <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto mx-4 sm:w-full sm:mx-0 rounded-lg">
+              <DialogHeader className="pb-4">
+                <DialogTitle className="text-lg sm:text-xl">
                   {isSubmitting ? "Adding Project..." : "Add New Project"}
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="text-sm">
                   {isSubmitting 
                     ? "Please wait while we create your project..." 
                     : "Create a new project for a customer."
@@ -1086,9 +1086,10 @@ export function ProjectManagement() {
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit}>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="name">Project Name</Label>
+                <div className="space-y-4 py-2">
+                  {/* Project Name - Full Width */}
+                  <div className="space-y-2">
+                    <Label htmlFor="name" className="text-sm font-medium">Project Name</Label>
                     <Input
                       id="name"
                       value={formData.name}
@@ -1100,11 +1101,14 @@ export function ProjectManagement() {
                       }
                       required
                       disabled={isSubmitting}
+                      className="w-full"
+                      placeholder="Enter project name"
                     />
                   </div>
 
-                  <div className="grid gap-2">
-                    <Label htmlFor="customer">Customer</Label>
+                  {/* Customer - Full Width */}
+                  <div className="space-y-2">
+                    <Label htmlFor="customer" className="text-sm font-medium">Customer</Label>
                     <Select
                       value={formData.customer_id}
                       onValueChange={(value) =>
@@ -1115,7 +1119,7 @@ export function ProjectManagement() {
                       }
                       disabled={isSubmitting}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select a customer" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1129,56 +1133,68 @@ export function ProjectManagement() {
                     </Select>
                   </div>
 
+                  {/* New Customer Fields - Full Width on Mobile */}
                   {formData.customer_id === "other" && (
-                    <div className="grid gap-4 border-l-4 border-primary pl-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="new_customer_name">New Customer Name</Label>
-                        <Input
-                          id="new_customer_name"
-                          value={formData.new_customer_name}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              new_customer_name: e.target.value,
-                            })
-                          }
-                          required
-                          disabled={isSubmitting}
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="new_customer_email">New Customer Email</Label>
-                        <Input
-                          id="new_customer_email"
-                          type="email"
-                          value={formData.new_customer_email}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              new_customer_email: e.target.value,
-                            })
-                          }
-                          disabled={isSubmitting}
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="new_customer_phone">New Customer Phone</Label>
-                        <Input
-                          id="new_customer_phone"
-                          type="tel"
-                          value={formData.new_customer_phone}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              new_customer_phone: e.target.value,
-                            })
-                          }
-                          disabled={isSubmitting}
-                        />
+                    <div className="space-y-4 border-l-4 border-primary pl-4 bg-muted/20 p-4 rounded-r-lg">
+                      <h4 className="text-sm font-medium text-primary">New Customer Details</h4>
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="new_customer_name" className="text-sm font-medium">Customer Name</Label>
+                          <Input
+                            id="new_customer_name"
+                            value={formData.new_customer_name}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                new_customer_name: e.target.value,
+                              })
+                            }
+                            required
+                            disabled={isSubmitting}
+                            className="w-full"
+                            placeholder="Enter customer name"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="new_customer_email" className="text-sm font-medium">Email</Label>
+                          <Input
+                            id="new_customer_email"
+                            type="email"
+                            value={formData.new_customer_email}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                new_customer_email: e.target.value,
+                              })
+                            }
+                            disabled={isSubmitting}
+                            className="w-full"
+                            placeholder="Enter email address"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="new_customer_phone" className="text-sm font-medium">Phone</Label>
+                          <Input
+                            id="new_customer_phone"
+                            type="tel"
+                            value={formData.new_customer_phone}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                new_customer_phone: e.target.value,
+                              })
+                            }
+                            disabled={isSubmitting}
+                            className="w-full"
+                            placeholder="Enter phone number"
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
-<div className="grid grid-cols-2 gap-4">
+
+                  {/* Date Fields - Stack on Mobile, Side by Side on Desktop */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <DateInput
                       id="startDate"
                       label="Start Date"
@@ -1203,8 +1219,10 @@ export function ProjectManagement() {
                       }
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="location">Location</Label>
+
+                  {/* Location - Full Width */}
+                  <div className="space-y-2">
+                    <Label htmlFor="location" className="text-sm font-medium">Location</Label>
                     <Input
                       id="location"
                       value={formData.location}
@@ -1216,14 +1234,15 @@ export function ProjectManagement() {
                       }
                       required
                       disabled={isSubmitting}
+                      className="w-full"
+                      placeholder="Enter project location"
                     />
                   </div>
 
-                  
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="estimatedCost">Estimated Cost ($)</Label>
+                  {/* Cost and Panels - Stack on Mobile, Side by Side on Desktop */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="estimatedCost" className="text-sm font-medium">Estimated Cost ($)</Label>
                       <Input
                         id="estimatedCost"
                         type="number"
@@ -1239,10 +1258,11 @@ export function ProjectManagement() {
                         placeholder="0"
                         required
                         disabled={isSubmitting}
+                        className="w-full"
                       />
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="estimatedPanels">Estimated Panels</Label>
+                    <div className="space-y-2">
+                      <Label htmlFor="estimatedPanels" className="text-sm font-medium">Estimated Panels</Label>
                       <Input
                         id="estimatedPanels"
                         type="number"
@@ -1258,12 +1278,14 @@ export function ProjectManagement() {
                         placeholder="0"
                         required
                         disabled={isSubmitting}
+                        className="w-full"
                       />
                     </div>
                   </div>
 
-                  <div className="grid gap-2">
-                    <Label htmlFor="status">Status</Label>
+                  {/* Status - Full Width */}
+                  <div className="space-y-2">
+                    <Label htmlFor="status" className="text-sm font-medium">Status</Label>
                     <Select
                       value={formData.status}
                       onValueChange={(value) =>
@@ -1274,7 +1296,7 @@ export function ProjectManagement() {
                       }
                       disabled={isSubmitting}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1285,15 +1307,23 @@ export function ProjectManagement() {
                     </Select>
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button type="submit" disabled={isSubmitting || !canCreateProjects}>
+                <DialogFooter className="pt-6 border-t">
+                  <Button 
+                    type="submit" 
+                    disabled={isSubmitting || !canCreateProjects}
+                    className="w-full sm:w-auto"
+                    size="lg"
+                  >
                     {isSubmitting ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                         Adding Project...
                       </>
                     ) : (
-                      "Add Project"
+                      <>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Project
+                      </>
                     )}
                   </Button>
                 </DialogFooter>
@@ -1305,7 +1335,7 @@ export function ProjectManagement() {
 
       {/* Filters Panel - Always Visible */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Filters & Search</CardTitle>
             {activeFiltersCount > 0 && (
@@ -1317,29 +1347,29 @@ export function ProjectManagement() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {/* First row */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-              {/* Search */}
-              <div className="space-y-2">
-                <Label>Search</Label>
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search projects..."
-                    value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value);
-                      handleFilterChange();
-                    }}
-                    className="pl-8"
-                    disabled={isSubmitting}
-                  />
-                </div>
+            {/* Search - Full Width on Mobile */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Search</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search projects..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    handleFilterChange();
+                  }}
+                  className="pl-10 h-11"
+                  disabled={isSubmitting}
+                />
               </div>
+            </div>
 
+            {/* Filter Grid - Responsive */}
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {/* Customer Filter */}
               <div className="space-y-2">
-                <Label>Customer</Label>
+                <Label className="text-sm font-medium">Customer</Label>
                 <Select
                   value={customerFilter}
                   onValueChange={(value) => {
@@ -1348,7 +1378,7 @@ export function ProjectManagement() {
                   }}
                   disabled={isSubmitting}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11">
                     <SelectValue placeholder="All customers" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1364,7 +1394,7 @@ export function ProjectManagement() {
 
               {/* Status Filter */}
               <div className="space-y-2">
-                <Label>Status</Label>
+                <Label className="text-sm font-medium">Status</Label>
                 <Select
                   value={statusFilter}
                   onValueChange={(value) => {
@@ -1373,7 +1403,7 @@ export function ProjectManagement() {
                   }}
                   disabled={isSubmitting}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11">
                     <SelectValue placeholder="All statuses" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1387,7 +1417,7 @@ export function ProjectManagement() {
 
               {/* Location Filter */}
               <div className="space-y-2">
-                <Label>Location</Label>
+                <Label className="text-sm font-medium">Location</Label>
                 <Select
                   value={locationFilter}
                   onValueChange={(value) => {
@@ -1396,7 +1426,7 @@ export function ProjectManagement() {
                   }}
                   disabled={isSubmitting}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11">
                     <SelectValue placeholder="All locations" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1410,35 +1440,9 @@ export function ProjectManagement() {
                 </Select>
               </div>
 
-              {/* Page Size */}
-              <div className="space-y-2">
-                <Label>Items per page</Label>
-                <Select
-                  value={pageSize.toString()}
-                  onValueChange={(value) => {
-                    setPageSize(parseInt(value));
-                    setCurrentPage(1);
-                  }}
-                  disabled={isSubmitting}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="12">12 per page</SelectItem>
-                    <SelectItem value="24">24 per page</SelectItem>
-                    <SelectItem value="36">36 per page</SelectItem>
-                    <SelectItem value="48">48 per page</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Second row */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               {/* Date Range Filter */}
               <div className="space-y-2">
-                <Label>Date Range</Label>
+                <Label className="text-sm font-medium">Date Range</Label>
                 <Select
                   value={dateRangeFilter}
                   onValueChange={(value) => {
@@ -1447,7 +1451,7 @@ export function ProjectManagement() {
                   }}
                   disabled={isSubmitting}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11">
                     <SelectValue placeholder="Any time" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1459,40 +1463,43 @@ export function ProjectManagement() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
-              {/* Custom Date From */}
-              {dateRangeFilter === "custom" && (
-                <>
-                  <DateInput
-                    id="startDateFrom"
-                    label="Start Date From"
-                    value={startDateFrom}
-                    onChange={(value) => {
-                      setStartDateFrom(value);
-                      handleFilterChange();
-                    }}
-                  />
-                  <DateInput
-                    id="startDateTo"
-                    label="Start Date To"
-                    value={startDateTo}
-                    onChange={(value) => {
-                      setStartDateTo(value);
-                      handleFilterChange();
-                    }}
-                  />
-                </>
-              )}
+            {/* Custom Date Range - Full Width on Mobile */}
+            {dateRangeFilter === "custom" && (
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+                <DateInput
+                  id="startDateFrom"
+                  label="Start Date From"
+                  value={startDateFrom}
+                  onChange={(value) => {
+                    setStartDateFrom(value);
+                    handleFilterChange();
+                  }}
+                />
+                <DateInput
+                  id="startDateTo"
+                  label="Start Date To"
+                  value={startDateTo}
+                  onChange={(value) => {
+                    setStartDateTo(value);
+                    handleFilterChange();
+                  }}
+                />
+              </div>
+            )}
 
+            {/* Sort Controls - Responsive */}
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {/* Sort By */}
               <div className="space-y-2">
-                <Label>Sort By</Label>
+                <Label className="text-sm font-medium">Sort By</Label>
                 <Select
                   value={sortBy}
                   onValueChange={(value) => setSortBy(value)}
                   disabled={isSubmitting}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1509,13 +1516,13 @@ export function ProjectManagement() {
 
               {/* Sort Order */}
               <div className="space-y-2">
-                <Label>Sort Order</Label>
+                <Label className="text-sm font-medium">Sort Order</Label>
                 <Select
                   value={sortOrder}
                   onValueChange={(value) => setSortOrder(value as "asc" | "desc")}
                   disabled={isSubmitting}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1524,15 +1531,44 @@ export function ProjectManagement() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Page Size */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Items per page</Label>
+                <Select
+                  value={pageSize.toString()}
+                  onValueChange={(value) => {
+                    setPageSize(parseInt(value));
+                    setCurrentPage(1);
+                  }}
+                  disabled={isSubmitting}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="12">12 per page</SelectItem>
+                    <SelectItem value="24">24 per page</SelectItem>
+                    <SelectItem value="36">36 per page</SelectItem>
+                    <SelectItem value="48">48 per page</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-between mt-4 pt-4 border-t">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mt-6 pt-4 border-t">
             <div className="text-sm text-muted-foreground">
               Showing {startIndex + 1}-
               {Math.min(endIndex, filteredAndSortedProjects.length)} of {filteredAndSortedProjects.length} projects
             </div>
-            <Button variant="outline" size="sm" onClick={clearFilters} disabled={isSubmitting}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={clearFilters} 
+              disabled={isSubmitting}
+              className="w-full sm:w-auto"
+            >
               Clear Filters
             </Button>
           </div>
@@ -1556,140 +1592,139 @@ export function ProjectManagement() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {paginatedProjects.map((project) => (
-                              <Card
-                  key={project.id}
-                  className="qatar-card cursor-pointer hover:shadow-xl transition-all duration-200"
-                  onClick={() => handleCardClick(project)}
-                >
-                  <CardHeader className="qatar-card-header pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <CardTitle className="qatar-card-title text-lg leading-tight">
-                            {project.name}
-                          </CardTitle>
-                          <ExternalLink className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                        <p className="qatar-card-subtitle text-xs">
-                          PRJ-{project.id.slice(-4).toUpperCase()}
-                        </p>
+              <Card
+                key={project.id}
+                className="qatar-card cursor-pointer hover:shadow-xl transition-all duration-200 group"
+                onClick={() => handleCardClick(project)}
+              >
+                <CardHeader className="qatar-card-header pb-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CardTitle className="qatar-card-title text-base sm:text-lg leading-tight truncate">
+                          {project.name}
+                        </CardTitle>
+                        <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                       </div>
-                      <div className="flex-shrink-0 ml-2">
-                        {getStatusBadge(project.status)}
-                      </div>
+                      <p className="qatar-card-subtitle text-xs">
+                        PRJ-{project.id.slice(-4).toUpperCase()}
+                      </p>
                     </div>
-                  </CardHeader>
+                    <div className="flex-shrink-0">
+                      {getStatusBadge(project.status)}
+                    </div>
+                  </div>
+                </CardHeader>
 
-                  <CardContent className="qatar-card-content">
-                    <div className="space-y-2.5">
-                      <div className="flex items-center gap-2 text-sm">
-                        <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        <span className="text-card-foreground truncate">{project.location}</span>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-sm">
-                        <User className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        <span className="text-card-foreground truncate">{project.customer_name}</span>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-sm">
-                        <Calendar className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        <span className="text-muted-foreground text-xs">
-                          {formatDate(project.start_date)} - {formatDate(project.end_date || '')}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 text-sm">
-                        <DollarSign className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        <span className="text-card-foreground font-medium text-sm">
-                          {formatCurrency(project.estimated_cost)}
-                        </span>
-                      </div>
+                <CardContent className="qatar-card-content">
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-2 text-sm">
+                      <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                      <span className="text-card-foreground truncate">{project.location}</span>
                     </div>
 
-                    <div className="qatar-card-footer">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Package className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm text-muted-foreground">Panels</span>
+                    <div className="flex items-center gap-2 text-sm">
+                      <User className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                      <span className="text-card-foreground truncate">{project.customer_name}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                      <span className="text-muted-foreground text-xs">
+                        {formatDate(project.start_date)} - {formatDate(project.end_date || '')}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm">
+                      <DollarSign className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                      <span className="text-card-foreground font-medium text-sm">
+                        {formatCurrency(project.estimated_cost)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="qatar-card-footer">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Package className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">Panels</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-lg font-bold text-card-foreground">{project.actual_panels}</span>
+                        <span className="text-xs text-muted-foreground ml-1">/ {project.estimated_panels}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="qatar-progress flex-1 h-2">
+                        <div
+                          className="qatar-progress-bar h-full"
+                          style={{ width: `${project.estimated_panels > 0 ? (project.actual_panels / project.estimated_panels) * 100 : 0}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* Project Totals - Responsive Grid */}
+                    <div className="pt-3 border-t border-border/30">
+                      <div className="grid grid-cols-3 gap-2 sm:gap-3 text-xs">
+                        <div className="flex flex-col items-center text-center p-1.5 sm:p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                          <Square className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-primary mb-1" />
+                          <span className="text-muted-foreground text-[9px] sm:text-[10px] uppercase tracking-wide">Area</span>
+                          <span className="font-semibold text-card-foreground text-[10px] sm:text-xs">
+                            {(project.total_area || 0).toFixed(1)} m²
+                          </span>
                         </div>
-                        <div className="text-right">
-                          <span className="text-lg font-bold text-card-foreground">{project.actual_panels}</span>
-                          <span className="text-xs text-muted-foreground ml-1">/ {project.estimated_panels}</span>
+                        <div className="flex flex-col items-center text-center p-1.5 sm:p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                          <DollarSign className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-green-600 mb-1" />
+                          <span className="text-muted-foreground text-[9px] sm:text-[10px] uppercase tracking-wide">Amount</span>
+                          <span className="font-semibold text-card-foreground text-[10px] sm:text-xs">
+                            {formatQatarRiyal(project.total_amount || 0)}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-center text-center p-1.5 sm:p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                          <Weight className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-orange-600 mb-1" />
+                          <span className="text-muted-foreground text-[9px] sm:text-[10px] uppercase tracking-wide">Weight</span>
+                          <span className="font-semibold text-card-foreground text-[10px] sm:text-xs">
+                            {(project.total_weight || 0).toFixed(1)} kg
+                          </span>
                         </div>
                       </div>
+                    </div>
 
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="qatar-progress flex-1 h-2">
-                          <div
-                            className="qatar-progress-bar h-full"
-                            style={{ width: `${project.estimated_panels > 0 ? (project.actual_panels / project.estimated_panels) * 100 : 0}%` }}
-                          ></div>
-                        </div>
-                      </div>
-
-                      {/* Project Totals - Compact & Aesthetic */}
-                      <div className="pt-3 border-t border-border/30">
-                        <div className="grid grid-cols-3 gap-3 text-xs">
-                          <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-                            <Square className="h-3.5 w-3.5 text-primary mb-1" />
-                            <span className="text-muted-foreground text-[10px] uppercase tracking-wide">Area</span>
-                            <span className="font-semibold text-card-foreground text-xs">
-                              {(project.total_area || 0).toFixed(1)} m²
-                            </span>
-                          </div>
-                          <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-                            <DollarSign className="h-3.5 w-3.5 text-green-600 mb-1" />
-                            <span className="text-muted-foreground text-[10px] uppercase tracking-wide">Amount</span>
-                            <span className="font-semibold text-card-foreground text-xs">
-                              {formatQatarRiyal(project.total_amount || 0)}
-                            </span>
-                          </div>
-                          <div className="flex flex-col items-center text-center p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-                            <Weight className="h-3.5 w-3.5 text-orange-600 mb-1" />
-                            <span className="text-muted-foreground text-[10px] uppercase tracking-wide">Weight</span>
-                            <span className="font-semibold text-card-foreground text-xs">
-                              {(project.total_weight || 0).toFixed(1)} kg
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-
-
-          <div className="flex items-center gap-2 pt-2 border-t border-border/50">
-            {canUpdateProjects && (
-            <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          startEdit(project);
-                        }}
-                        className="flex-1"
-                        disabled={isSubmitting}
-                      >
-                        <Edit className="mr-2 h-4 w-4" />
-                        Edit
-                      </Button>
-            )}
-            {canDeleteProjects && (
-            <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(project);
-                        }}
-                        className="flex-1 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        disabled={isSubmitting}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </Button>
-            )}
+                    {/* Action Buttons - Mobile Optimized */}
+                    <div className="flex items-center gap-2 pt-3 border-t border-border/50">
+                      {canUpdateProjects && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startEdit(project);
+                          }}
+                          className="flex-1 h-9 text-xs sm:text-sm"
+                          disabled={isSubmitting}
+                        >
+                          <Edit className="mr-1.5 h-3.5 w-3.5 sm:mr-2 sm:h-4 sm:w-4" />
+                          Edit
+                        </Button>
+                      )}
+                      {canDeleteProjects && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(project);
+                          }}
+                          className="flex-1 h-9 text-xs sm:text-sm text-destructive hover:text-destructive hover:bg-destructive/10"
+                          disabled={isSubmitting}
+                        >
+                          <Trash2 className="mr-1.5 h-3.5 w-3.5 sm:mr-2 sm:h-4 sm:w-4" />
+                          Delete
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -1700,11 +1735,11 @@ export function ProjectManagement() {
           {totalPages > 1 && (
             <div className="flex justify-center pt-6">
               <Pagination>
-                <PaginationContent>
+                <PaginationContent className="flex-wrap">
                   <PaginationItem>
                     <PaginationPrevious
                       onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                      className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      className={`${currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} h-9 px-2 sm:px-3`}
                       disabled={isSubmitting}
                     />
                   </PaginationItem>
@@ -1712,12 +1747,12 @@ export function ProjectManagement() {
                   {getVisiblePages().map((page, index) => (
                     <PaginationItem key={index}>
                       {page === "..." ? (
-                        <PaginationEllipsis />
+                        <PaginationEllipsis className="h-9 px-2" />
                       ) : (
                         <PaginationLink
                           onClick={() => setCurrentPage(page as number)}
                           isActive={currentPage === page}
-                          className="cursor-pointer"
+                          className="cursor-pointer h-9 w-9 sm:w-10"
                           disabled={isSubmitting}
                         >
                           {page}
@@ -1729,7 +1764,7 @@ export function ProjectManagement() {
                   <PaginationItem>
                     <PaginationNext
                       onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                      className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      className={`${currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"} h-9 px-2 sm:px-3`}
                       disabled={isSubmitting}
                     />
                   </PaginationItem>
@@ -1743,12 +1778,12 @@ export function ProjectManagement() {
       {/* Edit Dialog */}
       {editingProject && (
         <Dialog open={true} onOpenChange={() => setEditingProject(null)}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>
+          <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto mx-4 sm:w-full sm:mx-0 rounded-lg">
+            <DialogHeader className="pb-4">
+              <DialogTitle className="text-lg sm:text-xl">
                 {isSubmitting ? "Updating Project..." : "Edit Project"}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-sm">
                 {isSubmitting 
                   ? "Please wait while we update your project..." 
                   : "Update project information."
@@ -1756,9 +1791,10 @@ export function ProjectManagement() {
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit}>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-name">Project Name</Label>
+              <div className="space-y-4 py-2">
+                {/* Project Name - Full Width */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name" className="text-sm font-medium">Project Name</Label>
                   <Input
                     id="edit-name"
                     value={formData.name}
@@ -1770,11 +1806,14 @@ export function ProjectManagement() {
                     }
                     required
                     disabled={isSubmitting}
+                    className="w-full"
+                    placeholder="Enter project name"
                   />
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-customer">Customer</Label>
+                {/* Customer - Full Width */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-customer" className="text-sm font-medium">Customer</Label>
                   <Select
                     value={formData.customer_id}
                     onValueChange={(value) =>
@@ -1785,7 +1824,7 @@ export function ProjectManagement() {
                     }
                     disabled={isSubmitting}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select a customer" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1799,58 +1838,69 @@ export function ProjectManagement() {
                   </Select>
                 </div>
 
+                {/* New Customer Fields - Full Width on Mobile */}
                 {formData.customer_id === "other" && (
-                  <div className="grid gap-4 border-l-4 border-primary pl-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="new_customer_name">New Customer Name</Label>
-                      <Input
-                        id="new_customer_name"
-                        value={formData.new_customer_name}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            new_customer_name: e.target.value,
-                          })
-                        }
-                        required
-                        disabled={isSubmitting}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="new_customer_email">New Customer Email</Label>
-                      <Input
-                        id="new_customer_email"
-                        type="email"
-                        value={formData.new_customer_email}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            new_customer_email: e.target.value,
-                          })
-                        }
-                        disabled={isSubmitting}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="new_customer_phone">New Customer Phone</Label>
-                      <Input
-                        id="new_customer_phone"
-                        type="tel"
-                        value={formData.new_customer_phone}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            new_customer_phone: e.target.value,
-                          })
-                        }
-                        disabled={isSubmitting}
-                      />
+                  <div className="space-y-4 border-l-4 border-primary pl-4 bg-muted/20 p-4 rounded-r-lg">
+                    <h4 className="text-sm font-medium text-primary">New Customer Details</h4>
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="new_customer_name" className="text-sm font-medium">Customer Name</Label>
+                        <Input
+                          id="new_customer_name"
+                          value={formData.new_customer_name}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              new_customer_name: e.target.value,
+                            })
+                          }
+                          required
+                          disabled={isSubmitting}
+                          className="w-full"
+                          placeholder="Enter customer name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="new_customer_email" className="text-sm font-medium">Email</Label>
+                        <Input
+                          id="new_customer_email"
+                          type="email"
+                          value={formData.new_customer_email}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              new_customer_email: e.target.value,
+                            })
+                          }
+                          disabled={isSubmitting}
+                          className="w-full"
+                          placeholder="Enter email address"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="new_customer_phone" className="text-sm font-medium">Phone</Label>
+                        <Input
+                          id="new_customer_phone"
+                          type="tel"
+                          value={formData.new_customer_phone}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              new_customer_phone: e.target.value,
+                            })
+                          }
+                          disabled={isSubmitting}
+                          className="w-full"
+                          placeholder="Enter phone number"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
 
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-location">Location</Label>
+                {/* Location - Full Width */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-location" className="text-sm font-medium">Location</Label>
                   <Input
                     id="edit-location"
                     value={formData.location}
@@ -1862,10 +1912,13 @@ export function ProjectManagement() {
                     }
                     required
                     disabled={isSubmitting}
+                    className="w-full"
+                    placeholder="Enter project location"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                {/* Date Fields - Stack on Mobile, Side by Side on Desktop */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <DateInput
                     id="edit-startDate"
                     label="Start Date"
@@ -1891,9 +1944,10 @@ export function ProjectManagement() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="edit-estimatedCost">Estimated Cost ($)</Label>
+                {/* Cost and Panels - Stack on Mobile, Side by Side on Desktop */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-estimatedCost" className="text-sm font-medium">Estimated Cost ($)</Label>
                     <Input
                       id="edit-estimatedCost"
                       type="number"
@@ -1909,10 +1963,11 @@ export function ProjectManagement() {
                       placeholder="0"
                       required
                       disabled={isSubmitting}
+                      className="w-full"
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="edit-estimatedPanels">Estimated Panels</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-estimatedPanels" className="text-sm font-medium">Estimated Panels</Label>
                     <Input
                       id="edit-estimatedPanels"
                       type="number"
@@ -1928,12 +1983,14 @@ export function ProjectManagement() {
                       placeholder="0"
                       required
                       disabled={isSubmitting}
+                      className="w-full"
                     />
                   </div>
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-status">Status</Label>
+                {/* Status - Full Width */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-status" className="text-sm font-medium">Status</Label>
                   <Select
                     value={formData.status}
                     onValueChange={(value) =>
@@ -1944,7 +2001,7 @@ export function ProjectManagement() {
                     }
                     disabled={isSubmitting}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1955,15 +2012,23 @@ export function ProjectManagement() {
                   </Select>
                 </div>
               </div>
-              <DialogFooter>
-                <Button type="submit" disabled={isSubmitting}>
+              <DialogFooter className="pt-6 border-t">
+                <Button 
+                  type="submit" 
+                  disabled={isSubmitting}
+                  className="w-full sm:w-auto"
+                  size="lg"
+                >
                   {isSubmitting ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                       Updating Project...
                     </>
                   ) : (
-                    "Update Project"
+                    <>
+                      <Edit className="mr-2 h-4 w-4" />
+                      Update Project
+                    </>
                   )}
                 </Button>
               </DialogFooter>
@@ -1974,36 +2039,40 @@ export function ProjectManagement() {
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deletingProject} onOpenChange={() => setDeletingProject(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[95vw] max-w-md mx-4 sm:w-full sm:mx-0 rounded-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Project</AlertDialogTitle>
-            <AlertDialogDescription>
-              <div className="space-y-2">
+            <AlertDialogTitle className="text-lg">Delete Project</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
+              <div className="space-y-3">
                 <p>
                   This action cannot be undone. This will permanently delete the project "
-                  <strong>{deletingProject?.name}</strong>".
+                  <strong className="text-foreground">{deletingProject?.name}</strong>".
                 </p>
                 {deletingProject && (
-                  <div className="text-sm text-muted-foreground space-y-1">
-                    <p>• Project ID: {deletingProject.id}</p>
-                    <p>• Location: {deletingProject.location}</p>
-                    <p>• Customer: {deletingProject.customer_name}</p>
-                    <p>• Current Panels: {deletingProject.actual_panels}</p>
+                  <div className="text-sm text-muted-foreground space-y-2 bg-muted/30 p-3 rounded-lg">
+                    <div className="grid grid-cols-1 gap-1">
+                      <p><span className="font-medium">Project ID:</span> {deletingProject.id}</p>
+                      <p><span className="font-medium">Location:</span> {deletingProject.location}</p>
+                      <p><span className="font-medium">Customer:</span> {deletingProject.customer_name}</p>
+                      <p><span className="font-medium">Current Panels:</span> {deletingProject.actual_panels}</p>
+                    </div>
                     {deletingProject.actual_panels > 0 && (
-                      <p className="text-destructive font-medium">
-                        ⚠️ This project has {deletingProject.actual_panels} panel(s) that will also be deleted.
-                      </p>
+                      <div className="mt-3 p-2 bg-destructive/10 border border-destructive/20 rounded text-destructive text-sm">
+                        <p className="font-medium">
+                          ⚠️ This project has {deletingProject.actual_panels} panel(s) that will also be deleted.
+                        </p>
+                      </div>
                     )}
                   </div>
                 )}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={isDeleting}
             >
               {isDeleting ? (
@@ -2012,7 +2081,10 @@ export function ProjectManagement() {
                   Deleting...
                 </>
               ) : (
-                "Delete Project"
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Project
+                </>
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

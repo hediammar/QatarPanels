@@ -266,17 +266,17 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-[95vw] max-w-md mx-4 sm:w-full sm:mx-0 rounded-lg">
         <DialogHeader>
-          <DialogTitle>Update Panel Status</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg sm:text-xl">Update Panel Status</DialogTitle>
+          <DialogDescription className="text-sm">
             Change status for panel "{panel?.name}"
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="current-status">Current Status</Label>
+            <Label htmlFor="current-status" className="text-sm font-medium">Current Status</Label>
             <div className="flex items-center gap-2">
               <Badge variant="secondary">
                 {panel ? statusMap[panel.status] : 'Unknown'}
@@ -285,12 +285,12 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="new-status">New Status *</Label>
+            <Label htmlFor="new-status" className="text-sm font-medium">New Status *</Label>
             <Select
               value={statusMap[newStatus]}
               onValueChange={(value) => setNewStatus(statusReverseMap[value])}
             >
-              <SelectTrigger>
+              <SelectTrigger className="h-11">
                 <SelectValue placeholder="Select new status" />
               </SelectTrigger>
               <SelectContent>
@@ -327,18 +327,19 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes (Optional)</Label>
+            <Label htmlFor="notes" className="text-sm font-medium">Notes (Optional)</Label>
             <Textarea
               id="notes"
               placeholder="Add any notes about this status change..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
+              className="w-full"
             />
           </div>
 
           <div className="space-y-2">
-            <Label>Upload Image (Optional)</Label>
+            <Label className="text-sm font-medium">Upload Image (Optional)</Label>
             <div className="space-y-2">
               {!imagePreview ? (
                 <div
@@ -378,13 +379,14 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={isSubmitting}>
+        <DialogFooter className="pt-6 border-t">
+          <Button variant="outline" onClick={handleClose} disabled={isSubmitting} className="w-full sm:w-auto">
             Cancel
           </Button>
           <Button 
             onClick={handleSubmit} 
             disabled={isSubmitting || newStatus === panel?.status || !!validationError}
+            className="w-full sm:w-auto"
           >
             {isSubmitting ? 'Updating...' : 'Update Status'}
           </Button>

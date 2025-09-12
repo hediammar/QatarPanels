@@ -189,17 +189,17 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
       </div>
 
       {/* Project Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Customer Card */}
         <Card className="qatar-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Customer</CardTitle>
-            <User className="h-4 w-4 text-muted-foreground" />
+            <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">{customer?.name || 'No Customer'}</div>
+            <div className="text-lg sm:text-xl font-bold truncate">{customer?.name || 'No Customer'}</div>
             {customer?.email && (
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-1 truncate">
                 {customer.email}
               </p>
             )}
@@ -210,10 +210,10 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
         <Card className="qatar-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Location</CardTitle>
-            <MapPin className="h-4 w-4 text-muted-foreground" />
+            <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">{project.location}</div>
+            <div className="text-lg sm:text-xl font-bold truncate">{project.location}</div>
             <p className="text-xs text-muted-foreground mt-1">
               Project Site
             </p>
@@ -224,10 +224,10 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
         <Card className="qatar-card">
           <CardHeader className="flex items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Budget</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">
+            <div className="text-lg sm:text-xl font-bold">
               {formatCurrency(project.estimated_cost)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -236,28 +236,18 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
           </CardContent>
         </Card>
 
-        {/* Timeline Card */}
+        {/* Estimated Panels Card */}
         <Card className="qatar-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Timeline</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Estimated Panels</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">
-              {daysRemaining !== null ? (
-                daysRemaining > 0 ? (
-                  `${daysRemaining} days`
-                ) : daysRemaining === 0 ? (
-                  "Due today"
-                ) : (
-                  `${Math.abs(daysRemaining)} days overdue`
-                )
-              ) : (
-                "—"
-              )}
+            <div className="text-lg sm:text-xl font-bold">
+              {project.estimated_panels || 0}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Remaining
+              Total Panels
             </p>
           </CardContent>
         </Card>
@@ -584,37 +574,37 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <Square className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-sm font-medium text-muted-foreground">Total Area</span>
+                    <Square className="h-4 w-4 sm:h-6 sm:w-6 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Total Area</span>
                   </div>
-                  <div className="text-2xl font-bold text-card-foreground">
+                  <div className="text-lg sm:text-2xl font-bold text-card-foreground">
                     {(project.total_area || 0).toFixed(2)} m²
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <DollarSign className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-sm font-medium text-muted-foreground">Total Amount</span>
+                    <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Total Amount</span>
                   </div>
-                  <div className="text-2xl font-bold text-card-foreground">
+                  <div className="text-lg sm:text-2xl font-bold text-card-foreground">
                     {formatQatarRiyal(project.total_amount || 0)}
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <Weight className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-sm font-medium text-muted-foreground">Total Weight</span>
+                    <Weight className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Total Weight</span>
                   </div>
-                  <div className="text-2xl font-bold text-card-foreground">
+                  <div className="text-lg sm:text-2xl font-bold text-card-foreground">
                     {(project.total_weight || 0).toFixed(2)} kg
                   </div>
                 </div>
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-2 mb-2">
-                    <Package className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-sm font-medium text-muted-foreground">Total Panels</span>
+                    <Package className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground flex-shrink-0" />
+                    <span className="text-xs sm:text-sm font-medium text-muted-foreground">Total Panels</span>
                   </div>
-                  <div className="text-2xl font-bold text-card-foreground">
+                  <div className="text-lg sm:text-2xl font-bold text-card-foreground">
                     {totalPanels}
                   </div>
                 </div>

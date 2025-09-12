@@ -323,12 +323,22 @@ export function ProjectDetailsPage() {
 
       {/* Tabbed Sections */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="buildings">Buildings</TabsTrigger>
-          <TabsTrigger value="facades">Facades</TabsTrigger>
-          <TabsTrigger value="panel-groups">Panel Groups</TabsTrigger>
-          <TabsTrigger value="panels">Panels</TabsTrigger>
-          <TabsTrigger value="notes">Notes</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1 h-auto">
+          <TabsTrigger value="buildings" className="text-xs sm:text-sm px-2 py-2 sm:px-3 sm:py-2">
+            Buildings
+          </TabsTrigger>
+          <TabsTrigger value="facades" className="text-xs sm:text-sm px-2 py-2 sm:px-3 sm:py-2">
+            Facades
+          </TabsTrigger>
+          <TabsTrigger value="panel-groups" className="text-xs sm:text-sm px-2 py-2 sm:px-3 sm:py-2">
+            Panel Groups
+          </TabsTrigger>
+          <TabsTrigger value="panels" className="text-xs sm:text-sm px-2 py-2 sm:px-3 sm:py-2">
+            Panels
+          </TabsTrigger>
+          <TabsTrigger value="notes" className="text-xs sm:text-sm px-2 py-2 sm:px-3 sm:py-2">
+            Notes
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="buildings" className="space-y-6">

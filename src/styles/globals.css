@@ -538,6 +538,29 @@ html {
     @apply min-h-[48px] px-4 py-3;
   }
 
+  /* Mobile navigation overlay styles */
+  .mobile-nav-overlay {
+    @apply fixed inset-0 bg-black/50 z-40;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+
+  /* Mobile sidebar positioning */
+  .mobile-sidebar {
+    @apply fixed inset-y-0 left-0 z-50;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease-in-out;
+  }
+
+  .mobile-sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Prevent body scroll when mobile menu is open */
+  body.mobile-menu-open {
+    overflow: hidden;
+  }
+
   /* Reduce motion for users who prefer it */
   @media (prefers-reduced-motion: reduce) {
     * {

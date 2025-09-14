@@ -460,8 +460,7 @@ export function BuildingDetailsPage() {
                      (panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
                      (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
                      (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
-                     (panelStatusCounts['Approved Final'] || 0) + (panelStatusCounts['On Hold'] || 0) + 
-                     (panelStatusCounts['Cancelled'] || 0) + (panelStatusCounts['Broken at Site'] || 0)} / {project?.estimated_panels || 0}
+                     (panelStatusCounts['Approved Final'] || 0) } / {project?.estimated_panels || 0}
                   </span>
                 </div>
                 <div className="w-full bg-muted rounded-full h-2">
@@ -473,8 +472,7 @@ export function BuildingDetailsPage() {
                          (panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
                          (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
                          (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
-                         (panelStatusCounts['Approved Final'] || 0) + (panelStatusCounts['On Hold'] || 0) + 
-                         (panelStatusCounts['Cancelled'] || 0) + (panelStatusCounts['Broken at Site'] || 0)) / project.estimated_panels) * 100 : 0}%` 
+                         (panelStatusCounts['Approved Final'] || 0) ) / project.estimated_panels) * 100 : 0}%` 
                     }}
                   />
                 </div>
@@ -484,39 +482,9 @@ export function BuildingDetailsPage() {
                       (panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
                       (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
                       (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
-                      (panelStatusCounts['Approved Final'] || 0) + (panelStatusCounts['On Hold'] || 0) + 
-                      (panelStatusCounts['Cancelled'] || 0) + (panelStatusCounts['Broken at Site'] || 0)) / project.estimated_panels) * 100).toFixed(1) : 0}% panels issued for production
+                      (panelStatusCounts['Approved Final'] || 0) ) / project.estimated_panels) * 100).toFixed(2) : 0}% panels issued for production
                 </p>
               </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs sm:text-sm font-medium text-card-foreground">Delivered Progress</span>
-                  <span className="text-xs sm:text-sm text-muted-foreground">
-                    {(panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
-                     (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
-                     (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)} / {project?.estimated_panels || 0}
-                  </span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div 
-                    className="bg-primary h-2 rounded-full transition-all duration-300" 
-                    style={{ 
-                      width: `${project && project.estimated_panels && project.estimated_panels > 0 ? 
-                        (((panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
-                         (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
-                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100 : 0}%` 
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {project && project.estimated_panels && project.estimated_panels > 0 ? 
-                    ((((panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
-                      (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
-                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(1) : 0}% panels delivered
-                </p>
-              </div>
-              
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-xs sm:text-sm font-medium text-card-foreground">Produced Progress</span>
@@ -544,7 +512,37 @@ export function BuildingDetailsPage() {
                     ((((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
                       (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
                       (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
-                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(1) : 0}% panels produced
+                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(2) : 0}% panels produced
+                </p>
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs sm:text-sm font-medium text-card-foreground">Proceed for Delivery Progress</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">
+                    {(panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
+                     (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
+                     (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
+                     (panelStatusCounts['Approved Final'] || 0) } / {project?.estimated_panels || 0}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-red-500 h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${project && project.estimated_panels && project.estimated_panels > 0 ? 
+                        (((panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
+                        (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
+                        (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
+                        (panelStatusCounts['Approved Final'] || 0) ) / project.estimated_panels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {project && project.estimated_panels && project.estimated_panels > 0 ? 
+                     ((((panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
+                     (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
+                     (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
+                     (panelStatusCounts['Approved Final'] || 0) ) / project.estimated_panels) * 100).toFixed(2) : 0}% panels proceed for delivery
                 </p>
               </div>
               
@@ -552,7 +550,7 @@ export function BuildingDetailsPage() {
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-xs sm:text-sm font-medium text-card-foreground">Installation Progress</span>
                   <span className="text-xs sm:text-sm text-muted-foreground">
-                    {panelStatusCounts['Installed'] || 0} / {project?.estimated_panels || 0}
+                    {(panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)} / {project?.estimated_panels || 0}
                   </span>
                 </div>
                 <div className="w-full bg-muted rounded-full h-2">
@@ -560,13 +558,35 @@ export function BuildingDetailsPage() {
                     className="bg-primary h-2 rounded-full transition-all duration-300" 
                     style={{ 
                       width: `${project && project.estimated_panels && project.estimated_panels > 0 ? 
-                        ((panelStatusCounts['Installed'] || 0) / project.estimated_panels) * 100 : 0}%` 
+                        (((panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100 : 0}%` 
                     }}
                   />
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {project && project.estimated_panels && project.estimated_panels > 0 ? 
-                    (((panelStatusCounts['Installed'] || 0) / project.estimated_panels) * 100).toFixed(1) : 0}% panels installed
+                    ((((panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(2) : 0}% panels installed
+                </p>
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs sm:text-sm font-medium text-card-foreground">Inspected Progress</span>
+                  <span className="text-muted-foreground">
+                    {(panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)} / {project?.estimated_panels || 0}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${project && project.estimated_panels && project.estimated_panels > 0 ? 
+                        ((
+                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {project && project.estimated_panels && project.estimated_panels > 0 ? 
+                      ((((panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(2) : 0}% panels inspected
                 </p>
               </div>
 
@@ -588,7 +608,7 @@ export function BuildingDetailsPage() {
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {project && project.estimated_panels && project.estimated_panels > 0 ? 
-                    (((panelStatusCounts['On Hold'] || 0) / project.estimated_panels) * 100).toFixed(1) : 0}% panels on hold
+                    (((panelStatusCounts['On Hold'] || 0) / project.estimated_panels) * 100).toFixed(2) : 0}% panels on hold
                 </p>
               </div>
 
@@ -610,31 +630,11 @@ export function BuildingDetailsPage() {
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {project && project.estimated_panels && project.estimated_panels > 0 ? 
-                    (((panelStatusCounts['Cancelled'] || 0) / project.estimated_panels) * 100).toFixed(1) : 0}% panels cancelled
+                    (((panelStatusCounts['Cancelled'] || 0) / project.estimated_panels) * 100).toFixed(2) : 0}% panels cancelled
                 </p>
               </div>
 
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs sm:text-sm font-medium text-card-foreground">Broken at Site Progress</span>
-                  <span className="text-xs sm:text-sm text-muted-foreground">
-                    {panelStatusCounts['Broken at Site'] || 0} / {project?.estimated_panels || 0}
-                  </span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div 
-                    className="bg-red-600 h-2 rounded-full transition-all duration-300" 
-                    style={{ 
-                      width: `${project && project.estimated_panels && project.estimated_panels > 0 ? 
-                        ((panelStatusCounts['Broken at Site'] || 0) / project.estimated_panels) * 100 : 0}%` 
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {project && project.estimated_panels && project.estimated_panels > 0 ? 
-                    (((panelStatusCounts['Broken at Site'] || 0) / project.estimated_panels) * 100).toFixed(1) : 0}% panels broken at site
-                </p>
-              </div>
+              
             </CardContent>
           </Card>
 
@@ -721,13 +721,18 @@ export function BuildingDetailsPage() {
                       </ResponsiveContainer>
                     </div>
                     <div className="space-y-2">
-                      {['Issued For Production', 'Produced', 'Delivered', 'Installed'].map((status) => {
-                        const count = panelStatusCounts[status] || 0;
+                      {[
+                        { key: 'Issued For Production', label: 'Issued For Production' },
+                        { key: 'Produced', label: 'Factory Stock' },
+                        { key: 'Delivered', label: 'Site Stock' },
+                        { key: 'Installed', label: 'Installed' }
+                      ].map(({ key, label }) => {
+                        const count = panelStatusCounts[key] || 0;
                         return (
-                          <div key={status} className="flex items-center justify-between text-xs sm:text-sm">
+                          <div key={key} className="flex items-center justify-between text-xs sm:text-sm">
                             <div className="flex items-center gap-2">
-                              <span className="inline-block h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-sm flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[status] || "#999999" }} />
-                              <span className="text-muted-foreground truncate">{status}</span>
+                              <span className="inline-block h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-sm flex-shrink-0" style={{ backgroundColor: STATUS_COLORS[key] || "#999999" }} />
+                              <span className="text-muted-foreground truncate">{label}</span>
                             </div>
                             <span className="font-medium text-foreground">{count}</span>
                           </div>

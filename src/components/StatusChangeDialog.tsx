@@ -59,15 +59,95 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string>('');
+  const [previousStatus, setPreviousStatus] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Map database integers to UI strings
   const statusMap: { [key: number]: PanelStatus } = PANEL_STATUSES.reduce((acc, status, index) => ({ ...acc, [index]: status }), {});
   const statusReverseMap = Object.fromEntries(Object.entries(statusMap).map(([k, v]) => [v, parseInt(k)]));
 
+  // Fetch previous status from panel status history
+  const fetchPreviousStatus = async (panelId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('panel_status_histories')
+        .select('status')
+        .eq('panel_id', panelId)
+        .order('created_at', { ascending: false })
+        .limit(2); // Get the last 2 statuses
+
+      if (error) {
+        console.error('Error fetching panel status history:', error);
+        return null;
+      }
+
+      // If we have at least 2 statuses, the second one is the previous status
+      if (data && data.length >= 2) {
+        return data[1].status;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error fetching previous status:', error);
+      return null;
+    }
+  };
+
+  // Get all forward statuses from current status (for admin skip functionality)
+  const getAllForwardStatuses = (currentStatus: number): number[] => {
+    const visited = new Set<number>();
+    const forwardStatuses = new Set<number>();
+    
+    const traverse = (status: number) => {
+      if (visited.has(status)) return;
+      visited.add(status);
+      
+      const nextStatuses = getValidNextStatuses(status);
+      for (const nextStatus of nextStatuses) {
+        // Only include statuses that are forward in the main workflow (higher index)
+        // Exclude special statuses and rework paths (like Rejected Material -> Issued For Production)
+        if (!isSpecialStatus(nextStatus) && nextStatus > status) {
+          forwardStatuses.add(nextStatus);
+          traverse(nextStatus);
+        }
+      }
+    };
+    
+    traverse(currentStatus);
+    return Array.from(forwardStatuses).sort((a, b) => a - b);
+  };
+
   // Get valid next statuses for the current panel status and user role
   const getValidStatuses = () => {
     if (!panel || !currentUser?.role) return [];
+    
+    if (currentUser.role === 'Administrator') {
+      const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
+      const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
+      const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
+
+      let allowedStatuses: number[] = [];
+
+      if (panel.status === onHoldStatusIndex) {
+        // From On Hold, admins can go to:
+        // 1. Previous status (if available)
+        // 2. Other special statuses (Cancelled, Broken at Site)
+        allowedStatuses = [cancelledStatusIndex, brokenAtSiteStatusIndex];
+        
+        // Add previous status if available
+        if (previousStatus !== null) {
+          allowedStatuses.push(previousStatus);
+        }
+      } else {
+        // For other statuses, use the forward traversal logic + special statuses
+        const forwardStatuses = getAllForwardStatuses(panel.status);
+        const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex, brokenAtSiteStatusIndex];
+        allowedStatuses = Array.from(new Set([...forwardStatuses, ...specialStatuses]));
+      }
+      
+      // Exclude the current status itself from the options
+      return allowedStatuses.filter(status => status !== panel.status).sort((a, b) => a - b);
+    }
     
     const validNextStatuses = getValidNextStatusesForRole(panel.status, currentUser.role);
     const allStatuses = PANEL_STATUSES.map((_, index) => index);
@@ -84,18 +164,54 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
   // Validate status transition when newStatus changes
   useEffect(() => {
     if (panel && newStatus !== panel.status && currentUser?.role) {
-      const validation = validateStatusTransitionWithRole(panel.status, newStatus, currentUser.role);
-      setValidationError(validation.error || '');
+      if (currentUser.role === 'Administrator') {
+        const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
+        const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
+        const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
+        
+        let isValidAdminTransition = false;
+        if (panel.status === onHoldStatusIndex) {
+          // From On Hold, check if newStatus is in allowed statuses
+          const allowedStatuses = [cancelledStatusIndex, brokenAtSiteStatusIndex];
+          if (previousStatus !== null) {
+            allowedStatuses.push(previousStatus);
+          }
+          isValidAdminTransition = allowedStatuses.includes(newStatus);
+        } else {
+          // For other statuses, check if newStatus is a forward status or a special status
+          const forwardStatuses = getAllForwardStatuses(panel.status);
+          const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex, brokenAtSiteStatusIndex];
+          const allowedStatuses = Array.from(new Set([...forwardStatuses, ...specialStatuses]));
+          isValidAdminTransition = allowedStatuses.includes(newStatus);
+        }
+
+        if (!isValidAdminTransition) {
+          setValidationError('Invalid status transition for Administrator');
+        } else {
+          setValidationError('');
+        }
+      } else {
+        const validation = validateStatusTransitionWithRole(panel.status, newStatus, currentUser.role);
+        setValidationError(validation.error || '');
+      }
     } else {
       setValidationError('');
     }
-  }, [panel, newStatus, currentUser?.role]);
+  }, [panel, newStatus, currentUser?.role, previousStatus]);
 
   // Reset form when panel changes
   useEffect(() => {
     if (panel) {
       setNewStatus(panel.status);
       setValidationError('');
+      
+      // Fetch previous status if current status is "On Hold"
+      const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
+      if (panel.status === onHoldStatusIndex) {
+        fetchPreviousStatus(panel.id).then(setPreviousStatus);
+      } else {
+        setPreviousStatus(null);
+      }
     }
   }, [panel]);
 
@@ -177,11 +293,37 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
   const handleSubmit = async () => {
     if (!panel || !currentUser?.role) return;
 
-    // Validate status transition with role-based restrictions
-    const validation = validateStatusTransitionWithRole(panel.status, newStatus, currentUser.role);
-    if (!validation.isValid) {
-      showToast(validation.error || 'Invalid status transition', 'error');
-      return;
+    if (currentUser.role === 'Administrator') {
+      const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
+      const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
+      const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
+      
+      let isValidAdminTransition = false;
+      if (panel.status === onHoldStatusIndex) {
+        // From On Hold, check if newStatus is in allowed statuses
+        const allowedStatuses = [cancelledStatusIndex, brokenAtSiteStatusIndex];
+        if (previousStatus !== null) {
+          allowedStatuses.push(previousStatus);
+        }
+        isValidAdminTransition = allowedStatuses.includes(newStatus);
+      } else {
+        // For other statuses, check if newStatus is a forward status or a special status
+        const forwardStatuses = getAllForwardStatuses(panel.status);
+        const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex, brokenAtSiteStatusIndex];
+        const allowedStatuses = Array.from(new Set([...forwardStatuses, ...specialStatuses]));
+        isValidAdminTransition = allowedStatuses.includes(newStatus);
+      }
+
+      if (!isValidAdminTransition) {
+        showToast('Invalid status transition for Administrator', 'error');
+        return;
+      }
+    } else {
+      const validation = validateStatusTransitionWithRole(panel.status, newStatus, currentUser.role);
+      if (!validation.isValid) {
+        showToast(validation.error || 'Invalid status transition', 'error');
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -259,6 +401,7 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
     setSelectedImage(null);
     setImagePreview(null);
     setValidationError('');
+    setPreviousStatus(null);
     onClose();
   };
 

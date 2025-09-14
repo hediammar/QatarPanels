@@ -215,6 +215,7 @@ export function PanelsPage() {
   const [bulkStatusValue, setBulkStatusValue] = useState<number>(0); // Default to "Issued For Production"
   const [isStatusChangeDialogOpen, setIsStatusChangeDialogOpen] = useState(false);
   const [selectedPanelForStatusChange, setSelectedPanelForStatusChange] = useState<PanelModel | null>(null);
+  const [previousStatus, setPreviousStatus] = useState<number | null>(null);
 
   // RBAC Permission checks
   const canCreatePanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canCreate') : false;
@@ -224,8 +225,87 @@ export function PanelsPage() {
   const canChangePanelStatus = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canChangeStatus') : false;
   const canCreatePanelGroups = currentUser?.role ? hasPermission(currentUser.role as any, 'panelGroups', 'canCreate') : false;
 
+  // Fetch previous status from panel status history
+  const fetchPreviousStatus = async (panelId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('panel_status_histories')
+        .select('status')
+        .eq('panel_id', panelId)
+        .order('created_at', { ascending: false })
+        .limit(2); // Get the last 2 statuses
+
+      if (error) {
+        console.error('Error fetching panel status history:', error);
+        return null;
+      }
+
+      // If we have at least 2 statuses, the second one is the previous status
+      if (data && data.length >= 2) {
+        return data[1].status;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error fetching previous status:', error);
+      return null;
+    }
+  };
+
+  // Get all forward statuses from current status (for admin skip functionality)
+  const getAllForwardStatuses = (currentStatus: number): number[] => {
+    const visited = new Set<number>();
+    const forwardStatuses = new Set<number>();
+    
+    const traverse = (status: number) => {
+      if (visited.has(status)) return;
+      visited.add(status);
+      
+      const nextStatuses = getValidNextStatuses(status);
+      for (const nextStatus of nextStatuses) {
+        // Only include statuses that are forward in the main workflow (higher index)
+        // Exclude special statuses and rework paths (like Rejected Material -> Issued For Production)
+        if (!isSpecialStatus(nextStatus) && nextStatus > status) {
+          forwardStatuses.add(nextStatus);
+          traverse(nextStatus);
+        }
+      }
+    };
+    
+    traverse(currentStatus);
+    return Array.from(forwardStatuses).sort((a, b) => a - b);
+  };
+
   // Helper function to get valid statuses for a given current status
   const getValidStatuses = (currentStatus: number) => {
+    if (currentUser?.role === 'Administrator') {
+      const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
+      const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
+      const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
+
+      let allowedStatuses: number[] = [];
+
+      if (currentStatus === onHoldStatusIndex) {
+        // From On Hold, admins can go to:
+        // 1. Previous status (if available)
+        // 2. Other special statuses (Cancelled, Broken at Site)
+        allowedStatuses = [cancelledStatusIndex, brokenAtSiteStatusIndex];
+        
+        // Add previous status if available
+        if (previousStatus !== null) {
+          allowedStatuses.push(previousStatus);
+        }
+      } else {
+        // For other statuses, use the forward traversal logic + special statuses
+        const forwardStatuses = getAllForwardStatuses(currentStatus);
+        const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex, brokenAtSiteStatusIndex];
+        allowedStatuses = Array.from(new Set([...forwardStatuses, ...specialStatuses]));
+      }
+      
+      // Exclude the current status itself from the options
+      return allowedStatuses.filter(status => status !== currentStatus).sort((a, b) => a - b);
+    }
+    
     const validNextStatuses = getValidNextStatuses(currentStatus);
     const allStatuses = PANEL_STATUSES.map((_, index) => index);
     
@@ -673,6 +753,15 @@ export function PanelsPage() {
       dimension: panel.dimension,
       issued_for_production_date: panel.issued_for_production_date,
     });
+    
+    // Fetch previous status if current status is "On Hold"
+    const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
+    if (panel.status === onHoldStatusIndex) {
+      fetchPreviousStatus(panel.id).then(setPreviousStatus);
+    } else {
+      setPreviousStatus(null);
+    }
+    
     // Filter facades based on the panel's building
     filterFacadesByBuilding(panel.building_id);
     setIsEditDialogOpen(true);
@@ -721,10 +810,37 @@ export function PanelsPage() {
     if (editingPanel && editingPanel.status !== newPanelModel.status) {
       // Ensure both statuses are valid numbers
       if (typeof editingPanel.status === 'number' && typeof newPanelModel.status === 'number') {
-        const validation = validateStatusTransition(editingPanel.status, newPanelModel.status);
-        if (!validation.isValid) {
-          showToast(validation.error || "Invalid status transition", "error");
-          return;
+        if (currentUser?.role === 'Administrator') {
+          const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
+          const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
+          const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
+          
+          let isValidAdminTransition = false;
+          if (editingPanel.status === onHoldStatusIndex) {
+            // From On Hold, check if newStatus is in allowed statuses
+            const allowedStatuses = [cancelledStatusIndex, brokenAtSiteStatusIndex];
+            if (previousStatus !== null) {
+              allowedStatuses.push(previousStatus);
+            }
+            isValidAdminTransition = allowedStatuses.includes(newPanelModel.status);
+          } else {
+            // For other statuses, check if newStatus is a forward status or a special status
+            const forwardStatuses = getAllForwardStatuses(editingPanel.status);
+            const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex, brokenAtSiteStatusIndex];
+            const allowedStatuses = Array.from(new Set([...forwardStatuses, ...specialStatuses]));
+            isValidAdminTransition = allowedStatuses.includes(newPanelModel.status);
+          }
+
+          if (!isValidAdminTransition) {
+            showToast('Invalid status transition for Administrator', 'error');
+            return;
+          }
+        } else {
+          const validation = validateStatusTransition(editingPanel.status, newPanelModel.status);
+          if (!validation.isValid) {
+            showToast(validation.error || "Invalid status transition", "error");
+            return;
+          }
         }
       }
     }
@@ -2336,21 +2452,50 @@ export function PanelsPage() {
                   <SelectValue placeholder="Select new status" />
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px] overflow-y-auto">
-                  {PANEL_STATUSES.map((status, index) => {
-                    const isSpecial = isSpecialStatus(index);
-                    return (
-                      <SelectItem key={status} value={status}>
-                        <div className="flex items-center gap-2">
-                          <span>{status}</span>
-                          {isSpecial && (
-                            <Badge variant="outline" className="text-xs">
-                              Special
-                            </Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
+                  {(() => {
+                    // Get the current status of selected panels (assuming they all have the same status)
+                    const selectedPanelObjects = panels.filter(panel => selectedPanels.has(panel.id));
+                    const uniqueStatuses = new Set(selectedPanelObjects.map(panel => panel.status));
+                    const currentStatus = uniqueStatuses.size === 1 ? Array.from(uniqueStatuses)[0] : null;
+                    
+                    if (currentStatus === null) {
+                      // If panels have different statuses, show all statuses but they'll be validated individually
+                      return PANEL_STATUSES.map((status, index) => {
+                        const isSpecial = isSpecialStatus(index);
+                        return (
+                          <SelectItem key={status} value={status}>
+                            <div className="flex items-center gap-2">
+                              <span>{status}</span>
+                              {isSpecial && (
+                                <Badge variant="outline" className="text-xs">
+                                  Special
+                                </Badge>
+                              )}
+                            </div>
+                          </SelectItem>
+                        );
+                      });
+                    }
+                    
+                    // If all panels have the same status, show only valid transitions
+                    const validStatuses = getValidStatuses(currentStatus);
+                    return validStatuses.map((statusIndex) => {
+                      const status = PANEL_STATUSES[statusIndex];
+                      const isSpecial = isSpecialStatus(statusIndex);
+                      return (
+                        <SelectItem key={status} value={status}>
+                          <div className="flex items-center gap-2">
+                            <span>{status}</span>
+                            {isSpecial && (
+                              <Badge variant="outline" className="text-xs">
+                                Special
+                              </Badge>
+                            )}
+                          </div>
+                        </SelectItem>
+                      );
+                    });
+                  })()}
                 </SelectContent>
               </Select>
             </div>

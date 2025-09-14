@@ -1,11 +1,15 @@
 import { Avatar } from "./ui/avatar";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { User, Settings, LogOut } from "lucide-react";
+import { User, Settings, LogOut, Menu } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
-export function UserHeader() {
+interface UserHeaderProps {
+  onMobileMenuToggle?: () => void;
+}
+
+export function UserHeader({ onMobileMenuToggle }: UserHeaderProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -27,6 +31,16 @@ export function UserHeader() {
     <header className="sticky-header border-b border-sidebar-border bg-background/95 backdrop-blur-sm">
       <div className="flex items-center justify-between px-4 sm:px-6 py-3">
         <div className="flex items-center gap-4">
+          {/* Mobile Menu Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onMobileMenuToggle}
+            className="md:hidden w-10 h-10 p-0"
+            title="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
           <h2>Qatar Panel Tracker</h2>
         </div>
         

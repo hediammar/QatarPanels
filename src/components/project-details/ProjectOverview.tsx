@@ -274,8 +274,7 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                      (panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
                      (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
                      (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
-                     (panelStatusCounts['Approved Final'] || 0) + (panelStatusCounts['On Hold'] || 0) + 
-                     (panelStatusCounts['Cancelled'] || 0) + (panelStatusCounts['Broken at Site'] || 0)} / {project.estimated_panels || 0}
+                     (panelStatusCounts['Approved Final'] || 0) } / {project.estimated_panels || 0}
                   </span>
                 </div>
                 <div className="w-full bg-muted rounded-full h-2">
@@ -287,8 +286,7 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                          (panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
                          (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
                          (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
-                         (panelStatusCounts['Approved Final'] || 0) + (panelStatusCounts['On Hold'] || 0) + 
-                         (panelStatusCounts['Cancelled'] || 0) + (panelStatusCounts['Broken at Site'] || 0)) / project.estimated_panels) * 100 : 0}%` 
+                         (panelStatusCounts['Approved Final'] || 0) ) / project.estimated_panels) * 100 : 0}%` 
                     }}
                   />
                 </div>
@@ -298,39 +296,9 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                       (panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
                       (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
                       (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
-                      (panelStatusCounts['Approved Final'] || 0) + (panelStatusCounts['On Hold'] || 0) + 
-                      (panelStatusCounts['Cancelled'] || 0) + (panelStatusCounts['Broken at Site'] || 0)) / project.estimated_panels) * 100).toFixed(1) : 0}% panels issued for production
+                      (panelStatusCounts['Approved Final'] || 0) ) / project.estimated_panels) * 100).toFixed(2) : 0}% panels issued for production
                 </p>
               </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-card-foreground">Delivered Progress</span>
-                  <span className="text-muted-foreground">
-                    {(panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
-                     (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
-                     (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)} / {project.estimated_panels || 0}
-                  </span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div 
-                    className="bg-primary h-2 rounded-full transition-all duration-300" 
-                    style={{ 
-                      width: `${project.estimated_panels > 0 ? 
-                        (((panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
-                         (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
-                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100 : 0}%` 
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {project.estimated_panels > 0 ? 
-                    ((((panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
-                      (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
-                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(1) : 0}% panels delivered
-                </p>
-              </div>
-              
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-medium text-card-foreground">Produced Progress</span>
@@ -358,9 +326,67 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                     ((((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
                       (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
                       (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
-                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(1) : 0}% panels produced
+                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(2) : 0}% panels produced
                 </p>
               </div>
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">Proceed for Delivery Progress</span>
+                  <span className="text-muted-foreground">
+                    {(panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
+                     (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
+                     (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
+                     (panelStatusCounts['Approved Final'] || 0) } / {project.estimated_panels || 0}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-red-500 h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${project.estimated_panels > 0 ? 
+                        (((panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
+                        (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
+                        (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
+                        (panelStatusCounts['Approved Final'] || 0) ) / project.estimated_panels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {project.estimated_panels > 0 ? 
+                     ((((panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
+                     (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
+                     (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
+                     (panelStatusCounts['Approved Final'] || 0) ) / project.estimated_panels) * 100).toFixed(2) : 0}% panels proceed for delivery
+                </p>
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">Delivered Progress</span>
+                  <span className="text-muted-foreground">
+                    {(panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                     (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                     (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)} / {project.estimated_panels || 0}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${project.estimated_panels > 0 ? 
+                        (((panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                         (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {project.estimated_panels > 0 ? 
+                    ((((panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                      (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
+                      (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(2) : 0}% panels delivered
+                </p>
+              </div>
+              
               
               <div>
                 <div className="flex justify-between items-center mb-2">
@@ -374,13 +400,35 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                     className="bg-primary h-2 rounded-full transition-all duration-300" 
                     style={{ 
                       width: `${project.estimated_panels > 0 ? 
-                        ((panelStatusCounts['Installed'] || 0) / project.estimated_panels) * 100 : 0}%` 
+                        (((panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100 : 0}%` 
                     }}
                   />
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {project.estimated_panels > 0 ? 
-                    (((panelStatusCounts['Installed'] || 0) / project.estimated_panels) * 100).toFixed(1) : 0}% panels installed
+                    ((((panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(2) : 0}% panels installed
+                </p>
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">Inspected Progress</span>
+                  <span className="text-muted-foreground">
+                    {(panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)} / {project.estimated_panels || 0}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${project.estimated_panels > 0 ? 
+                        ((
+                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100 : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {project.estimated_panels > 0 ? 
+                      ((((panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(2) : 0}% panels inspected
                 </p>
               </div>
 
@@ -402,53 +450,13 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {project.estimated_panels > 0 ? 
-                    (((panelStatusCounts['On Hold'] || 0) / project.estimated_panels) * 100).toFixed(1) : 0}% panels on hold
+                    (((panelStatusCounts['On Hold'] || 0) / project.estimated_panels) * 100).toFixed(2) : 0}% panels on hold
                 </p>
               </div>
 
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-card-foreground">Cancelled Progress</span>
-                  <span className="text-muted-foreground">
-                    {panelStatusCounts['Cancelled'] || 0} / {project.estimated_panels || 0}
-                  </span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div 
-                    className="bg-red-500 h-2 rounded-full transition-all duration-300" 
-                    style={{ 
-                      width: `${project.estimated_panels > 0 ? 
-                        ((panelStatusCounts['Cancelled'] || 0) / project.estimated_panels) * 100 : 0}%` 
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {project.estimated_panels > 0 ? 
-                    (((panelStatusCounts['Cancelled'] || 0) / project.estimated_panels) * 100).toFixed(1) : 0}% panels cancelled
-                </p>
-              </div>
+              
 
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-card-foreground">Broken at Site Progress</span>
-                  <span className="text-muted-foreground">
-                    {panelStatusCounts['Broken at Site'] || 0} / {project.estimated_panels || 0}
-                  </span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div 
-                    className="bg-red-600 h-2 rounded-full transition-all duration-300" 
-                    style={{ 
-                      width: `${project.estimated_panels > 0 ? 
-                        ((panelStatusCounts['Broken at Site'] || 0) / project.estimated_panels) * 100 : 0}%` 
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {project.estimated_panels > 0 ? 
-                    (((panelStatusCounts['Broken at Site'] || 0) / project.estimated_panels) * 100).toFixed(1) : 0}% panels broken at site
-                </p>
-              </div>
+              
             </CardContent>
           </Card>
 
@@ -535,18 +543,38 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                       </ResponsiveContainer>
                     </div>
                     <div className="space-y-2">
-                      {['Issued For Production', 'Produced', 'Delivered', 'Installed'].map((status) => {
-                        const count = panelStatusCounts[status] || 0;
+                      {[
+                        { key: 'Issued For Production', label: 'Issued For Production' },
+                        { key: 'Produced', label: 'Factory Stock' },
+                        { key: 'Delivered', label: 'Site Stock' },
+                        { key: 'Installed', label: 'Installed' }
+                      ].map(({ key, label }) => {
+                        const count = panelStatusCounts[key] || 0;
                         return (
-                          <div key={status} className="flex items-center justify-between text-sm">
+                          <div key={key} className="flex items-center justify-between text-sm">
                             <div className="flex items-center gap-2">
-                              <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: STATUS_COLORS[status] || "#999999" }} />
-                              <span className="text-muted-foreground">{status}</span>
+                              <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: STATUS_COLORS[key] || "#999999" }} />
+                              <span className="text-muted-foreground">{label}</span>
                             </div>
                             <span className="font-medium text-foreground">{count}</span>
                           </div>
                         );
                       })}
+                      {/* Rest entry for remaining panels */}
+                      {(() => {
+                        const mainStatuses = ['Issued For Production', 'Produced', 'Delivered', 'Installed'];
+                        const mainStatusCount = mainStatuses.reduce((sum, status) => sum + (panelStatusCounts[status] || 0), 0);
+                        const restCount = totalPanels - mainStatusCount;
+                        return restCount > 0 ? (
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-block h-3 w-3 rounded-sm" style={{ backgroundColor: "#999999" }} />
+                              <span className="text-muted-foreground">Rest</span>
+                            </div>
+                            <span className="font-medium text-foreground">{restCount}</span>
+                          </div>
+                        ) : null;
+                      })()}
                       <div className="flex items-center justify-between text-sm pt-2 border-t">
                         <span className="text-muted-foreground">Total Panels</span>
                         <span className="font-medium text-foreground">{totalPanels}</span>

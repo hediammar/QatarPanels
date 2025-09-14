@@ -480,9 +480,9 @@ export function FacadesPage({
                     <span className="text-muted-foreground">{facade.totalArea.toFixed(2)} m²</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
-                    <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="font-semibold text-card-foreground">Total Amount:</span>
-                    <span className="text-muted-foreground">{facade.totalAmount.toFixed(2)} QR</span>
+                    <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="font-semibold text-card-foreground">Total Panels:</span>
+                    <span className="text-muted-foreground">{facade.totalPanels}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Weight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -490,10 +490,11 @@ export function FacadesPage({
                     <span className="text-muted-foreground">{facade.totalWeight.toFixed(2)} kg</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
-                    <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="font-semibold text-card-foreground">Total Panels:</span>
-                    <span className="text-muted-foreground">{facade.totalPanels}</span>
+                    <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="font-semibold text-card-foreground">Total Amount:</span>
+                    <span className="text-muted-foreground">{facade.totalAmount.toFixed(2)} QR</span>
                   </div>
+                 
                 </div>
               </div>
 

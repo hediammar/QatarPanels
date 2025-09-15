@@ -586,15 +586,15 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-xl">
-          <p className="text-gray-900 font-semibold mb-2">{label}</p>
+        <div className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 shadow-xl max-w-xs">
+          <p className="text-gray-900 font-semibold mb-2 text-sm sm:text-base">{label}</p>
           {payload.map((entry: any, index: number) => (
             <div key={index} className="flex items-center gap-2 mb-1">
               <div 
-                className="w-3 h-3 rounded-full" 
+                className="w-3 h-3 rounded-full flex-shrink-0" 
                 style={{ backgroundColor: entry.color }}
               />
-              <span className="text-sm text-gray-700">
+              <span className="text-xs sm:text-sm text-gray-700">
                 {entry.dataKey}: <span className="font-medium">{entry.value}</span>
               </span>
             </div>
@@ -618,30 +618,34 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
   };
 
   return (
-    <div className="space-y-6">
-      {/* Enhanced Header with Filters Toggle */}
-      <div className="flex items-center justify-between">
-      <div>
-
-          <p className="text-muted-foreground">Data-driven insights across Projects, Buildings, and Facades</p>
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
+      {/* Enhanced Header with Filters Toggle - Mobile Responsive */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Data-driven insights across Projects, Buildings, and Facades</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <Button 
             variant="outline" 
             onClick={fetchDashboardData}
             disabled={loading}
-            className="flex items-center gap-2"
+            className="flex items-center justify-center gap-2 w-full sm:w-auto"
+            size="sm"
           >
             <Activity className="h-4 w-4" />
-            {loading ? 'Refreshing...' : 'Refresh Data'}
+            <span className="hidden sm:inline">{loading ? 'Refreshing...' : 'Refresh Data'}</span>
+            <span className="sm:hidden">{loading ? 'Refreshing...' : 'Refresh'}</span>
           </Button>
           <Button 
             variant="outline" 
             onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2"
+            className="flex items-center justify-center gap-2 w-full sm:w-auto"
+            size="sm"
           >
             {showFilters ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            {showFilters ? 'Hide Filters' : 'Show Filters'}
+            <span className="hidden sm:inline">{showFilters ? 'Hide Filters' : 'Show Filters'}</span>
+            <span className="sm:hidden">{showFilters ? 'Hide' : 'Show'}</span>
           </Button>
         </div>
       </div>
@@ -686,54 +690,57 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
       {/* Main Dashboard Content - Only show when not loading and no errors */}
       {!loading && !error && (
         <>
-          {/* Navigation Tabs for Three Main Axes */}
+          {/* Navigation Tabs for Three Main Axes - Mobile Responsive */}
           <Card className="qatar-card">
             <CardContent className="p-0">
-              <div className="flex border-b">
+              <div className="flex flex-col sm:flex-row border-b">
                 <button
                   onClick={() => setActiveSection('projects')}
-                  className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                  className={`flex-1 px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium transition-colors ${
                     activeSection === 'projects'
-                      ? 'border-b-2 border-primary text-primary bg-primary/5'
+                      ? 'border-b-2 sm:border-b-2 border-r-0 sm:border-r-0 border-primary text-primary bg-primary/5'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   }`}
                 >
-                  <div className="flex items-center gap-2 justify-center">
-                    <FolderOpen className="h-4 w-4" />
-                    Projects
-                    <Badge variant="secondary" className="ml-2">
+                  <div className="flex items-center gap-1 sm:gap-2 justify-center">
+                    <FolderOpen className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden xs:inline">Projects</span>
+                    <span className="xs:hidden">Proj</span>
+                    <Badge variant="secondary" className="ml-1 sm:ml-2 text-xs">
                       {metrics.counts.projects}
                     </Badge>
                   </div>
                 </button>
                 <button
                   onClick={() => setActiveSection('buildings')}
-                  className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                  className={`flex-1 px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium transition-colors ${
                     activeSection === 'buildings'
-                      ? 'border-b-2 border-primary text-primary bg-primary/5'
+                      ? 'border-b-2 sm:border-b-2 border-r-0 sm:border-r-0 border-primary text-primary bg-primary/5'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   }`}
                 >
-                  <div className="flex items-center gap-2 justify-center">
-                    <Building2 className="h-4 w-4" />
-                    Buildings
-                    <Badge variant="secondary" className="ml-2">
+                  <div className="flex items-center gap-1 sm:gap-2 justify-center">
+                    <Building2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden xs:inline">Buildings</span>
+                    <span className="xs:hidden">Bldg</span>
+                    <Badge variant="secondary" className="ml-1 sm:ml-2 text-xs">
                       {metrics.counts.buildings}
                     </Badge>
                   </div>
                 </button>
                 <button
                   onClick={() => setActiveSection('facades')}
-                  className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                  className={`flex-1 px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium transition-colors ${
                     activeSection === 'facades'
-                      ? 'border-b-2 border-primary text-primary bg-primary/5'
+                      ? 'border-b-2 sm:border-b-2 border-r-0 sm:border-r-0 border-primary text-primary bg-primary/5'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   }`}
                 >
-                  <div className="flex items-center gap-2 justify-center">
-                    <Layers className="h-4 w-4" />
-                    Facades
-                    <Badge variant="secondary" className="ml-2">
+                  <div className="flex items-center gap-1 sm:gap-2 justify-center">
+                    <Layers className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden xs:inline">Facades</span>
+                    <span className="xs:hidden">Fac</span>
+                    <Badge variant="secondary" className="ml-1 sm:ml-2 text-xs">
                       {metrics.counts.facades}
                     </Badge>
                   </div>
@@ -777,7 +784,7 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                     )}
                   </div>
                   
-                  {/* Search and Selection Area */}
+                  {/* Search and Selection Area - Mobile Responsive */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {/* Available Projects with Search */}
                     <div className="space-y-3">
@@ -785,14 +792,14 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input
                           placeholder="Search projects..."
-                          className="pl-10"
+                          className="pl-10 text-sm"
                           value={projectFilters.searchTerm || ''}
                           onChange={(e) => updateProjectFilter('searchTerm', e.target.value)}
                         />
                       </div>
                       
-                      <div className="border rounded-lg p-3 bg-muted/30 max-h-64 overflow-y-auto">
-                        <div className="space-y-2">
+                      <div className="border rounded-lg p-2 sm:p-3 bg-muted/30 max-h-48 sm:max-h-64 overflow-y-auto">
+                        <div className="space-y-1 sm:space-y-2">
                           {dashboardData.projects
                             .filter(project => 
                               !projectFilters.selectedProjects.includes(project.id) &&
@@ -809,11 +816,11 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                                   }
                                 }}
                               >
-                                <span className="text-sm font-medium">{project.name}</span>
+                                <span className="text-xs sm:text-sm font-medium truncate">{project.name}</span>
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="h-5 w-5 sm:h-6 sm:w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                                 >
                                   <Plus className="h-3 w-3" />
                                 </Button>
@@ -824,7 +831,7 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                             (!projectFilters.searchTerm || 
                              project.name.toLowerCase().includes(projectFilters.searchTerm.toLowerCase()))
                           ).length === 0 && (
-                            <div className="text-center text-sm text-muted-foreground py-4">
+                            <div className="text-center text-xs sm:text-sm text-muted-foreground py-4">
                               {projectFilters.searchTerm ? 'No projects found' : 'All projects selected'}
                             </div>
                           )}
@@ -834,34 +841,35 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
 
                     {/* Selected Projects */}
                     <div className="space-y-3">
-                      <Label className="text-sm font-medium text-muted-foreground">
+                      <Label className="text-xs sm:text-sm font-medium text-muted-foreground">
                         Selected Projects ({projectFilters.selectedProjects.length})
                       </Label>
                       
-                      <div className="border rounded-lg p-3 bg-muted/30 max-h-64 overflow-y-auto">
+                      <div className="border rounded-lg p-2 sm:p-3 bg-muted/30 max-h-48 sm:max-h-64 overflow-y-auto">
                         {projectFilters.selectedProjects.length > 0 ? (
-                          <div className="space-y-2">
+                          <div className="space-y-1 sm:space-y-2">
                             {projectFilters.selectedProjects.map((projectId) => {
                               const project = dashboardData.projects.find(p => p.id === projectId);
                               return project ? (
                                 <div key={projectId} className="flex items-center justify-between p-2 rounded-md bg-primary/10 border border-primary/20">
-                                  <span className="text-sm font-medium">{project.name}</span>
+                                  <span className="text-xs sm:text-sm font-medium truncate">{project.name}</span>
                                   <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => updateProjectFilter('selectedProjects', 
                                       projectFilters.selectedProjects.filter(id => id !== projectId)
                                     )}
-                                    className="px-2 py-1 text-xs text-white hover:text-destructive hover:bg-destructive/10 rounded"
+                                    className="px-1 sm:px-2 py-1 text-xs text-white hover:text-destructive hover:bg-destructive/10 rounded flex-shrink-0"
                                   >
-                                    Clear
+                                    <span className="hidden sm:inline">Clear</span>
+                                    <X className="h-3 w-3 sm:hidden" />
                                   </Button>
                                 </div>
                               ) : null;
                             })}
                           </div>
                         ) : (
-                          <div className="text-center text-sm text-muted-foreground py-4">
+                          <div className="text-center text-xs sm:text-sm text-muted-foreground py-4">
                             No projects selected
                           </div>
                         )}
@@ -1117,15 +1125,15 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
         </Card>
       )}
 
-      {/* Enhanced Key Metrics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+      {/* Enhanced Key Metrics Cards - Mobile Responsive */}
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
         <Card className="qatar-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-card-foreground">Total Panels</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-xs sm:text-sm font-medium text-card-foreground">Total Panels</CardTitle>
+            <Package className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-card-foreground">{formatNumber(metrics.counts.panels)}</div>
+            <div className="text-xl sm:text-2xl font-bold text-card-foreground">{formatNumber(metrics.counts.panels)}</div>
             <p className="text-xs text-muted-foreground">
               {metrics.efficiency.panelCompletionRate.toFixed(1)}% completion rate
             </p>
@@ -1134,28 +1142,38 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
 
         <Card className="qatar-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-card-foreground">Project Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-xs sm:text-sm font-medium text-card-foreground">Project Value</CardTitle>
+            <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-card-foreground">{formatCurrency(metrics.financial.totalEstimatedValue)}</div>
+            <div className="text-xl sm:text-2xl font-bold text-card-foreground">{formatCurrency(metrics.financial.totalEstimatedValue)}</div>
             <p className="text-xs text-muted-foreground">
-              Avg: {formatCurrency(metrics.financial.averageProjectValue)} per project
+              <span className="hidden sm:inline">Avg: {formatCurrency(metrics.financial.averageProjectValue)} per project</span>
+              <span className="sm:hidden">Avg: {formatCurrency(metrics.financial.averageProjectValue)}</span>
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Enhanced Panel Status Overview */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Enhanced Panel Status Overview - Mobile Responsive */}
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
         {PRIMARY_STATUSES.map((status) => (
           <Card key={status} className="qatar-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-card-foreground">{status}</CardTitle>
-              {getStatusIcon(status)}
+              <CardTitle className="text-xs sm:text-sm font-medium text-card-foreground truncate">
+                <span className="hidden sm:inline">{status}</span>
+                <span className="sm:hidden">
+                  {status === 'Issued For Production' ? 'Issued' :
+                   status === 'Proceed for Delivery' ? 'Delivery' :
+                   status}
+                </span>
+              </CardTitle>
+              <div className="flex-shrink-0">
+                {getStatusIcon(status)}
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-card-foreground">{metrics.status.primary[status]}</div>
+              <div className="text-lg sm:text-2xl font-bold text-card-foreground">{metrics.status.primary[status]}</div>
               <p className="text-xs text-muted-foreground">
                 {metrics.counts.panels > 0 ? ((metrics.status.primary[status] / metrics.counts.panels) * 100).toFixed(1) : 0}% of total
               </p>
@@ -1164,8 +1182,8 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
         ))}
       </div>
 
-      {/* Enhanced Progress and Analytics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {/* Enhanced Progress and Analytics - Mobile Responsive */}
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-3">
         <Card className="qatar-card">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2 text-card-foreground">
@@ -1373,81 +1391,119 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
         </Card>
       </div>
 
-      {/* Enhanced Charts Section */}
-      <div className="grid gap-6 md:grid-cols-2">
+      {/* Enhanced Charts Section - Mobile Responsive */}
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
         {/* Interactive Panel Status Distribution */}
         <Card className="qatar-card">
           <CardHeader>
-            <CardTitle className="text-lg text-card-foreground flex items-center gap-2">
-              <PieChartIcon className="h-5 w-5" />
-              Panel Status Distribution
+            <CardTitle className="text-base sm:text-lg text-card-foreground flex items-center gap-2">
+              <PieChartIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="hidden sm:inline">Panel Status Distribution</span>
+              <span className="sm:hidden">Status Distribution</span>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setPieChartView(pieChartView === 'primary' ? 'secondary' : 'primary')}
                 className="ml-auto h-6 px-2 text-xs"
               >
-                {pieChartView === 'primary' ? 'Show Details' : 'Show Overview'}
+                <span className="hidden sm:inline">{pieChartView === 'primary' ? 'Show Details' : 'Show Overview'}</span>
+                <span className="sm:hidden">{pieChartView === 'primary' ? 'Details' : 'Overview'}</span>
               </Button>
             </CardTitle>
-            <CardDescription className="text-muted-foreground">
+            <CardDescription className="text-muted-foreground text-xs sm:text-sm">
               {pieChartView === 'primary' 
                 ? 'Primary statuses with grouped secondary statuses' 
                 : 'Detailed breakdown of secondary statuses'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center h-80">
-                <div className="h-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={chartData.pieChart}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        innerRadius={60}
-                        outerRadius={100}
-                        fill={CHART_COLORS.primary}
-                        dataKey="count"
-                        nameKey="status"
-                        stroke="#ffffff"
-                        strokeWidth={2}
-                        paddingAngle={2}
-                        onClick={handlePieChartClick}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        {chartData.pieChart.map((entry, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={entry.status === 'Rest' ? '#6B7280' : STATUS_COLORS[entry.status as AllStatus] || '#9CA3AF'} 
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value: any, name: any) => [`${name} : ${value}`, 'Count']} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="space-y-2">
-                  {chartData.pieChart.map((item) => (
-                    <div key={item.status} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <span 
-                          className="inline-block h-3 w-3 rounded-sm" 
-                          style={{ 
-                            backgroundColor: item.status === 'Rest' ? '#6B7280' : STATUS_COLORS[item.status as AllStatus] || '#9CA3AF' 
-                          }} 
+            <div className="bg-white/10 rounded-lg p-3 sm:p-4 backdrop-blur-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                {/* Chart Container */}
+                <div className="h-64 sm:h-80 flex items-center justify-center">
+                  {chartData.pieChart.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={chartData.pieChart}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          innerRadius={50}
+                          outerRadius={90}
+                          fill={CHART_COLORS.primary}
+                          dataKey="count"
+                          nameKey="status"
+                          stroke="#ffffff"
+                          strokeWidth={2}
+                          paddingAngle={3}
+                          onClick={handlePieChartClick}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          {chartData.pieChart.map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={entry.status === 'Rest' ? '#6B7280' : STATUS_COLORS[entry.status as AllStatus] || '#9CA3AF'} 
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          formatter={(value: any, name: any) => [`${name} : ${value}`, 'Count']}
+                          contentStyle={{
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            borderRadius: '8px',
+                            color: 'white',
+                            fontSize: '12px'
+                          }}
                         />
-                        <span className="text-muted-foreground">{item.status}</span>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center p-4">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-muted/20 flex items-center justify-center mb-3">
+                        <PieChartIcon className="h-8 w-8 sm:h-10 sm:w-10 text-muted-foreground" />
                       </div>
-                      <span className="font-medium text-foreground">{item.count} ({Math.round((item.count / metrics.counts.panels) * 100)}%)</span>
+                      <p className="text-sm sm:text-base text-muted-foreground">No data available</p>
+                      <p className="text-xs text-muted-foreground mt-1">Charts will appear when panel data is loaded</p>
                     </div>
-                  ))}
-                  <div className="flex items-center justify-between text-sm pt-2 border-t border-white/20">
-                    <span className="text-muted-foreground">Total Panels</span>
-                    <span className="font-medium text-foreground">{metrics.counts.panels}</span>
-                  </div>
+                  )}
+                </div>
+                
+                {/* Legend Container */}
+                <div className="space-y-2 sm:space-y-3">
+                  {chartData.pieChart.length > 0 ? (
+                    <>
+                      <div className="space-y-1 sm:space-y-2">
+                        {chartData.pieChart.map((item) => (
+                          <div key={item.status} className="flex items-center justify-between text-xs sm:text-sm">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <span 
+                                className="inline-block h-3 w-3 sm:h-4 sm:w-4 rounded-sm flex-shrink-0" 
+                                style={{ 
+                                  backgroundColor: item.status === 'Rest' ? '#6B7280' : STATUS_COLORS[item.status as AllStatus] || '#9CA3AF' 
+                                }} 
+                              />
+                              <span className="text-muted-foreground truncate text-xs sm:text-sm">{item.status}</span>
+                            </div>
+                            <span className="font-medium text-foreground text-xs sm:text-sm ml-2 flex-shrink-0">
+                              {item.count} ({Math.round((item.count / metrics.counts.panels) * 100)}%)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Total Summary */}
+                      <div className="flex items-center justify-between text-xs sm:text-sm pt-2 border-t border-white/20">
+                        <span className="text-muted-foreground font-medium">Total Panels</span>
+                        <span className="font-bold text-foreground">{metrics.counts.panels}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-xs sm:text-sm text-muted-foreground">No panel data to display</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1457,12 +1513,15 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
         {/* Manufacturing Timeline */}
         <Card className="qatar-card">
           <CardHeader>
-            <CardTitle className="text-lg text-card-foreground">Manufacturing Pipeline</CardTitle>
-            <CardDescription className="text-muted-foreground">Panel progression through production stages</CardDescription>
+            <CardTitle className="text-base sm:text-lg text-card-foreground">
+              <span className="hidden sm:inline">Manufacturing Pipeline</span>
+              <span className="sm:hidden">Pipeline</span>
+            </CardTitle>
+            <CardDescription className="text-muted-foreground text-xs sm:text-sm">Panel progression through production stages</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-              <ResponsiveContainer width="100%" height={300}>
+            <div className="bg-white/10 rounded-lg p-2 sm:p-4 backdrop-blur-sm">
+              <ResponsiveContainer width="100%" height={250}>
                 <ComposedChart data={chartData.timeline}>
                   <defs>
                     <linearGradient id="colorArea" x1="0" y1="0" x2="0" y2="1">
@@ -1473,9 +1532,12 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
                   <XAxis 
                     dataKey="stage" 
-                    tick={{ fill: '#ffffff80', fontSize: 12 }}
+                    tick={{ fill: '#ffffff80', fontSize: 10 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
                   />
-                  <YAxis tick={{ fill: '#ffffff80', fontSize: 12 }} />
+                  <YAxis tick={{ fill: '#ffffff80', fontSize: 10 }} />
                   <Tooltip content={<CustomTooltip />} />
                   <Area 
                     type="monotone" 
@@ -1498,23 +1560,26 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
         {/* Location Distribution */}
         <Card className="qatar-card">
           <CardHeader>
-            <CardTitle className="text-lg text-card-foreground">Projects by Location</CardTitle>
-            <CardDescription className="text-muted-foreground">Geographic distribution of projects</CardDescription>
+            <CardTitle className="text-base sm:text-lg text-card-foreground">
+              <span className="hidden sm:inline">Projects by Location</span>
+              <span className="sm:hidden">By Location</span>
+            </CardTitle>
+            <CardDescription className="text-muted-foreground text-xs sm:text-sm">Geographic distribution of projects</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-              <ResponsiveContainer width="100%" height={300}>
+            <div className="bg-white/10 rounded-lg p-2 sm:p-4 backdrop-blur-sm">
+              <ResponsiveContainer width="100%" height={250}>
                 <BarChart layout="vertical" data={chartData.location}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff20" />
                   <XAxis 
                     type="number" 
-                    tick={{ fill: '#ffffff80', fontSize: 12 }}
+                    tick={{ fill: '#ffffff80', fontSize: 10 }}
                   />
                   <YAxis 
                     dataKey="location" 
                     type="category" 
-                    width={100}
-                    tick={{ fill: '#ffffff80', fontSize: 12 }}
+                    width={80}
+                    tick={{ fill: '#ffffff80', fontSize: 10 }}
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Bar 
@@ -1531,20 +1596,23 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
         {/* Efficiency Radar Chart */}
         <Card className="qatar-card">
           <CardHeader>
-            <CardTitle className="text-lg text-card-foreground">Efficiency Overview</CardTitle>
-            <CardDescription className="text-muted-foreground">Multi-dimensional performance metrics</CardDescription>
+            <CardTitle className="text-base sm:text-lg text-card-foreground">
+              <span className="hidden sm:inline">Efficiency Overview</span>
+              <span className="sm:hidden">Efficiency</span>
+            </CardTitle>
+            <CardDescription className="text-muted-foreground text-xs sm:text-sm">Multi-dimensional performance metrics</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-              <ResponsiveContainer width="100%" height={300}>
+            <div className="bg-white/10 rounded-lg p-2 sm:p-4 backdrop-blur-sm">
+              <ResponsiveContainer width="100%" height={250}>
                 <RadarChart data={chartData.efficiency}>
                   <PolarGrid stroke="#ffffff20" />
                   <PolarAngleAxis 
                     dataKey="metric" 
-                    tick={{ fill: '#ffffff80', fontSize: 12 }}
+                    tick={{ fill: '#ffffff80', fontSize: 10 }}
                   />
                   <PolarRadiusAxis 
-                    tick={{ fill: '#ffffff80', fontSize: 12 }}
+                    tick={{ fill: '#ffffff80', fontSize: 10 }}
                     domain={[0, 100]}
                   />
                   <Radar
@@ -1719,52 +1787,69 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
         </Card>
       )}
 
-      {/* Enhanced Recent Projects Activity */}
+      {/* Enhanced Recent Projects Activity - Mobile Responsive */}
       <Card className="qatar-card">
         <CardHeader>
-          <CardTitle className="text-lg text-card-foreground">
-            {activeSection === 'projects' && 'Recent Projects'}
-            {activeSection === 'buildings' && 'Recent Building Updates'}
-            {activeSection === 'facades' && 'Recent Facade Activities'}
+          <CardTitle className="text-base sm:text-lg text-card-foreground">
+            {activeSection === 'projects' && (
+              <>
+                <span className="hidden sm:inline">Recent Projects</span>
+                <span className="sm:hidden">Recent Projects</span>
+              </>
+            )}
+            {activeSection === 'buildings' && (
+              <>
+                <span className="hidden sm:inline">Recent Building Updates</span>
+                <span className="sm:hidden">Building Updates</span>
+              </>
+            )}
+            {activeSection === 'facades' && (
+              <>
+                <span className="hidden sm:inline">Recent Facade Activities</span>
+                <span className="sm:hidden">Facade Activities</span>
+              </>
+            )}
           </CardTitle>
-          <CardDescription className="text-muted-foreground">
+          <CardDescription className="text-muted-foreground text-xs sm:text-sm">
             {activeSection === 'projects' && 'Latest project activity and updates'}
             {activeSection === 'buildings' && 'Latest building construction and modification updates'}
             {activeSection === 'facades' && 'Latest facade design and installation updates'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-                         {dashboardData.projects.slice(0, 5).map((project) => (
-              <div key={project.id} className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-white/5 backdrop-blur-sm">
+          <div className="space-y-3 sm:space-y-4">
+            {dashboardData.projects.slice(0, 5).map((project) => (
+              <div key={project.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 rounded-lg border border-border/50 bg-white/5 backdrop-blur-sm gap-3 sm:gap-0">
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/20">
-                    <FolderOpen className="h-5 w-5 text-primary" />
+                  <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/20 flex-shrink-0">
+                    <FolderOpen className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                   </div>
-                  <div>
-                    <h4 className="font-medium text-card-foreground">{project.name}</h4>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-medium text-card-foreground text-sm sm:text-base truncate">{project.name}</h4>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
-                        <Building2 className="h-3 w-3" />
-                        {project.customer}
+                        <Building2 className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{project.customer}</span>
                       </span>
                       <span className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {project.location}
+                        <MapPin className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{project.location}</span>
                       </span>
                       <span className="flex items-center gap-1">
-                        <DollarSign className="h-3 w-3" />
-                        {formatCurrency(project.estimated_cost || 0)}
+                        <DollarSign className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{formatCurrency(project.estimated_cost || 0)}</span>
                       </span>
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {project.status === 'active' && <Badge className="status-active">Active</Badge>}
-                  {project.status === 'completed' && <Badge className="status-complete">Completed</Badge>}
-                  {project.status === 'on-hold' && <Badge className="status-onhold">On Hold</Badge>}
-                  {project.status === 'inactive' && <Badge className="status-inactive">Inactive</Badge>}
-                  <span className="text-sm text-muted-foreground">
+                <div className="flex items-center justify-between sm:justify-end gap-2">
+                  <div className="flex items-center gap-2">
+                    {project.status === 'active' && <Badge className="status-active text-xs">Active</Badge>}
+                    {project.status === 'completed' && <Badge className="status-complete text-xs">Completed</Badge>}
+                    {project.status === 'on-hold' && <Badge className="status-onhold text-xs">On Hold</Badge>}
+                    {project.status === 'inactive' && <Badge className="status-inactive text-xs">Inactive</Badge>}
+                  </div>
+                  <span className="text-xs sm:text-sm text-muted-foreground">
                     {project.estimatedPanels || 0} panels
                   </span>
                 </div>
@@ -2361,13 +2446,13 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* First row */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                {/* First row - Mobile Responsive */}
+                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
                   {/* Search */}
                   <div className="space-y-2">
-                    <Label>Search</Label>
+                    <Label className="text-xs sm:text-sm">Search</Label>
                     <div className="relative">
-                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Search className="absolute left-2 top-2.5 h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
                       <Input
                         placeholder="Search projects..."
                         value={searchTerm}
@@ -2375,19 +2460,19 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                           setSearchTerm(e.target.value);
                           handleFilterChange();
                         }}
-                        className="pl-8"
+                        className="pl-7 sm:pl-8 text-xs sm:text-sm"
                       />
                     </div>
                   </div>
 
                   {/* Customer Filter */}
                   <div className="space-y-2">
-                    <Label>Customer</Label>
+                    <Label className="text-xs sm:text-sm">Customer</Label>
                     <Select value={customerFilter} onValueChange={(value) => {
                       setCustomerFilter(value);
                       handleFilterChange();
                     }}>
-                      <SelectTrigger>
+                      <SelectTrigger className="text-xs sm:text-sm">
                         <SelectValue placeholder="All customers" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2403,12 +2488,12 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
 
                   {/* Status Filter */}
                   <div className="space-y-2">
-                    <Label>Status</Label>
+                    <Label className="text-xs sm:text-sm">Status</Label>
                     <Select value={statusFilter} onValueChange={(value) => {
                       setStatusFilter(value);
                       handleFilterChange();
                     }}>
-                      <SelectTrigger>
+                      <SelectTrigger className="text-xs sm:text-sm">
                         <SelectValue placeholder="All statuses" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2422,12 +2507,12 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
 
                   {/* Location Filter */}
                   <div className="space-y-2">
-                    <Label>Location</Label>
+                    <Label className="text-xs sm:text-sm">Location</Label>
                     <Select value={locationFilter} onValueChange={(value) => {
                       setLocationFilter(value);
                       handleFilterChange();
                     }}>
-                      <SelectTrigger>
+                      <SelectTrigger className="text-xs sm:text-sm">
                         <SelectValue placeholder="All locations" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2443,12 +2528,12 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
 
                   {/* Page Size */}
                   <div className="space-y-2">
-                    <Label>Items per page</Label>
+                    <Label className="text-xs sm:text-sm">Items per page</Label>
                     <Select value={pageSize.toString()} onValueChange={(value) => {
                       setPageSize(parseInt(value));
                       setCurrentPage(1);
                     }}>
-                      <SelectTrigger>
+                      <SelectTrigger className="text-xs sm:text-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -2461,16 +2546,16 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                   </div>
                 </div>
 
-                {/* Second row */}
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {/* Second row - Mobile Responsive */}
+                <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                   {/* Validity Filter */}
                   <div className="space-y-2">
-                    <Label>Validation Status</Label>
+                    <Label className="text-xs sm:text-sm">Validation Status</Label>
                     <Select value={validityFilter} onValueChange={(value) => {
                       setValidityFilter(value);
                       handleFilterChange();
                     }}>
-                      <SelectTrigger>
+                      <SelectTrigger className="text-xs sm:text-sm">
                         <SelectValue placeholder="All items" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2483,12 +2568,12 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
 
                   {/* Date Range Filter */}
                   <div className="space-y-2">
-                    <Label>Start Date Range</Label>
+                    <Label className="text-xs sm:text-sm">Start Date Range</Label>
                     <Select value={dateRangeFilter} onValueChange={(value) => {
                       setDateRangeFilter(value);
                       handleFilterChange();
                     }}>
-                      <SelectTrigger>
+                      <SelectTrigger className="text-xs sm:text-sm">
                         <SelectValue placeholder="Any time" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2503,18 +2588,18 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                 </div>
               </div>
 
-              <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                <div className="text-sm text-muted-foreground">
+              <div className="flex flex-col sm:flex-row items-center justify-between mt-4 pt-4 border-t gap-3 sm:gap-0">
+                <div className="text-xs sm:text-sm text-muted-foreground">
                   Showing {startIndex + 1}-{Math.min(endIndex, filteredProjects.length)} of {filteredProjects.length} projects
                 </div>
-                <Button variant="outline" size="sm" onClick={clearFilters}>
+                <Button variant="outline" size="sm" onClick={clearFilters} className="text-xs sm:text-sm">
                   Clear Filters
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Data Table */}
+          {/* Data Table - Mobile Responsive */}
           {filteredProjects.length > 0 && (
             <Card>
               <CardContent className="p-0">
@@ -2522,16 +2607,16 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-8"></TableHead>
-                        <TableHead className="min-w-[200px]">Project Name</TableHead>
-                        <TableHead className="min-w-[150px]">Customer</TableHead>
-                        <TableHead className="min-w-[120px]">Location</TableHead>
-                        <TableHead className="min-w-[120px]">Start Date</TableHead>
-                        <TableHead className="min-w-[120px]">End Date</TableHead>
-                        <TableHead className="min-w-[100px]">Status</TableHead>
-                        <TableHead className="min-w-[120px]">Est. Cost</TableHead>
-                        <TableHead className="min-w-[100px]">Est. Panels</TableHead>
-                        <TableHead className="w-12"></TableHead>
+                        <TableHead className="w-6 sm:w-8"></TableHead>
+                        <TableHead className="min-w-[150px] sm:min-w-[200px]">Project Name</TableHead>
+                        <TableHead className="min-w-[120px] sm:min-w-[150px]">Customer</TableHead>
+                        <TableHead className="min-w-[100px] sm:min-w-[120px]">Location</TableHead>
+                        <TableHead className="min-w-[100px] sm:min-w-[120px]">Start Date</TableHead>
+                        <TableHead className="min-w-[100px] sm:min-w-[120px]">End Date</TableHead>
+                        <TableHead className="min-w-[80px] sm:min-w-[100px]">Status</TableHead>
+                        <TableHead className="min-w-[100px] sm:min-w-[120px]">Est. Cost</TableHead>
+                        <TableHead className="min-w-[80px] sm:min-w-[100px]">Est. Panels</TableHead>
+                        <TableHead className="w-8 sm:w-12"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2539,8 +2624,8 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                         <TableRow>
                           <TableCell colSpan={10} className="text-center py-8">
                             <div className="flex flex-col items-center gap-2">
-                              <FileSpreadsheet className="h-8 w-8 text-muted-foreground" />
-                              <p className="text-muted-foreground">
+                              <FileSpreadsheet className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
+                              <p className="text-muted-foreground text-sm sm:text-base">
                                 No projects match your search criteria
                               </p>
                             </div>
@@ -2551,16 +2636,16 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                           <TableRow key={project.id} className={!project.isValid ? 'bg-destructive/5' : ''}>
                             <TableCell>
                               {project.isValid ? (
-                                <CheckCircle className="h-4 w-4 text-green-500" />
+                                <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-green-500" />
                               ) : (
-                                <AlertCircle className="h-4 w-4 text-destructive" />
+                                <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 text-destructive" />
                               )}
                             </TableCell>
                             <TableCell>
                               <Input
                                 value={project.name}
                                 onChange={(e) => updateProject(index, 'name', e.target.value)}
-                                className={project.errors.some(e => e.includes('name')) ? 'border-destructive' : ''}
+                                className={`text-xs sm:text-sm ${project.errors.some(e => e.includes('name')) ? 'border-destructive' : ''}`}
                                 placeholder="Enter project name"
                               />
                             </TableCell>
@@ -2573,7 +2658,7 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                                   updateProject(index, 'customerId', value);
                                 }}
                               >
-                                <SelectTrigger className={project.errors.some(e => e.includes('Customer')) ? 'border-destructive' : ''}>
+                                <SelectTrigger className={`text-xs sm:text-sm ${project.errors.some(e => e.includes('Customer')) ? 'border-destructive' : ''}`}>
                                   <SelectValue placeholder="Select customer" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -2589,7 +2674,7 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                               <Input
                                 value={project.location}
                                 onChange={(e) => updateProject(index, 'location', e.target.value)}
-                                className={project.errors.some(e => e.includes('location')) ? 'border-destructive' : ''}
+                                className={`text-xs sm:text-sm ${project.errors.some(e => e.includes('location')) ? 'border-destructive' : ''}`}
                                 placeholder="Enter location"
                               />
                             </TableCell>
@@ -2598,7 +2683,7 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                                 type="date"
                                 value={project.startDate}
                                 onChange={(e) => updateProject(index, 'startDate', e.target.value)}
-                                className={project.errors.some(e => e.includes('Start')) ? 'border-destructive' : ''}
+                                className={`text-xs sm:text-sm ${project.errors.some(e => e.includes('Start')) ? 'border-destructive' : ''}`}
                               />
                             </TableCell>
                             <TableCell>
@@ -2606,12 +2691,12 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                                 type="date"
                                 value={project.endDate}
                                 onChange={(e) => updateProject(index, 'endDate', e.target.value)}
-                                className={project.errors.some(e => e.includes('End')) ? 'border-destructive' : ''}
+                                className={`text-xs sm:text-sm ${project.errors.some(e => e.includes('End')) ? 'border-destructive' : ''}`}
                               />
                             </TableCell>
                             <TableCell>
                               <Select value={project.status} onValueChange={(value: any) => updateProject(index, 'status', value)}>
-                                <SelectTrigger>
+                                <SelectTrigger className="text-xs sm:text-sm">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -2628,7 +2713,7 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                                 step="100"
                                 value={project.estimatedCost}
                                 onChange={(e) => updateProject(index, 'estimatedCost', parseInt(e.target.value) || 0)}
-                                className={project.errors.some(e => e.includes('cost')) ? 'border-destructive' : ''}
+                                className={`text-xs sm:text-sm ${project.errors.some(e => e.includes('cost')) ? 'border-destructive' : ''}`}
                                 placeholder="0"
                               />
                             </TableCell>
@@ -2639,7 +2724,7 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                                 step="1"
                                 value={project.estimatedPanels}
                                 onChange={(e) => updateProject(index, 'estimatedPanels', parseInt(e.target.value) || 0)}
-                                className={project.errors.some(e => e.includes('panels')) ? 'border-destructive' : ''}
+                                className={`text-xs sm:text-sm ${project.errors.some(e => e.includes('panels')) ? 'border-destructive' : ''}`}
                                 placeholder="0"
                               />
                             </TableCell>
@@ -2648,9 +2733,9 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => removeProject(index)}
-                                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                className="h-6 w-6 sm:h-8 sm:w-8 p-0 text-muted-foreground hover:text-destructive"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -2660,30 +2745,32 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                   </Table>
                 </div>
 
-                {/* Pagination */}
+                {/* Pagination - Mobile Responsive */}
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-between p-4 border-t">
-                    <div className="text-sm text-muted-foreground">
+                  <div className="flex flex-col sm:flex-row items-center justify-between p-3 sm:p-4 border-t gap-3 sm:gap-0">
+                    <div className="text-xs sm:text-sm text-muted-foreground">
                       Page {currentPage} of {totalPages}
                     </div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-1 sm:space-x-2">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setCurrentPage(1)}
                         disabled={currentPage === 1}
+                        className="h-8 w-8 p-0"
                       >
-                        <ChevronsLeft className="h-4 w-4" />
+                        <ChevronsLeft className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                         disabled={currentPage === 1}
+                        className="h-8 w-8 p-0"
                       >
-                        <ChevronLeft className="h-4 w-4" />
+                        <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
-                      <span className="text-sm">
+                      <span className="text-xs sm:text-sm px-2">
                         {currentPage} of {totalPages}
                       </span>
                       <Button
@@ -2691,16 +2778,18 @@ export function BulkImportPage({ customers, onImportProjects, onNavigateBack }: 
                         size="sm"
                         onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                         disabled={currentPage === totalPages}
+                        className="h-8 w-8 p-0"
                       >
-                        <ChevronRight className="h-4 w-4" />
+                        <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => setCurrentPage(totalPages)}
                         disabled={currentPage === totalPages}
+                        className="h-8 w-8 p-0"
                       >
-                        <ChevronsRight className="h-4 w-4" />
+                        <ChevronsRight className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
                     </div>
                   </div>
@@ -2816,7 +2905,7 @@ export function HomePage({ customers = [], projects = [], panels = [], buildings
       {currentView === 'dashboard' ? (
         <div>
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-3xl font-bold">Dashboard</h1>
+            
             {/* <Button onClick={() => setCurrentView('bulk-import')}>
               Bulk Import Projects
             </Button> */}

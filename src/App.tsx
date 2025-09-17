@@ -12,6 +12,7 @@ import { NoteDetailsPage } from "./pages/NoteDetailsPage";
 import { UsersPage } from "./pages/UsersPage";
 import { BulkImportProjectsPage } from "./pages/BulkImportProjectsPage";
 import { BulkImportPanelsPage } from "./pages/BulkImportPanelsPage";
+import { BulkImportPanelHistoriesPage } from "./pages/BulkImportPanelHistoriesPage";
 import { FacadesPage } from "./pages/FacadesPage";
 import { PanelsPage } from "./pages/PanelsPage";
 import { BuildingDetailsPage } from "./pages/BuildingDetailsPage";
@@ -150,6 +151,13 @@ export default function App() {
               <ProtectedRoute>
                 <Layout>
                   <BulkImportPanelsPage />
+                </Layout>
+              </ProtectedRoute>
+            } />
+            <Route path="/bulk-import-panel-histories" element={
+              <ProtectedRoute>
+                <Layout>
+                  <BulkImportPanelHistoriesPage />
                 </Layout>
               </ProtectedRoute>
             } />

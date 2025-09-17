@@ -918,25 +918,50 @@ async function fetchPanelGroups(projectId?: string): Promise<PanelGroupModel[]> 
 }
 
 async function fetchPanels(): Promise<PanelModel[]> {
-  const { data, error } = await supabase
-    .from('panels')
-    .select(`
-      id,
-      name,
-      type,
-      status,
-      drawing_number,
-      ifp_qty_nos,
-      issue_transmittal_no,
-      unit_rate_qr_m2,
-      ifp_qty_area_sm,
-      weight
-    `);
+  // Fetch panels using pagination to get all panels
+  let allPanels: any[] = [];
+  let page = 0;
+  const pageSize = 1000;
+  let hasMore = true;
 
-  if (error) {
-    console.error('Error fetching panels:', error);
-    return [];
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('panels')
+      .select(`
+        id,
+        name,
+        type,
+        status,
+        drawing_number,
+        ifp_qty_nos,
+        issue_transmittal_no,
+        unit_rate_qr_m2,
+        ifp_qty_area_sm,
+        weight
+      `)
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    if (error) {
+      console.error('Error fetching panels:', error);
+      return [];
+    }
+
+    if (data && data.length > 0) {
+      allPanels = [...allPanels, ...data];
+      console.log(`🔍 PanelGroupsSection: Fetched page ${page + 1}: ${data.length} panels (total so far: ${allPanels.length})`);
+      
+      if (data.length < pageSize) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+    } else {
+      hasMore = false;
+    }
   }
+
+  const data = allPanels;
+  console.log(`🔍 PanelGroupsSection: Total panels fetched: ${data.length}`);
 
   // Get all panel group memberships in one query for efficiency
   const { data: allMemberships, error: membershipsError } = await supabase

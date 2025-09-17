@@ -212,18 +212,43 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
       
       if (facadesError) throw facadesError;
       
-      // Fetch panels
-      const { data: panelsData, error: panelsError } = await supabase
-        .from('panels')
-        .select('*');
-      
-      if (panelsError) throw panelsError;
+      // Fetch panels using pagination to get all panels
+      let allPanels: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('panels')
+          .select('*')
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allPanels = [...allPanels, ...data];
+          console.log(`🔍 Dashboard: Fetched page ${page + 1}: ${data.length} panels (total so far: ${allPanels.length})`);
+          
+          if (data.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const panelsData = allPanels;
+      console.log(`🔍 Dashboard: Total panels fetched: ${panelsData.length}`);
       
       // Fetch panel status histories separately for better performance
       const { data: statusHistoriesData, error: statusError } = await supabase
         .from('panel_status_histories')
         .select('panel_id, status, created_at')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(10000);
       
       if (statusError) {
         console.warn('⚠️ Dashboard: Warning - Could not fetch status histories:', statusError);

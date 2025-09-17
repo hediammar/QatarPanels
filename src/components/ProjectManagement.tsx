@@ -1602,11 +1602,11 @@ export function ProjectManagement() {
                 <CardHeader className="qatar-card-header pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <CardTitle className="qatar-card-title text-base sm:text-lg leading-tight truncate">
+                      <div className="flex items-start gap-2 mb-1">
+                        <CardTitle className="qatar-card-title text-base sm:text-lg leading-tight break-words hyphens-auto">
                           {project.name}
                         </CardTitle>
-                        <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                        <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5" />
                       </div>
                       <p className="qatar-card-subtitle text-xs">
                         PRJ-{project.id.slice(-4).toUpperCase()}
@@ -1661,7 +1661,9 @@ export function ProjectManagement() {
                       <div className="qatar-progress flex-1 h-2">
                         <div
                           className="qatar-progress-bar h-full"
-                          style={{ width: `${project.estimated_panels > 0 ? (project.actual_panels / project.estimated_panels) * 100 : 0}%` }}
+                          style={{ 
+                            width: `${project.estimated_panels > 0 ? Math.min((project.actual_panels / project.estimated_panels) * 100, 100) : 0}%` 
+                          }}
                         ></div>
                       </div>
                     </div>

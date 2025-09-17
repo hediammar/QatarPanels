@@ -208,7 +208,7 @@ export function BulkImportPanelsPage() {
     return match?.id;
   };
 
-  // New function to find existing panel by name
+  // New function to find existing panel by name (without project constraint for global search)
   const findExistingPanelByName = async (panelName: string): Promise<any | null> => {
     if (!panelName?.trim()) return null;
     
@@ -222,19 +222,47 @@ export function BulkImportPanelsPage() {
           facades(name)
         `)
         .eq('name', panelName.trim())
-        .single();
+        .limit(1);
 
       if (error) {
-        if (error.code === 'PGRST116') {
-          // No rows returned - panel doesn't exist
-          return null;
-        }
-        throw error;
+        console.error('Error finding existing panel:', error);
+        return null;
       }
 
-      return data;
+      // Return the first result if found, otherwise null
+      return data && data.length > 0 ? data[0] : null;
     } catch (error) {
       console.error('Error finding existing panel:', error);
+      return null;
+    }
+  };
+
+  // Function to find existing panel by name within a specific project
+  const findExistingPanelByNameInProject = async (panelName: string, projectId: string): Promise<any | null> => {
+    if (!panelName?.trim() || !projectId) return null;
+    
+    try {
+      const { data, error } = await supabase
+        .from('panels')
+        .select(`
+          *,
+          projects!inner(name, customer_id),
+          buildings(name),
+          facades(name)
+        `)
+        .eq('name', panelName.trim())
+        .eq('project_id', projectId)
+        .limit(1);
+
+      if (error) {
+        console.error('Error finding existing panel in project:', error);
+        return null;
+      }
+
+      // Return the first result if found, otherwise null
+      return data && data.length > 0 ? data[0] : null;
+    } catch (error) {
+      console.error('Error finding existing panel in project:', error);
       return null;
     }
   };
@@ -507,13 +535,26 @@ export function BulkImportPanelsPage() {
           
           // Skip header row and convert to our format
           const panels: PanelImportData[] = [];
+          let skippedRows = 0;
           for (let i = 1; i < jsonData.length; i++) {
             const row = jsonData[i] as any[];
             
-            // Check if row has any data (not completely empty)
-            const hasData = row && row.some((cell: any) => cell !== null && cell !== undefined && cell !== '');
+            // Check if row has any meaningful data (not completely empty or whitespace-only)
+            const hasData = row && row.some((cell: any) => {
+              if (cell === null || cell === undefined) return false;
+              if (typeof cell === 'string') {
+                return cell.trim() !== '';
+              }
+              return true; // For numbers, dates, etc.
+            });
             
             if (hasData) {
+              // Extract and check essential fields
+              const projectName = row[0]?.toString().trim() || '';
+              const panelName = row[1]?.toString().trim() || '';
+              
+              // Only process rows that have at least project_name and name
+              if (projectName && panelName) {
                              // Helper function to convert Excel date to proper date string
                const convertExcelDate = (cell: any): string => {
                  if (!cell) return '';
@@ -540,8 +581,8 @@ export function BulkImportPanelsPage() {
                };
               
               panels.push({
-                project_name: row[0]?.toString().trim() || '',
-                name: row[1]?.toString().trim() || '',
+                project_name: projectName,
+                name: panelName,
                 type: row[2]?.toString().trim() || '',
                 status: row[3]?.toString().trim() || '',
                 date: convertExcelDate(row[4]),
@@ -557,9 +598,19 @@ export function BulkImportPanelsPage() {
                 facade_name: row[14]?.toString().trim() || undefined,
                 customer_name: row[15]?.toString().trim() || undefined,
               });
+              } else {
+                // Row has data but missing essential fields (project_name or name)
+                skippedRows++;
+                console.log(`Skipping row ${i + 1}: Missing project_name or name`);
+              }
+            } else {
+              // Row is completely empty
+              skippedRows++;
             }
           }
           
+          console.log(`Excel parsing complete: ${panels.length} valid rows, ${skippedRows} rows skipped`);
+          console.log('First 3 parsed panels:', panels.slice(0, 3));
           resolve(panels);
         } catch (error) {
           reject(error);
@@ -571,13 +622,34 @@ export function BulkImportPanelsPage() {
   };
 
   const validateData = (data: PanelImportData[]): ValidationResult[] => {
+    console.log('validateData called with', data.length, 'rows');
     return data.map((row, index) => {
       const errors: string[] = [];
       const warnings: string[] = [];
 
+      // Debug logging for first few rows
+      if (index < 3) {
+        console.log(`Validating row ${index + 1}:`, {
+          name: row.name,
+          project_name: row.project_name,
+          type: row.type,
+          status: row.status,
+          date: row.date,
+          unit_qty: row.unit_qty,
+          ifp_qty_nos: row.ifp_qty_nos,
+          ifp_qty: row.ifp_qty,
+          weight: row.weight
+        });
+      }
+
       // Required field validation
       if (!row.name?.trim()) {
         errors.push('Panel name is required');
+      }
+
+      // Project name validation - check if project name exists
+      if (!row.project_name?.trim()) {
+        errors.push('Project name is required');
       }
 
       // Project name validation - removed since projects will be created automatically
@@ -749,11 +821,20 @@ export function BulkImportPanelsPage() {
         }
       }
 
-      return {
+      const result = {
         isValid: errors.length === 0,
         errors,
         warnings
       };
+
+      // Debug logging for first few rows
+      if (index < 3) {
+        console.log(`Validation result for row ${index + 1}:`, result);
+        console.log(`Row ${index + 1} errors:`, errors);
+        console.log(`Row ${index + 1} warnings:`, warnings);
+      }
+
+      return result;
     });
   };
 
@@ -777,20 +858,38 @@ export function BulkImportPanelsPage() {
       const data = await parseExcel(file);
       setParsedData(data);
       
-      // Check for existing panels
+      // Validate data first (this is fast and should happen immediately)
+      console.log('About to validate data:', data.slice(0, 3)); // Show first 3 rows of parsed data
+      console.log('Data type:', typeof data, 'Is array:', Array.isArray(data));
+      console.log('Calling validateData function...');
+      const validation = validateData(data);
+      console.log('Validation completed. Results:', validation.slice(0, 3)); // Show first 3 validation results
+      console.log('Parsed data length:', data.length);
+      console.log('Validation results length:', validation.length);
+      setValidationResults(validation);
+      console.log('Validation results set in state');
+      
+      // Check for existing panels (optimized for large datasets) - do this after validation
+      console.log('Starting existing panel check for', data.length, 'rows...');
       const existingPanelsMap: { [key: string]: any } = {};
-      for (const row of data) {
-        if (row.name?.trim()) {
-          const existingPanel = await findExistingPanelByName(row.name);
+      const uniquePanelNames = Array.from(new Set(data.map(row => row.name?.trim()).filter(Boolean)));
+      console.log('Found', uniquePanelNames.length, 'unique panel names to check');
+      
+      // Process in batches to avoid overwhelming the API
+      const batchSize = 50;
+      for (let i = 0; i < uniquePanelNames.length; i += batchSize) {
+        const batch = uniquePanelNames.slice(i, i + batchSize);
+        console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(uniquePanelNames.length/batchSize)}`);
+        
+        for (const panelName of batch) {
+          const existingPanel = await findExistingPanelByName(panelName);
           if (existingPanel) {
-            existingPanelsMap[row.name.trim()] = existingPanel;
+            existingPanelsMap[panelName] = existingPanel;
           }
         }
       }
       setExistingPanels(existingPanelsMap);
-      
-      const validation = validateData(data);
-      setValidationResults(validation);
+      console.log('Existing panel check complete. Found', Object.keys(existingPanelsMap).length, 'existing panels');
     } catch (err: any) {
       setError('Failed to parse Excel file: ' + err.message);
     }
@@ -987,8 +1086,8 @@ export function BulkImportPanelsPage() {
 
         // Resolve project, building, and facade IDs using local caches
         let resolvedProjectId = findProjectIdByNameLocal(row.project_name);
-        let resolvedBuildingId: string | undefined;
-        let resolvedFacadeId: string | undefined;
+        let resolvedBuildingId: string | null = null;
+        let resolvedFacadeId: string | null = null;
 
         // If project doesn't exist, create it
         if (!resolvedProjectId) {
@@ -1045,8 +1144,8 @@ export function BulkImportPanelsPage() {
           }
         }
 
-        // If building name is provided, find or create building
-        if (row.building_name && resolvedProjectId) {
+        // If building name is provided and not empty, find or create building
+        if (row.building_name && row.building_name.trim() && resolvedProjectId) {
           try {
             const existingBuildingId = findBuildingIdByNameLocal(row.building_name, resolvedProjectId);
             if (existingBuildingId) {
@@ -1067,10 +1166,13 @@ export function BulkImportPanelsPage() {
             console.error('Error resolving building:', error);
             throw error;
           }
+        } else {
+          // Explicitly set to null if building_name is empty or not provided
+          resolvedBuildingId = null;
         }
 
-        // If facade name is provided, find or create facade
-        if (row.facade_name && resolvedBuildingId) {
+        // If facade name is provided and not empty, find or create facade
+        if (row.facade_name && row.facade_name.trim() && resolvedBuildingId) {
           try {
             console.log(`Resolving facade for panel ${row.name}: facade_name="${row.facade_name}", building_id="${resolvedBuildingId}"`);
             const existingFacadeId = findFacadeIdByNameLocal(row.facade_name, resolvedBuildingId);
@@ -1093,6 +1195,9 @@ export function BulkImportPanelsPage() {
             console.error('Error resolving facade:', error);
             throw error;
           }
+        } else {
+          // Explicitly set to null if facade_name is empty or not provided
+          resolvedFacadeId = null;
         }
 
         if (!resolvedProjectId) {
@@ -1105,8 +1210,8 @@ export function BulkImportPanelsPage() {
           continue;
         }
 
-        // Check if panel already exists
-        const existingPanel = await findExistingPanelByName(row.name);
+        // Check if panel already exists in the same project
+        const existingPanel = await findExistingPanelByNameInProject(row.name, resolvedProjectId);
 
         if (existingPanel) {
           console.log(`Panel "${row.name}" already exists. Updating...`);
@@ -1116,8 +1221,8 @@ export function BulkImportPanelsPage() {
             type: mapTypeToNumber(row.type),
             status: mapStatusToNumber(row.status),
             project_id: resolvedProjectId,
-            building_id: resolvedBuildingId || null,
-            facade_id: resolvedFacadeId || null,
+            building_id: resolvedBuildingId,
+            facade_id: resolvedFacadeId,
             issue_transmittal_no: row.issue_transmittal_no?.trim() || null,
             drawing_number: row.dwg_no?.trim() || null,
             unit_rate_qr_m2: row.unit_qty?.trim() ? parseFloat(row.unit_qty) : null,
@@ -1167,8 +1272,8 @@ export function BulkImportPanelsPage() {
             type: mapTypeToNumber(row.type),
             status: mapStatusToNumber(row.status),
             project_id: resolvedProjectId,
-            building_id: resolvedBuildingId || null,
-            facade_id: resolvedFacadeId || null,
+            building_id: resolvedBuildingId,
+            facade_id: resolvedFacadeId,
             issue_transmittal_no: row.issue_transmittal_no?.trim() || null,
             drawing_number: row.dwg_no?.trim() || null,
             unit_rate_qr_m2: row.unit_qty?.trim() ? parseFloat(row.unit_qty) : null,

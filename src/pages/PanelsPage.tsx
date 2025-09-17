@@ -499,33 +499,59 @@ export function PanelsPage() {
       setFacades(facadeData || []);
     }
 
-    // Fetch panels with customer filtering
-    let panelQuery = supabase
-      .from("panels")
-      .select(`
-        *,
-        projects!inner(name, customer_id),
-        buildings(name),
-        facades(name)
-      `);
-    // For customer users, restrict panels to projects they own via join filter
-    if (isCustomer && currentUser?.customer_id) {
-      panelQuery = panelQuery.eq('projects.customer_id', currentUser.customer_id);
+    // Fetch panels with customer filtering using pagination to get all panels
+    let allPanels: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      let panelQuery = supabase
+        .from("panels")
+        .select(`
+          *,
+          projects!inner(name, customer_id),
+          buildings(name),
+          facades(name)
+        `)
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      
+      // For customer users, restrict panels to projects they own via join filter
+      if (isCustomer && currentUser?.customer_id) {
+        panelQuery = panelQuery.eq('projects.customer_id', currentUser.customer_id);
+      }
+
+      const { data, error } = await panelQuery;
+
+      if (error) {
+        console.error("Error fetching panels:", error);
+        break;
+      }
+
+      if (data && data.length > 0) {
+        allPanels = [...allPanels, ...data];
+        console.log(`🔍 Fetched page ${page + 1}: ${data.length} panels (total so far: ${allPanels.length})`);
+        
+        // If we got less than pageSize, we've reached the end
+        if (data.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        hasMore = false;
+      }
     }
 
-    const { data, error } = await panelQuery;
-
-    if (error) {
-      console.error("Error fetching panels:", error);
-    } else {
-      const formattedData = data?.map((panel) => ({
-        ...panel,
-        project_name: panel.projects?.name,
-        building_name: panel.buildings?.name,
-        facade_name: panel.facades?.name,
-      })) || [];
-      setPanels(formattedData);
-    }
+    console.log(`🔍 Total panels fetched: ${allPanels.length}`);
+    const formattedData = allPanels.map((panel) => ({
+      ...panel,
+      project_name: panel.projects?.name,
+      building_name: panel.buildings?.name,
+      facade_name: panel.facades?.name,
+    }));
+    console.log(`📊 Setting ${formattedData.length} panels in state`);
+    setPanels(formattedData);
     setLoading(false);
   };
 
@@ -562,6 +588,10 @@ export function PanelsPage() {
     const matchesFacade = facadeFilter === "all" || panel.facade_name === facadeFilter;
     return matchesSearch && matchesStatus && matchesType && matchesBuilding && matchesFacade;
   });
+
+  // Debug logging
+  console.log(`🎯 Total panels in state: ${panels.length}`);
+  console.log(`🔍 Filtered panels count: ${filteredPanels.length}`);
 
   const totalPages = Math.ceil(filteredPanels.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;

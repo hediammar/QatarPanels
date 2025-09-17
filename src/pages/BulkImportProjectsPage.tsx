@@ -44,6 +44,8 @@ interface ProjectImportData {
   status: string;
   estimated_cost: number;
   estimated_panels: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface ValidationResult {
@@ -77,6 +79,106 @@ export function BulkImportProjectsPage() {
 
   // RBAC Permission check
   const canCreateProjects = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'projects', 'canCreate') : false;
+
+  // Helper function to parse various date formats including Excel dates
+  const parseExcelDate = (dateValue: any): Date | null => {
+    if (!dateValue) return null;
+    
+    // Handle Excel serial date numbers (days since 1900-01-01)
+    // Check if it's a number or a string that represents a number
+    let numericValue: number | null = null;
+    
+    if (typeof dateValue === 'number' && dateValue > 0) {
+      numericValue = dateValue;
+    } else if (typeof dateValue === 'string') {
+      const trimmed = dateValue.trim();
+      // Check if it's a numeric string (like "45469.36001157408")
+      if (/^\d+\.?\d*$/.test(trimmed)) {
+        numericValue = parseFloat(trimmed);
+      }
+    }
+    
+    if (numericValue && numericValue > 0) {
+      // Excel date serial number
+      const excelEpoch = new Date(1900, 0, 1);
+      const days = Math.floor(numericValue);
+      const time = (numericValue - days) * 24 * 60 * 60 * 1000; // Convert fractional days to milliseconds
+      const result = new Date(excelEpoch.getTime() + (days - 2) * 24 * 60 * 60 * 1000 + time);
+      return result;
+    }
+
+    // Handle string dates
+    let parsedDate: Date | null = null;
+    
+    const dateStr = dateValue.toString().trim();
+    if (!dateStr) return null;
+
+    // First, try to normalize the string by replacing multiple spaces with single space
+    const normalizedDateStr = dateStr.replace(/\s+/g, ' ').trim();
+    
+    // Try direct parsing with normalized string
+    parsedDate = new Date(normalizedDateStr);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate;
+    }
+
+    // Try different date formats
+    const formats = [
+      // ISO 8601 formats
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/,
+      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
+      /^\d{4}-\d{2}-\d{2}$/,
+      
+      // MM/DD/YYYY formats (with time, single or multiple spaces)
+      /^\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}:\d{2}$/,
+      /^\d{1,2}\/\d{1,2}\/\d{4}$/,
+      
+      // DD/MM/YYYY formats (with time, single or multiple spaces)
+      /^\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}:\d{2}$/,
+      
+      // Other common formats
+      /^\d{1,2}-\d{1,2}-\d{4}$/,
+      /^\d{1,2}\.\d{1,2}\.\d{4}$/
+    ];
+
+    // Try direct parsing first
+    parsedDate = new Date(dateStr);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate;
+    }
+
+    // Try parsing with different formats
+    for (const format of formats) {
+      if (format.test(dateStr)) {
+        parsedDate = new Date(dateStr);
+        if (!isNaN(parsedDate.getTime())) {
+          return parsedDate;
+        }
+      }
+    }
+
+    // Try manual parsing for MM/DD/YYYY HH:MM:SS format (with single or multiple spaces)
+    const mmddyyyyTimeMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
+    if (mmddyyyyTimeMatch) {
+      const [, month, day, year, hour, minute, second] = mmddyyyyTimeMatch;
+      parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate;
+      }
+    }
+
+    // Try manual parsing for DD/MM/YYYY HH:MM:SS format (with single or multiple spaces)
+    const ddmmyyyyTimeMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
+    if (ddmmyyyyTimeMatch) {
+      const [, day, month, year, hour, minute, second] = ddmmyyyyTimeMatch;
+      parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate;
+      }
+    }
+
+    return null;
+  };
 
   const fetchCustomers = async () => {
     try {
@@ -122,31 +224,37 @@ export function BulkImportProjectsPage() {
         name: 'Project Alpha',
         customer_name: 'Al Rayyan Construction',
         location: 'Doha, Qatar',
-        start_date: '2024-01-15',
-        end_date: '2024-06-30',
+        start_date: '01/15/2024',
+        end_date: '06/30/2024',
         status: 'active',
         estimated_cost: 500000,
-        estimated_panels: 1200
+        estimated_panels: 1200,
+        created_at: '07/10/2024  00:49:56',
+        updated_at: '07/10/2024  00:49:56'
       },
       {
         name: 'Project Beta',
         customer_name: 'Qatar Building Solutions',
         location: 'Al Wakrah, Qatar',
-        start_date: '2024-02-01',
-        end_date: '2024-08-15',
+        start_date: '02/01/2024',
+        end_date: '08/15/2024',
         status: 'active',
         estimated_cost: 750000,
-        estimated_panels: 1800
+        estimated_panels: 1800,
+        created_at: '26/06/2024  08:38:25',
+        updated_at: '26/06/2024  08:38:25'
       },
       {
         name: 'Project Gamma',
         customer_name: 'Doha Development Corp',
         location: 'West Bay, Qatar',
-        start_date: '2024-03-01',
-        end_date: '2024-09-30',
+        start_date: '03/01/2024',
+        end_date: '09/30/2024',
         status: 'active',
         estimated_cost: 300000,
-        estimated_panels: 800
+        estimated_panels: 800,
+        created_at: '15/03/2024  12:30:15',
+        updated_at: '15/03/2024  12:30:15'
       }
     ];
 
@@ -163,7 +271,9 @@ export function BulkImportProjectsPage() {
       'end_date',
       'status',
       'estimated_cost',
-      'estimated_panels'
+      'estimated_panels',
+      'created_at',
+      'updated_at'
     ];
 
     // Add headers to the first row
@@ -178,7 +288,9 @@ export function BulkImportProjectsPage() {
       { wch: 12 }, // end_date
       { wch: 10 }, // status
       { wch: 15 }, // estimated_cost
-      { wch: 15 }  // estimated_panels
+      { wch: 15 }, // estimated_panels
+      { wch: 20 }, // created_at
+      { wch: 20 }  // updated_at
     ];
     ws['!cols'] = colWidths;
 
@@ -208,7 +320,7 @@ export function BulkImportProjectsPage() {
           for (let i = 1; i < jsonData.length; i++) {
             const row = jsonData[i] as any[];
             if (row && row.length > 0 && row[0]) { // Check if row exists and has data
-              projects.push({
+              const project = {
                 name: row[0]?.toString().trim() || '',
                 customer_name: row[1]?.toString().trim() || '',
                 location: row[2]?.toString().trim() || '',
@@ -216,8 +328,13 @@ export function BulkImportProjectsPage() {
                 end_date: row[4]?.toString().trim() || '',
                 status: row[5]?.toString().trim() || '',
                 estimated_cost: row[6] && row[6] !== '' ? Number(row[6]) : 0,
-                estimated_panels: row[7] && row[7] !== '' ? Number(row[7]) : 0
-              });
+                estimated_panels: row[7] && row[7] !== '' ? Number(row[7]) : 0,
+                created_at: row[8] !== undefined && row[8] !== null && row[8] !== '' ? row[8] : undefined,
+                updated_at: row[9] !== undefined && row[9] !== null && row[9] !== '' ? row[9] : undefined
+              };
+              
+              
+              projects.push(project);
             }
           }
           
@@ -253,15 +370,15 @@ export function BulkImportProjectsPage() {
 
       // Date validation - only validate if dates are provided
       if (row.start_date && row.start_date.trim()) {
-        const startDate = new Date(row.start_date);
-        if (isNaN(startDate.getTime())) {
-          errors.push('Invalid start date format (use YYYY-MM-DD)');
+        const startDate = parseExcelDate(row.start_date);
+        if (!startDate || isNaN(startDate.getTime())) {
+          errors.push('Invalid start date format (supports: YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, or Excel date format)');
         }
       }
       if (row.end_date && row.end_date.trim()) {
-        const endDate = new Date(row.end_date);
-        if (isNaN(endDate.getTime())) {
-          errors.push('Invalid end date format (use YYYY-MM-DD)');
+        const endDate = parseExcelDate(row.end_date);
+        if (!endDate || isNaN(endDate.getTime())) {
+          errors.push('Invalid end date format (supports: YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, or Excel date format)');
         }
       }
 
@@ -282,6 +399,20 @@ export function BulkImportProjectsPage() {
       if (row.estimated_panels && row.estimated_panels > 0) {
         if (isNaN(Number(row.estimated_panels))) {
           errors.push('Estimated panels must be a number');
+        }
+      }
+
+      // Timestamp validation - only validate if timestamps are provided
+      if (row.created_at !== undefined && row.created_at !== null && row.created_at !== '') {
+        const createdDate = parseExcelDate(row.created_at);
+        if (!createdDate || isNaN(createdDate.getTime())) {
+          errors.push(`Invalid created_at format: "${row.created_at}" (supports: ISO 8601, Excel date format, or standard date formats)`);
+        }
+      }
+      if (row.updated_at !== undefined && row.updated_at !== null && row.updated_at !== '') {
+        const updatedDate = parseExcelDate(row.updated_at);
+        if (!updatedDate || isNaN(updatedDate.getTime())) {
+          errors.push(`Invalid updated_at format: "${row.updated_at}" (supports: ISO 8601, Excel date format, or standard date formats)`);
         }
       }
 
@@ -347,15 +478,22 @@ export function BulkImportProjectsPage() {
           : null;
 
         // Prepare project data
+        const startDate = row.start_date && row.start_date.toString().trim() ? parseExcelDate(row.start_date) : null;
+        const endDate = row.end_date && row.end_date.toString().trim() ? parseExcelDate(row.end_date) : null;
+        const createdAt = row.created_at !== undefined && row.created_at !== null && row.created_at !== '' ? parseExcelDate(row.created_at) : new Date();
+        const updatedAt = row.updated_at !== undefined && row.updated_at !== null && row.updated_at !== '' ? parseExcelDate(row.updated_at) : new Date();
+
         const projectData = {
           name: row.name.trim(),
           customer_id: customer?.id || null,
           location: row.location?.trim() || null,
-          start_date: row.start_date?.trim() ? new Date(row.start_date).toISOString().split('T')[0] : null,
-          end_date: row.end_date?.trim() ? new Date(row.end_date).toISOString().split('T')[0] : null,
+          start_date: startDate ? startDate.toISOString().split('T')[0] : null,
+          end_date: endDate ? endDate.toISOString().split('T')[0] : null,
           status: row.status?.toLowerCase().trim() || 'active',
           estimated_cost: row.estimated_cost && row.estimated_cost > 0 ? parseInt(row.estimated_cost.toString()) : null,
           estimated_panels: row.estimated_panels && row.estimated_panels > 0 ? parseInt(row.estimated_panels.toString()) : null,
+          created_at: createdAt ? createdAt.toISOString() : new Date().toISOString(),
+          updated_at: updatedAt ? updatedAt.toISOString() : new Date().toISOString(),
           user_id: currentUser?.id || null
         };
 
@@ -605,6 +743,8 @@ export function BulkImportProjectsPage() {
                       <TableHead className="font-semibold text-card-foreground">start_date</TableHead>
                       <TableHead className="font-semibold text-card-foreground">status</TableHead>
                       <TableHead className="font-semibold text-card-foreground">estimated_cost</TableHead>
+                      <TableHead className="font-semibold text-card-foreground">created_at</TableHead>
+                      <TableHead className="font-semibold text-card-foreground">updated_at</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -612,9 +752,11 @@ export function BulkImportProjectsPage() {
                       <TableCell className="font-medium text-card-foreground">Project Alpha</TableCell>
                       <TableCell>Al Rayyan Construction</TableCell>
                       <TableCell>Doha, Qatar</TableCell>
-                      <TableCell>2024-01-15</TableCell>
+                      <TableCell>01/15/2024</TableCell>
                       <TableCell><Badge variant="default">active</Badge></TableCell>
                       <TableCell>500,000 QAR</TableCell>
+                      <TableCell>07/10/2024  00:49:56</TableCell>
+                      <TableCell>07/10/2024  00:49:56</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
@@ -633,6 +775,32 @@ export function BulkImportProjectsPage() {
                     {status}
                   </Badge>
                 ))}
+              </div>
+            </div>
+
+            {/* Date and Timestamp Fields Information */}
+            <div className="space-y-3">
+              <h4 className="font-semibold text-card-foreground flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-blue-500" />
+                Date & Timestamp Fields (Optional)
+              </h4>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                  <span><strong>start_date/end_date:</strong> YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, or Excel format</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                  <span><strong>created_at/updated_at:</strong> ISO 8601, Excel format, or standard date formats</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                  <span>Supports Excel date formats like "07/10/2024 00:49:56"</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                  <span>If left empty, current timestamp will be used automatically</span>
+                </div>
               </div>
             </div>
           </CardContent>

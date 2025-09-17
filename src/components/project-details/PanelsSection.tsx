@@ -87,6 +87,7 @@ import { Timeline } from "../Timeline";
 import { useToastContext } from "../../contexts/ToastContext";
 import { DateInput } from "../ui/date-input";
 import { crudOperations } from "../../utils/userTracking";
+import { createPanelStatusHistory, createBulkPanelStatusHistory } from "../../utils/panelStatusHistory";
 import { StatusChangeDialog } from "../StatusChangeDialog";
 import { useAuth } from "../../contexts/AuthContext";
 import { hasPermission, UserRole } from "../../utils/rolePermissions";
@@ -511,7 +512,20 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
       for (const panelId of panelIds) {
         console.log('Bulk updating panel:', panelId, 'with status:', bulkStatusValue);
         await crudOperations.update("panels", panelId, { status: bulkStatusValue as number });
-        // Database triggers will automatically add status history
+        
+        // Create status history record manually (since triggers are disabled)
+        if (currentUser) {
+          const { error: historyError } = await createPanelStatusHistory(
+            panelId,
+            bulkStatusValue as number,
+            currentUser.id,
+            `Bulk status update to ${statusMap[bulkStatusValue as number]}`
+          );
+          
+          if (historyError) {
+            console.error('Error creating status history for panel:', panelId, historyError);
+          }
+        }
       }
 
       // Update local state
@@ -818,9 +832,20 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         await crudOperations.update("panels", editingPanel.id, panelData);
         console.log('crudOperations.update completed');
         
-        // Database triggers will automatically add status history when status changes
-        if (statusChanged) {
-          console.log(`Status changed from ${editingPanel.status} to ${panelData.status}, database triggers will handle history`);
+        // Create status history record manually when status changes (since triggers are disabled)
+        if (statusChanged && currentUser) {
+          console.log(`Status changed from ${editingPanel.status} to ${panelData.status}, creating history record`);
+          const { error: historyError } = await createPanelStatusHistory(
+            editingPanel.id,
+            panelData.status,
+            currentUser.id,
+            `Status changed from ${statusMap[editingPanel.status]} to ${statusMap[panelData.status]}`
+          );
+          
+          if (historyError) {
+            console.error('Error creating status history:', historyError);
+            showToast('Panel updated but failed to create status history', 'error');
+          }
         } else {
           console.log(`Status unchanged (${panelData.status}), no history needed`);
         }

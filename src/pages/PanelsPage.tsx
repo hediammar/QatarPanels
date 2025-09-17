@@ -88,6 +88,7 @@ import { QRCodeModal } from "../components/QRCodeModal";
 import { useToastContext } from "../contexts/ToastContext";
 import { DateInput } from "../components/ui/date-input";
 import { crudOperations, testDatabaseConnection, checkTableStructure, testMinimalPanelCreation } from "../utils/userTracking";
+import { createPanelStatusHistory, createBulkPanelStatusHistory } from "../utils/panelStatusHistory";
 import { StatusChangeDialog } from "../components/StatusChangeDialog";
 import { useAuth } from "../contexts/AuthContext";
 import { hasPermission, isCustomerRole, UserRole } from "../utils/rolePermissions";
@@ -411,7 +412,20 @@ export function PanelsPage() {
       // Update each panel individually to track user changes
       for (const panelId of panelIds) {
         await crudOperations.update("panels", panelId, { status: bulkStatusValue });
-        // Database triggers will automatically add status history
+        
+        // Create status history record manually (since triggers are disabled)
+        if (currentUser) {
+          const { error: historyError } = await createPanelStatusHistory(
+            panelId,
+            bulkStatusValue,
+            currentUser.id,
+            `Bulk status update to ${PANEL_STATUSES[bulkStatusValue]}`
+          );
+          
+          if (historyError) {
+            console.error('Error creating status history for panel:', panelId, historyError);
+          }
+        }
       }
 
       // Update local state
@@ -928,9 +942,20 @@ export function PanelsPage() {
         await crudOperations.update("panels", editingPanel.id, validatedPanelData);
         console.log('crudOperations.update completed');
         
-        // Database triggers will automatically add status history when status changes
-        if (statusChanged) {
-          console.log(`Status changed from ${editingPanel.status} to ${validatedPanelData.status}, database triggers will handle history`);
+        // Create status history record manually when status changes (since triggers are disabled)
+        if (statusChanged && currentUser) {
+          console.log(`Status changed from ${editingPanel.status} to ${validatedPanelData.status}, creating history record`);
+          const { error: historyError } = await createPanelStatusHistory(
+            editingPanel.id,
+            validatedPanelData.status,
+            currentUser.id,
+            `Status changed from ${PANEL_STATUSES[editingPanel.status]} to ${PANEL_STATUSES[validatedPanelData.status]}`
+          );
+          
+          if (historyError) {
+            console.error('Error creating status history:', historyError);
+            showToast('Panel updated but failed to create status history', 'error');
+          }
         } else {
           console.log(`Status unchanged (${validatedPanelData.status}), no history needed`);
         }

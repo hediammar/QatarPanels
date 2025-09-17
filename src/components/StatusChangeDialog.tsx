@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
-import { Upload, X, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, AlertCircle, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -60,6 +60,7 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string>('');
   const [previousStatus, setPreviousStatus] = useState<number | null>(null);
+  const [statusChangeDate, setStatusChangeDate] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Map database integers to UI strings
@@ -205,6 +206,15 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
       setNewStatus(panel.status);
       setValidationError('');
       
+      // Set default date to current date and time
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      setStatusChangeDate(`${year}-${month}-${day}T${hours}:${minutes}`);
+      
       // Fetch previous status if current status is "On Hold"
       const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
       if (panel.status === onHoldStatusIndex) {
@@ -339,44 +349,38 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
         }
       }
 
+      // Convert the selected date to ISO string for database storage
+      const selectedDateTime = new Date(statusChangeDate);
+      const createdAtISO = selectedDateTime.toISOString();
+
+      // Insert the status history record directly with the custom date
+      const historyData = {
+        panel_id: panel.id,
+        status: newStatus,
+        created_at: createdAtISO,
+        user_id: currentUser.id,
+        image_url: imageUrl,
+        notes: notes.trim() || null
+      };
+
+      const { data: newHistory, error: historyError } = await supabase
+        .from('panel_status_histories')
+        .insert(historyData)
+        .select()
+        .single();
+
+      if (historyError) {
+        console.error('Error inserting status history:', historyError);
+        showToast('Failed to create status history record', 'error');
+        return;
+      }
+
       // Update panel status with user tracking
-      // The database trigger will automatically insert a record into panel_status_histories
       await crudOperations.update("panels", panel.id, { 
         status: newStatus 
       });
 
-      // If we have additional data (notes or image), update the most recent history record
-      if (notes.trim() || imageUrl) {
-        const { data: historyData, error: historyFetchError } = await supabase
-          .from('panel_status_histories')
-          .select('id')
-          .eq('panel_id', panel.id)
-          .eq('status', newStatus)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (!historyFetchError && historyData && historyData.length > 0) {
-          const updateData: any = {};
-          if (notes.trim()) updateData.notes = notes.trim();
-          if (imageUrl) updateData.image_url = imageUrl;
-
-          const { error: historyUpdateError } = await supabase
-            .from('panel_status_histories')
-            .update(updateData)
-            .eq('id', historyData[0].id);
-
-          if (historyUpdateError) {
-            console.error('Error updating status history with additional data:', historyUpdateError);
-            showToast('Status updated but failed to save additional data', 'error');
-          } else {
-            showToast('Panel status updated successfully', 'success');
-          }
-        } else {
-          showToast('Panel status updated successfully', 'success');
-        }
-      } else {
-        showToast('Panel status updated successfully', 'success');
-      }
+      showToast('Panel status updated successfully', 'success');
 
       // Reset form
       setNewStatus(0);
@@ -384,6 +388,7 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
       setSelectedImage(null);
       setImagePreview(null);
       setValidationError('');
+      setStatusChangeDate('');
       
       onStatusChanged();
       onClose();
@@ -402,6 +407,7 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
     setImagePreview(null);
     setValidationError('');
     setPreviousStatus(null);
+    setStatusChangeDate('');
     onClose();
   };
 
@@ -409,43 +415,43 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="w-[95vw] max-w-md mx-4 sm:w-full sm:mx-0 rounded-lg">
-        <DialogHeader>
-          <DialogTitle className="text-lg sm:text-xl">Update Panel Status</DialogTitle>
-          <DialogDescription className="text-sm">
+      <DialogContent className="w-[95vw] max-w-md mx-2 sm:mx-4 sm:w-full rounded-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="pb-2">
+          <DialogTitle className="text-base sm:text-lg">Update Panel Status</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm">
             Change status for panel "{panel?.name}"
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="current-status" className="text-sm font-medium">Current Status</Label>
+        <div className="space-y-3 py-1">
+          <div className="space-y-1">
+            <Label htmlFor="current-status" className="text-xs sm:text-sm font-medium">Current Status</Label>
             <div className="flex items-center gap-2">
-              <Badge variant="secondary">
+              <Badge variant="secondary" className="text-xs">
                 {panel ? statusMap[panel.status] : 'Unknown'}
               </Badge>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="new-status" className="text-sm font-medium">New Status *</Label>
+          <div className="space-y-1">
+            <Label htmlFor="new-status" className="text-xs sm:text-sm font-medium">New Status *</Label>
             <Select
               value={statusMap[newStatus]}
               onValueChange={(value) => setNewStatus(statusReverseMap[value])}
             >
-              <SelectTrigger className="h-11">
+              <SelectTrigger className="h-9 sm:h-10">
                 <SelectValue placeholder="Select new status" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[200px]">
                 {validStatuses.map((statusIndex) => {
                   const statusName = statusMap[statusIndex];
                   const isSpecial = isSpecialStatus(statusIndex);
                   return (
-                    <SelectItem key={statusIndex} value={statusName}>
+                    <SelectItem key={statusIndex} value={statusName} className="text-sm">
                       <div className="flex items-center gap-2">
-                        <span>{statusName}</span>
+                        <span className="truncate">{statusName}</span>
                         {isSpecial && (
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className="text-xs px-1 py-0">
                             Special
                           </Badge>
                         )}
@@ -456,41 +462,58 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
               </SelectContent>
             </Select>
             {validStatuses.length === 0 && (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 No valid status transitions available for current status.
               </p>
             )}
           </div>
 
           {validationError && (
-            <div className="flex items-center gap-2 p-3 bg-destructive/15 border border-destructive/20 text-destructive rounded-lg">
-              <AlertCircle className="h-4 w-4" />
-              <span className="text-sm">{validationError}</span>
+            <div className="flex items-center gap-2 p-2 bg-destructive/15 border border-destructive/20 text-destructive rounded-lg">
+              <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+              <span className="text-xs sm:text-sm">{validationError}</span>
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="notes" className="text-sm font-medium">Notes (Optional)</Label>
+          <div className="space-y-1">
+            <Label htmlFor="status-date" className="text-xs sm:text-sm font-medium">Status Change Date & Time</Label>
+            <div className="relative">
+              <Input
+                id="status-date"
+                type="datetime-local"
+                value={statusChangeDate}
+                onChange={(e) => setStatusChangeDate(e.target.value)}
+                className="h-9 sm:h-10 pl-8 text-xs sm:text-sm"
+              />
+              <Calendar className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Leave as current date/time or select a specific date and time for this status change
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="notes" className="text-xs sm:text-sm font-medium">Notes (Optional)</Label>
             <Textarea
               id="notes"
               placeholder="Add any notes about this status change..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              className="w-full"
+              rows={2}
+              className="w-full text-xs sm:text-sm"
             />
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Upload Image (Optional)</Label>
-            <div className="space-y-2">
+          <div className="space-y-1">
+            <Label className="text-xs sm:text-sm font-medium">Upload Image (Optional)</Label>
+            <div className="space-y-1">
               {!imagePreview ? (
                 <div
-                  className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center hover:border-muted-foreground/50 transition-colors cursor-pointer"
+                  className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-3 text-center hover:border-muted-foreground/50 transition-colors cursor-pointer"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">Click to upload image</p>
+                  <Upload className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-1 text-muted-foreground" />
+                  <p className="text-xs sm:text-sm text-muted-foreground">Click to upload image</p>
                   <p className="text-xs text-muted-foreground">Max 5MB, JPG, PNG, GIF</p>
                 </div>
               ) : (
@@ -498,16 +521,16 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
                   <img
                     src={imagePreview}
                     alt="Preview"
-                    className="w-full h-32 object-cover rounded-lg"
+                    className="w-full h-24 sm:h-32 object-cover rounded-lg"
                   />
                   <Button
                     type="button"
                     variant="destructive"
                     size="sm"
-                    className="absolute top-2 right-2 h-6 w-6 p-0"
+                    className="absolute top-1 right-1 h-5 w-5 sm:h-6 sm:w-6 p-0"
                     onClick={removeImage}
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-2 w-2 sm:h-3 sm:w-3" />
                   </Button>
                 </div>
               )}
@@ -522,14 +545,19 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
           </div>
         </div>
 
-        <DialogFooter className="pt-6 border-t">
-          <Button variant="outline" onClick={handleClose} disabled={isSubmitting} className="w-full sm:w-auto">
+        <DialogFooter className="pt-3 border-t flex-col sm:flex-row gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleClose} 
+            disabled={isSubmitting} 
+            className="w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-9"
+          >
             Cancel
           </Button>
           <Button 
             onClick={handleSubmit} 
             disabled={isSubmitting || newStatus === panel?.status || !!validationError}
-            className="w-full sm:w-auto"
+            className="w-full sm:w-auto text-xs sm:text-sm h-8 sm:h-9"
           >
             {isSubmitting ? 'Updating...' : 'Update Status'}
           </Button>

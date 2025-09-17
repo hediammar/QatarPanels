@@ -475,6 +475,31 @@ export function BulkImportPanelHistoriesPage() {
     let successCount = 0;
     let errorCount = 0;
 
+    // Pre-fetch all required data to avoid repeated lookups
+    console.log('Pre-fetching all required data...');
+    const startTime = Date.now();
+    const allPanels = await supabase.from('panels').select('id, name').order('name');
+    const allUsers = await supabase.from('users').select('id, name').order('name');
+    
+    console.log(`Data pre-fetch completed in ${Date.now() - startTime}ms`);
+    
+    if (allPanels.error) {
+      setError('Failed to fetch panels: ' + allPanels.error.message);
+      setIsImporting(false);
+      return;
+    }
+    
+    if (allUsers.error) {
+      setError('Failed to fetch users: ' + allUsers.error.message);
+      setIsImporting(false);
+      return;
+    }
+
+    // Create lookup maps for faster access
+    const panelMap = new Map(allPanels.data.map(p => [p.name.toLowerCase(), p]));
+    const userMap = new Map(allUsers.data.map(u => [u.name.toLowerCase(), u]));
+    const adminUser = allUsers.data.find(u => u.name.toLowerCase() === 'admin');
+
     // Group data by panel name to handle sequential import and duplicate status filtering
     const groupedData: { [panelName: string]: PanelHistoryImportData[] } = {};
     validData.forEach(row => {
@@ -484,11 +509,14 @@ export function BulkImportPanelHistoriesPage() {
       groupedData[row.panel_name].push(row);
     });
 
+    const totalPanels = Object.keys(groupedData).length;
+    let processedPanels = 0;
+
     // Process each panel's history sequentially
     for (const [panelName, panelHistories] of Object.entries(groupedData)) {
       try {
-        // Find panel ID
-        const panel = panels.find(p => p.name.toLowerCase() === panelName.toLowerCase());
+        // Find panel ID using pre-fetched data
+        const panel = panelMap.get(panelName.toLowerCase());
         if (!panel) {
           results.push({
             success: false,
@@ -564,68 +592,72 @@ export function BulkImportPanelHistoriesPage() {
           return statusMap[status] || 0; // Default to "Issued For Production"
         };
 
-        // Import each history record
+        // Prepare batch insert data
+        const batchHistoryData: any[] = [];
         let lastImportedStatus: number | null = null;
+
         for (const history of filteredHistories) {
+          // Find user ID - default to "admin" if changed_by is empty
+          const changedByUser = history.changed_by?.trim() || 'admin';
+          const user = userMap.get(changedByUser.toLowerCase());
+          if (!user) {
+            results.push({
+              success: false,
+              message: `User "${changedByUser}" not found for panel "${panelName}"`,
+              errors: ['User not found in database']
+            });
+            errorCount++;
+            continue;
+          }
+
+          // Prepare history data
+          const createdAt = history.created_at ? parseExcelDate(history.created_at) : new Date();
+          const statusValue = mapStatusToNumber(history.status);
+          console.log(`Preparing: status="${history.status}" -> value=${statusValue}`);
+
+          batchHistoryData.push({
+            panel_id: panel.id,
+            status: statusValue,
+            created_at: createdAt ? createdAt.toISOString() : new Date().toISOString(),
+            user_id: user.id,
+            image_url: history.image_url || null,
+            notes: history.notes || null
+          });
+
+          lastImportedStatus = statusValue; // Track the last imported status
+        }
+
+        // Batch insert all histories for this panel
+        if (batchHistoryData.length > 0) {
           try {
-            // Find user ID - default to "admin" if changed_by is empty
-            const changedByUser = history.changed_by?.trim() || 'admin';
-            const user = users.find(u => u.name.toLowerCase() === changedByUser.toLowerCase());
-            if (!user) {
-              results.push({
-                success: false,
-                message: `User "${changedByUser}" not found for panel "${panelName}"`,
-                errors: ['User not found in database']
-              });
-              errorCount++;
-              continue;
-            }
-
-            // Prepare history data
-            const createdAt = history.created_at ? parseExcelDate(history.created_at) : new Date();
-            const statusValue = mapStatusToNumber(history.status);
-            console.log(`Importing: status="${history.status}" -> value=${statusValue}`);
-
-            const historyData = {
-              panel_id: panel.id,
-              status: statusValue,
-              created_at: createdAt ? createdAt.toISOString() : new Date().toISOString(),
-              user_id: user.id,
-              image_url: history.image_url || null,
-              notes: history.notes || null
-            };
-
-            // Insert history record
-            const { data: newHistory, error } = await supabase
+            const { data: newHistories, error } = await supabase
               .from('panel_status_histories')
-              .insert(historyData)
-              .select()
-              .single();
+              .insert(batchHistoryData)
+              .select();
 
             if (error) {
               results.push({
                 success: false,
-                message: `Failed to import history for panel "${panelName}" with status "${history.status}"`,
+                message: `Failed to import ${batchHistoryData.length} histories for panel "${panelName}"`,
                 errors: [error.message]
               });
-              errorCount++;
+              errorCount += batchHistoryData.length;
             } else {
               results.push({
                 success: true,
-                message: `Successfully imported history for panel "${panelName}" with status "${history.status}"`,
-                data: newHistory
+                message: `Successfully imported ${batchHistoryData.length} histories for panel "${panelName}"`,
+                data: newHistories
               });
-              successCount++;
-              lastImportedStatus = statusValue; // Track the last imported status
-              console.log(`Panel "${panelName}" - Updated lastImportedStatus to: ${lastImportedStatus} (${history.status})`);
+              successCount += batchHistoryData.length;
+              console.log(`Panel "${panelName}" - Imported ${batchHistoryData.length} histories, lastImportedStatus: ${lastImportedStatus}`);
             }
           } catch (err: any) {
             results.push({
               success: false,
-              message: `Failed to import history for panel "${panelName}" with status "${history.status}"`,
+              message: `Failed to import histories for panel "${panelName}"`,
               errors: [err.message]
             });
-            errorCount++;
+            errorCount += batchHistoryData.length;
           }
         }
 
@@ -646,7 +678,6 @@ export function BulkImportPanelHistoriesPage() {
             } else if (currentPanel && currentPanel.status !== lastImportedStatus) {
               // Current panel status doesn't match the last imported status
               // Add a new status change using "admin" as the user
-              const adminUser = users.find(u => u.name.toLowerCase() === 'admin');
               if (adminUser) {
                 console.log(`Adding sync status change for panel "${panelName}" from ${lastImportedStatus} to ${currentPanel.status}`);
                 
@@ -697,17 +728,23 @@ export function BulkImportPanelHistoriesPage() {
         errorCount++;
       }
 
-      // Update progress
-      const processedPanels = Object.keys(groupedData).indexOf(panelName) + 1;
-      setProgress((processedPanels / Object.keys(groupedData).length) * 100);
-      setImportResults([...results]);
+      // Update progress (less frequently for better performance)
+      processedPanels++;
+      if (processedPanels % 10 === 0 || processedPanels === totalPanels) {
+        setProgress((processedPanels / totalPanels) * 100);
+        setImportResults([...results]);
+      }
     }
 
+    const totalTime = Date.now() - startTime;
     setIsImporting(false);
     setProgress(100);
 
-    // Show summary
-    const summary = `Import completed: ${successCount} successful, ${errorCount} failed`;
+    // Show summary with performance metrics
+    const summary = `Import completed in ${(totalTime / 1000).toFixed(1)}s: ${successCount} successful, ${errorCount} failed`;
+    const rate = successCount > 0 ? (successCount / (totalTime / 1000)).toFixed(1) : '0';
+    console.log(`Import Performance: ${successCount} records in ${(totalTime / 1000).toFixed(1)}s (${rate} records/sec)`);
+    
     if (errorCount > 0) {
       setError(summary);
     } else {

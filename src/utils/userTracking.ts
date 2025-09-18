@@ -488,9 +488,9 @@ export const crudOperations = {
             throw new Error(`A project with this name already exists. Please choose a different name.`);
           } else if (table === 'customers') {
             if (error.message.includes('email')) {
-              throw new Error(`A customer with this email already exists. Please use a different email address.`);
+              throw new Error(`A customer with the email "${preparedData.email}" already exists. Please use a different email address.`);
             } else if (error.message.includes('name')) {
-              throw new Error(`A customer with this name already exists. Please use a different name.`);
+              throw new Error(`A customer with the name "${preparedData.name}" already exists. Please use a different name.`);
             } else {
               throw new Error(`A customer with these details already exists. Please check your input and try again.`);
             }
@@ -507,7 +507,13 @@ export const crudOperations = {
         } else if (error.code === '409') {
           // Conflict error (usually unique constraint violation)
           if (table === 'customers') {
-            throw new Error(`A customer with these details already exists. Please check the email and name for duplicates.`);
+            if (error.message.includes('email')) {
+              throw new Error(`A customer with the email "${preparedData.email}" already exists. Please use a different email address.`);
+            } else if (error.message.includes('name')) {
+              throw new Error(`A customer with the name "${preparedData.name}" already exists. Please use a different name.`);
+            } else {
+              throw new Error(`A customer with these details already exists. Please check the email and name for duplicates.`);
+            }
           } else {
             throw new Error(`A record with these details already exists. Please check your input and try again.`);
           }

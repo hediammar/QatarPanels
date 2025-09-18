@@ -130,6 +130,7 @@ export function ProjectManagement() {
   const canCreateProjects = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'projects', 'canCreate') : false;
   const canUpdateProjects = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'projects', 'canUpdate') : false;
   const canDeleteProjects = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'projects', 'canDelete') : false;
+  const canCreateCustomers = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'customers', 'canCreate') : false;
 
   const [formData, setFormData] = useState({
     name: "",
@@ -401,11 +402,25 @@ export function ProjectManagement() {
         customerId = currentUser.customer_id;
         console.log('Customer user forced to use their own customer_id:', customerId);
       } else if (formData.customer_id === "other") {
-        // If "Other" is selected, create new customer (only for non-customer users)
+        // If "Other" is selected, create new customer (only for users with customer creation permissions)
+        if (!canCreateCustomers) {
+          showToast('You do not have permission to create customers', 'error');
+          clearTimeout(timeoutId);
+          setIsSubmitting(false);
+          return;
+        }
+        
         try {
           // Validate new customer data
           if (!formData.new_customer_name.trim()) {
             showToast('New customer name is required', 'error');
+            clearTimeout(timeoutId);
+            setIsSubmitting(false);
+            return;
+          }
+          
+          if (!formData.new_customer_email.trim()) {
+            showToast('Customer email is required', 'error');
             clearTimeout(timeoutId);
             setIsSubmitting(false);
             return;
@@ -427,7 +442,35 @@ export function ProjectManagement() {
           console.log('Customer created successfully with ID:', customerId);
         } catch (error) {
           console.error('Error creating customer:', error);
-          showToast('Error creating customer. Please try again.', 'error');
+          
+          // Extract meaningful error message
+          let errorMessage = 'Error creating customer. Please try again.';
+          
+          if (error instanceof Error) {
+            const errorMsg = error.message;
+            
+            // Handle specific error cases
+            if (errorMsg.includes('already exists')) {
+              if (errorMsg.includes('email')) {
+                errorMessage = `A customer with the email "${formData.new_customer_email}" already exists. Please use a different email address.`;
+              } else if (errorMsg.includes('name')) {
+                errorMessage = `A customer with the name "${formData.new_customer_name}" already exists. Please use a different name.`;
+              } else {
+                errorMessage = errorMsg;
+              }
+            } else if (errorMsg.includes('required')) {
+              errorMessage = errorMsg;
+            } else if (errorMsg.includes('permission') || errorMsg.includes('unauthorized')) {
+              errorMessage = 'You do not have permission to create customers.';
+            } else if (errorMsg.includes('network') || errorMsg.includes('connection')) {
+              errorMessage = 'Network error. Please check your connection and try again.';
+            } else {
+              // For other errors, show the actual error message if it's meaningful
+              errorMessage = errorMsg.length > 100 ? 'Error creating customer. Please try again.' : errorMsg;
+            }
+          }
+          
+          showToast(errorMessage, 'error');
           clearTimeout(timeoutId);
           setIsSubmitting(false);
           return;
@@ -1128,13 +1171,13 @@ export function ProjectManagement() {
                             {customer.name}
                           </SelectItem>
                         ))}
-                        <SelectItem value="other">Other</SelectItem>
+                        {canCreateCustomers && <SelectItem value="other">Other</SelectItem>}
                       </SelectContent>
                     </Select>
                   </div>
 
                   {/* New Customer Fields - Full Width on Mobile */}
-                  {formData.customer_id === "other" && (
+                  {formData.customer_id === "other" && canCreateCustomers && (
                     <div className="space-y-4 border-l-4 border-primary pl-4 bg-muted/20 p-4 rounded-r-lg">
                       <h4 className="text-sm font-medium text-primary">New Customer Details</h4>
                       <div className="space-y-3">
@@ -1247,7 +1290,7 @@ export function ProjectManagement() {
                         id="estimatedCost"
                         type="number"
                         min="0"
-                        step="100"
+                        step="1"
                         value={formData.estimated_cost}
                         onChange={(e) =>
                           setFormData({
@@ -1255,7 +1298,7 @@ export function ProjectManagement() {
                             estimated_cost: parseInt(e.target.value) || 0,
                           })
                         }
-                        placeholder="0"
+                        placeholder=""
                         required
                         disabled={isSubmitting}
                         className="w-full"
@@ -1835,13 +1878,13 @@ export function ProjectManagement() {
                           {customer.name}
                         </SelectItem>
                       ))}
-                      <SelectItem value="other">Other</SelectItem>
+                      {canCreateCustomers && <SelectItem value="other">Other</SelectItem>}
                     </SelectContent>
                   </Select>
                 </div>
 
                 {/* New Customer Fields - Full Width on Mobile */}
-                {formData.customer_id === "other" && (
+                {formData.customer_id === "other" && canCreateCustomers && (
                   <div className="space-y-4 border-l-4 border-primary pl-4 bg-muted/20 p-4 rounded-r-lg">
                     <h4 className="text-sm font-medium text-primary">New Customer Details</h4>
                     <div className="space-y-3">

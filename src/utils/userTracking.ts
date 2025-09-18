@@ -59,16 +59,35 @@ export const addUserTracking = (data: any): any => {
 };
 
 // Add user tracking for new records
-export const addUserTrackingForCreate = (data: any, table?: string): any => {
+export const addUserTrackingForCreate = async (data: any, table?: string): Promise<any> => {
   const userId = getCurrentUserId();
   console.log(`addUserTrackingForCreate: userId=${userId}, table=${table}`);
+  
   if (userId && table && TABLES_WITH_USER_TRACKING.includes(table)) {
-    const trackedData = {
-      ...data,
-      user_id: userId
-    };
-    console.log(`User tracking added for create:`, trackedData);
-    return trackedData;
+    // Validate that the user exists in the users table
+    try {
+      const { data: userExists, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', userId)
+        .single();
+      
+      if (userError || !userExists) {
+        console.log(`User ${userId} not found in users table, proceeding without user tracking`);
+        return data;
+      }
+      
+      const trackedData = {
+        ...data,
+        user_id: userId
+      };
+      console.log(`User tracking added for create:`, trackedData);
+      return trackedData;
+    } catch (error) {
+      console.error('Error validating user for tracking:', error);
+      console.log(`User validation failed, proceeding without user tracking for ${table}`);
+      return data;
+    }
   }
   
   // If no user_id is available but table requires it, proceed without user tracking
@@ -83,16 +102,35 @@ export const addUserTrackingForCreate = (data: any, table?: string): any => {
 };
 
 // Add user tracking for updates
-export const addUserTrackingForUpdate = (data: any, table?: string): any => {
+export const addUserTrackingForUpdate = async (data: any, table?: string): Promise<any> => {
   const userId = getCurrentUserId();
   console.log(`Adding user tracking for ${table}: userId=${userId}`);
+  
   if (userId && table && TABLES_WITH_USER_TRACKING.includes(table)) {
-    const trackedData = {
-      ...data,
-      user_id: userId
-    };
-    console.log(`User tracking added:`, trackedData);
-    return trackedData;
+    // Validate that the user exists in the users table
+    try {
+      const { data: userExists, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', userId)
+        .single();
+      
+      if (userError || !userExists) {
+        console.log(`User ${userId} not found in users table, proceeding without user tracking`);
+        return data;
+      }
+      
+      const trackedData = {
+        ...data,
+        user_id: userId
+      };
+      console.log(`User tracking added:`, trackedData);
+      return trackedData;
+    } catch (error) {
+      console.error('Error validating user for tracking:', error);
+      console.log(`User validation failed, proceeding without user tracking for ${table}`);
+      return data;
+    }
   }
   console.log(`No user tracking added for ${table}`);
   return data;
@@ -427,7 +465,7 @@ export const crudOperations = {
         console.log('Panels table access test successful');
       }
       
-      const trackedData = addUserTrackingForCreate(preparedData, table);
+      const trackedData = await addUserTrackingForCreate(preparedData, table);
       console.log(`Creating ${table} with data:`, trackedData);
       
       console.log(`Attempting to insert into ${table} with data:`, trackedData);
@@ -560,7 +598,7 @@ export const crudOperations = {
         });
       }
       
-      const trackedData = addUserTrackingForUpdate(preparedData, table);
+      const trackedData = await addUserTrackingForUpdate(preparedData, table);
       console.log(`Updating ${table} with data:`, trackedData);
       
       const { data: result, error } = await supabase

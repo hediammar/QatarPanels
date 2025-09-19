@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Building2, Edit, Trash2, Square, DollarSign, Weight, Package, TrendingUp, Clock, User, MapPin } from "lucide-react";
+import { ArrowLeft, Building2, Edit, Trash2, Square, DollarSign, Weight, Package, TrendingUp, Clock, User, MapPin, Download } from "lucide-react";
+import QRCode from "qrcode";
+import { jsPDF } from "jspdf";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -63,6 +65,7 @@ export function BuildingDetailsPage() {
   const [activeTab, setActiveTab] = useState("facades");
   const [panelStatusCounts, setPanelStatusCounts] = useState<Record<string, number>>({});
   const [totalPanels, setTotalPanels] = useState<number>(0);
+  const [buildingPanels, setBuildingPanels] = useState<any[]>([]);
 
   const canEditBuildings = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'buildings', 'canUpdate') : false;
   const canDeleteBuildings = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'buildings', 'canDelete') : false;
@@ -139,10 +142,14 @@ export function BuildingDetailsPage() {
         const { data: panelsData, error: panelsError } = await supabase
           .from('panels')
           .select(`
+            id,
+            name,
             unit_rate_qr_m2,
             ifp_qty_area_sm,
             weight,
-            status
+            status,
+            project_id,
+            projects!inner(name)
           `)
           .eq('building_id', buildingId);
 
@@ -168,6 +175,14 @@ export function BuildingDetailsPage() {
         }
         setPanelStatusCounts(counts);
         setTotalPanels(totalPanels);
+        
+        // Store full panel data for QR code generation
+        const formattedPanels = panelsData?.map(panel => ({
+          id: panel.id,
+          name: panel.name,
+          project_name: (panel.projects as any)?.name || 'Unknown Project'
+        })) || [];
+        setBuildingPanels(formattedPanels);
 
         const buildingWithTotals = {
           ...buildingData,
@@ -202,6 +217,93 @@ export function BuildingDetailsPage() {
     } catch (error) {
       console.error('Error deleting building:', error);
       showToast('Error deleting building', 'error');
+    }
+  };
+
+  const handleBulkQRCodeDownload = async () => {
+    if (buildingPanels.length === 0) {
+      showToast("No panels to generate QR codes for", "error");
+      return;
+    }
+
+    try {
+      showToast("Generating QR codes PDF...", "success");
+      
+      // Create new PDF document
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      const qrSize = 60;
+      const spacing = 10;
+      const textHeight = 10;
+      
+      // Calculate layout: 3 QR codes per row
+      const qrCodesPerRow = 3;
+      const availableWidth = pageWidth - (2 * margin);
+      const qrWithSpacing = qrSize + spacing;
+      const startX = margin + (availableWidth - (qrCodesPerRow * qrWithSpacing - spacing)) / 2;
+      
+      let currentY = margin;
+      let currentRow = 0;
+      let currentCol = 0;
+      
+      for (let i = 0; i < buildingPanels.length; i++) {
+        const panel = buildingPanels[i];
+        
+        // Check if we need a new page
+        if (currentY + qrSize + (textHeight * 2) + spacing > pageHeight - margin) {
+          pdf.addPage();
+          currentY = margin;
+          currentRow = 0;
+          currentCol = 0;
+        }
+        
+        // Calculate position for current QR code
+        const x = startX + (currentCol * qrWithSpacing);
+        const y = currentY;
+        
+        // Generate QR code data URL - use production URL for deployed app
+        const qrCodeData = `https://qatar-panels.vercel.app/panels/${panel.id}`;
+        const qrDataURL = await QRCode.toDataURL(qrCodeData, {
+          width: qrSize,
+          margin: 1,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          }
+        });
+        
+        // Add QR code image to PDF
+        pdf.addImage(qrDataURL, 'PNG', x, y, qrSize, qrSize);
+        
+        // Add panel name below QR code
+        const panelName = panel.name.length > 20 ? panel.name.substring(0, 17) + '...' : panel.name;
+        pdf.setFontSize(8);
+        pdf.text(panelName, x + qrSize/2, y + qrSize + 5, { align: 'center' });
+        
+        // Add project name below panel name
+        const projectName = panel.project_name ? (panel.project_name.length > 20 ? panel.project_name.substring(0, 17) + '...' : panel.project_name) : 'No Project';
+        pdf.setFontSize(7);
+        pdf.text(projectName, x + qrSize/2, y + qrSize + 12, { align: 'center' });
+        
+        // Move to next position
+        currentCol++;
+        if (currentCol >= qrCodesPerRow) {
+          currentCol = 0;
+          currentRow++;
+          currentY += qrSize + (textHeight * 2) + spacing;
+        }
+      }
+      
+      // Save the PDF
+      const fileName = `building_${building?.name || 'panels'}_qr_codes_${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
+      
+      showToast(`QR codes PDF generated successfully with ${buildingPanels.length} panels`, "success");
+    } catch (error) {
+      console.error("Error generating QR codes PDF:", error);
+      showToast("Error generating QR codes PDF", "error");
     }
   };
 
@@ -331,6 +433,17 @@ export function BuildingDetailsPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleBulkQRCodeDownload}
+            disabled={buildingPanels.length === 0}
+            className="h-9"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">Download QR Codes</span>
+            <span className="sm:hidden">QR Codes</span>
+          </Button>
           {canEditBuildings && (
             <BuildingModalTrigger
               onSubmit={async (data: Omit<Building, "id" | "created_at" | "updated_at">) => {

@@ -34,6 +34,7 @@ export function CustomersPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // RBAC Permission checks
@@ -103,6 +104,12 @@ export function CustomersPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (isSubmitting) {
+      return; // Prevent double-clicking
+    }
+
+    setIsSubmitting(true);
     try {
       if (editingCustomer) {
         // Update customer
@@ -136,6 +143,8 @@ export function CustomersPage() {
       resetForm();
     } catch (err: any) {
       setError(err.message || 'Operation failed');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -404,8 +413,19 @@ export function CustomersPage() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button type="submit" className="w-full sm:w-auto">
-                    Add Customer
+                  <Button 
+                    type="submit" 
+                    className="w-full sm:w-auto"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Adding...
+                      </>
+                    ) : (
+                      'Add Customer'
+                    )}
                   </Button>
                 </DialogFooter>
               </form>
@@ -705,8 +725,19 @@ export function CustomersPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit" className="w-full sm:w-auto">
-                  Update Customer
+                <Button 
+                  type="submit" 
+                  className="w-full sm:w-auto"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Updating...
+                    </>
+                  ) : (
+                    'Update Customer'
+                  )}
                 </Button>
               </DialogFooter>
             </form>

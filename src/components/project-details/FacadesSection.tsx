@@ -65,6 +65,7 @@ export function FacadesSection({
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [buildingFilter, setBuildingFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
   const canCreateFacades = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'facades', 'canCreate') : false;
   const canUpdateFacades = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'facades', 'canUpdate') : false;
   const canDeleteFacades = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'facades', 'canDelete') : false;
@@ -235,41 +236,50 @@ export function FacadesSection({
   };
 
   const handleAddFacade = async (facadeData: Omit<FacadeData, "id" | "created_at" | "updated_at" | "totalArea" | "totalAmount" | "totalWeight" | "totalPanels">) => {
-    const { data, error } = await supabase
-      .from('facades')
-      .insert({
-        name: facadeData.name,
-        building_id: facadeData.building_id,
-        status: facadeData.status,
-        description: facadeData.description
-      })
-      .select(`
-        *,
-        buildings (
-          name,
-          projects (
-            name
-          )
-        )
-      `)
-      .single();
-
-    if (error) {
-      console.error('Error adding facade:', error);
-      return;
+    if (isCreating) {
+      return; // Prevent double-clicking
     }
 
-    const formattedData = {
-      ...data,
-      building_name: data.buildings?.name,
-      project_name: data.buildings?.projects?.name,
-      totalArea: 0,
-      totalAmount: 0,
-      totalWeight: 0,
-      totalPanels: 0
-    } as FacadeData;
+    setIsCreating(true);
+    try {
+      const { data, error } = await supabase
+        .from('facades')
+        .insert({
+          name: facadeData.name,
+          building_id: facadeData.building_id,
+          status: facadeData.status,
+          description: facadeData.description
+        })
+        .select(`
+          *,
+          buildings (
+            name,
+            projects (
+              name
+            )
+          )
+        `)
+        .single();
 
-    setFacades([...facades, formattedData]);
+      if (error) {
+        console.error('Error adding facade:', error);
+        return;
+      }
+
+      const formattedData = {
+        ...data,
+        building_name: data.buildings?.name,
+        project_name: data.buildings?.projects?.name,
+        totalArea: 0,
+        totalAmount: 0,
+        totalWeight: 0,
+        totalPanels: 0
+      } as FacadeData;
+
+      setFacades([...facades, formattedData]);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const uniqueBuildings = Array.from(new Set(facades.map(facade => facade.building_name || ''))).filter(Boolean);
@@ -336,7 +346,7 @@ export function FacadesSection({
           onSubmit={handleAddFacade}
           currentProject={currentProject}
           currentBuilding={currentBuilding}
-          disabled={!canCreateFacades}
+          disabled={!canCreateFacades || isCreating}
         />
       </div>
 
@@ -566,6 +576,7 @@ export function FacadesSection({
               onSubmit={handleAddFacade}
               currentProject={currentProject}
               currentBuilding={currentBuilding}
+              disabled={!canCreateFacades || isCreating}
             />
           )}
         </div>

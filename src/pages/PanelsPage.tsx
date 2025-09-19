@@ -206,6 +206,9 @@ export function PanelsPage() {
   const [bulkImportTypeFilter, setBulkImportTypeFilter] = useState<string>("all");
   const [bulkImportValidityFilter, setBulkImportValidityFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [isImportingPanels, setIsImportingPanels] = useState(false);
+  const [isSavingPanel, setIsSavingPanel] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedPanels, setSelectedPanels] = useState<Set<string>>(new Set());
   const [isAddToGroupDialogOpen, setIsAddToGroupDialogOpen] = useState(false);
@@ -350,6 +353,11 @@ export function PanelsPage() {
   });
 
   const handleCreateGroup = async () => {
+    if (isCreatingGroup) {
+      return; // Prevent double-clicking
+    }
+
+    setIsCreatingGroup(true);
     try {
       if (!newPanelGroupModel.name.trim()) {
         alert("Group name is required");
@@ -382,6 +390,8 @@ export function PanelsPage() {
     } catch (err) {
       console.error('Unexpected error:', err);
       alert('An unexpected error occurred');
+    } finally {
+      setIsCreatingGroup(false);
     }
   };
 
@@ -812,17 +822,23 @@ export function PanelsPage() {
   };
 
   const handleSavePanel = async () => {
+    if (isSavingPanel) {
+      return; // Prevent double-clicking
+    }
+
     if (newPanelModel.name.trim() === "") {
       showToast("Panel name is required", "error");
       return;
     }
 
-    // Test database connection first
-    const dbConnectionOk = await testDatabaseConnection();
-    if (!dbConnectionOk) {
-      showToast("Database connection failed. Please try again.", "error");
-      return;
-    }
+    setIsSavingPanel(true);
+    try {
+      // Test database connection first
+      const dbConnectionOk = await testDatabaseConnection();
+      if (!dbConnectionOk) {
+        showToast("Database connection failed. Please try again.", "error");
+        return;
+      }
 
     // Check table structure
     const panelsTableOk = await checkTableStructure('panels');
@@ -1082,6 +1098,9 @@ export function PanelsPage() {
     // Reset facades to show all
     setFacades(allFacades);
     setFilteredBuildings([]);
+    } finally {
+      setIsSavingPanel(false);
+    }
   };
 
   const normalizeType = (type: string): number => {
@@ -1192,12 +1211,17 @@ export function PanelsPage() {
   };
 
   const handleImportPanels = async () => {
+    if (isImportingPanels) {
+      return; // Prevent double-clicking
+    }
+
     const validPanels = importedPanels.filter((p) => p.isValid);
     if (validPanels.length === 0) {
       setBulkImportErrors(["No valid panels to import. Please fix the errors and try again."]);
       return;
     }
 
+    setIsImportingPanels(true);
     try {
       setBulkImportStep("importing");
       setImportProgress(0);
@@ -1270,6 +1294,7 @@ export function PanelsPage() {
       setBulkImportErrors(["Failed to import panels. Please try again."]);
     } finally {
       setImportProgress(100);
+      setIsImportingPanels(false);
     }
   };
 
@@ -2177,7 +2202,20 @@ export function PanelsPage() {
             >
               Cancel
             </Button>
-            <Button onClick={handleSavePanel} disabled={!canCreatePanels} className="w-full sm:w-auto">Add Panel</Button>
+            <Button 
+              onClick={handleSavePanel} 
+              disabled={!canCreatePanels || isSavingPanel} 
+              className="w-full sm:w-auto"
+            >
+              {isSavingPanel ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Adding...
+                </>
+              ) : (
+                'Add Panel'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2438,7 +2476,20 @@ export function PanelsPage() {
             >
               Cancel
             </Button>
-            <Button onClick={handleSavePanel} className="w-full sm:w-auto">Save Changes</Button>
+            <Button 
+              onClick={handleSavePanel} 
+              className="w-full sm:w-auto"
+              disabled={isSavingPanel}
+            >
+              {isSavingPanel ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -2663,7 +2714,20 @@ export function PanelsPage() {
           >
             Cancel
           </Button>
-          <Button onClick={handleCreateGroup} className="w-full sm:w-auto">Create Group</Button>
+          <Button 
+            onClick={handleCreateGroup} 
+            className="w-full sm:w-auto"
+            disabled={isCreatingGroup}
+          >
+            {isCreatingGroup ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Creating...
+              </>
+            ) : (
+              'Create Group'
+            )}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

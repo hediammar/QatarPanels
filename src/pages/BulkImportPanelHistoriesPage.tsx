@@ -59,6 +59,13 @@ interface ImportResult {
   errors?: string[];
 }
 
+interface UpdateResult {
+  success: boolean;
+  message: string;
+  updatedCount?: number;
+  errors?: string[];
+}
+
 export function BulkImportPanelHistoriesPage() {
   const { user: currentUser } = useAuth();
   
@@ -75,6 +82,11 @@ export function BulkImportPanelHistoriesPage() {
   const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Update functionality state
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState(0);
+  const [updateResults, setUpdateResults] = useState<UpdateResult[]>([]);
 
   // RBAC Permission check
   const canCreateHistories = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canCreate') : false;
@@ -95,8 +107,8 @@ export function BulkImportPanelHistoriesPage() {
     'broken at site': 11
   };
 
-  // Helper function to parse various date formats including Excel dates
-  const parseExcelDate = (dateValue: any): Date | null => {
+  // Helper function to parse date and combine with current time for proper ordering
+  const parseDateWithCurrentTime = (dateValue: any, orderIndex: number = 0): Date | null => {
     if (!dateValue) return null;
     
     // Handle Excel serial date numbers (days since 1900-01-01)
@@ -111,73 +123,92 @@ export function BulkImportPanelHistoriesPage() {
       }
     }
     
+    let parsedDate: Date | null = null;
+    
     if (numericValue && numericValue > 0) {
+      // Handle Excel serial dates
       const excelEpoch = new Date(1900, 0, 1);
       const days = Math.floor(numericValue);
       const time = (numericValue - days) * 24 * 60 * 60 * 1000;
-      const result = new Date(excelEpoch.getTime() + (days - 2) * 24 * 60 * 60 * 1000 + time);
-      return result;
-    }
+      parsedDate = new Date(excelEpoch.getTime() + (days - 2) * 24 * 60 * 60 * 1000 + time);
+    } else {
+      // Handle string dates
+      const dateStr = dateValue.toString().trim();
+      if (!dateStr) return null;
 
-    // Handle string dates
-    let parsedDate: Date | null = null;
-    const dateStr = dateValue.toString().trim();
-    if (!dateStr) return null;
+      const normalizedDateStr = dateStr.replace(/\s+/g, ' ').trim();
+      
+      // Try direct parsing first
+      parsedDate = new Date(normalizedDateStr);
+      if (isNaN(parsedDate.getTime())) {
+        // Try different date formats
+        const formats = [
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/,
+          /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
+          /^\d{4}-\d{2}-\d{2}$/,
+          /^\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}:\d{2}$/,
+          /^\d{1,2}\/\d{1,2}\/\d{4}$/,
+          /^\d{1,2}-\d{1,2}-\d{4}$/,
+          /^\d{1,2}\.\d{1,2}\.\d{4}$/
+        ];
 
-    const normalizedDateStr = dateStr.replace(/\s+/g, ' ').trim();
-    
-    // Try direct parsing with normalized string
-    parsedDate = new Date(normalizedDateStr);
-    if (!isNaN(parsedDate.getTime())) {
-      return parsedDate;
-    }
+        for (const format of formats) {
+          if (format.test(dateStr)) {
+            parsedDate = new Date(dateStr);
+            if (!isNaN(parsedDate.getTime())) {
+              break;
+            }
+          }
+        }
 
-    // Try different date formats
-    const formats = [
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/,
-      /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/,
-      /^\d{4}-\d{2}-\d{2}$/,
-      /^\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}:\d{2}$/,
-      /^\d{1,2}\/\d{1,2}\/\d{4}$/,
-      /^\d{1,2}-\d{1,2}-\d{4}$/,
-      /^\d{1,2}\.\d{1,2}\.\d{4}$/
-    ];
+        // Try manual parsing for MM/DD/YYYY HH:MM:SS format
+        if (isNaN(parsedDate.getTime())) {
+          const mmddyyyyTimeMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
+          if (mmddyyyyTimeMatch) {
+            const [, month, day, year, hour, minute, second] = mmddyyyyTimeMatch;
+            parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+          }
+        }
 
-    parsedDate = new Date(dateStr);
-    if (!isNaN(parsedDate.getTime())) {
-      return parsedDate;
-    }
-
-    for (const format of formats) {
-      if (format.test(dateStr)) {
-        parsedDate = new Date(dateStr);
-        if (!isNaN(parsedDate.getTime())) {
-          return parsedDate;
+        // Try manual parsing for DD/MM/YYYY HH:MM:SS format
+        if (isNaN(parsedDate.getTime())) {
+          const ddmmyyyyTimeMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
+          if (ddmmyyyyTimeMatch) {
+            const [, day, month, year, hour, minute, second] = ddmmyyyyTimeMatch;
+            parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
+          }
         }
       }
     }
 
-    // Try manual parsing for MM/DD/YYYY HH:MM:SS format
-    const mmddyyyyTimeMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
-    if (mmddyyyyTimeMatch) {
-      const [, month, day, year, hour, minute, second] = mmddyyyyTimeMatch;
-      parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
-      if (!isNaN(parsedDate.getTime())) {
-        return parsedDate;
-      }
+    if (!parsedDate || isNaN(parsedDate.getTime())) {
+      return null;
     }
 
-    // Try manual parsing for DD/MM/YYYY HH:MM:SS format
-    const ddmmyyyyTimeMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
-    if (ddmmyyyyTimeMatch) {
-      const [, day, month, year, hour, minute, second] = ddmmyyyyTimeMatch;
-      parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(hour), parseInt(minute), parseInt(second));
-      if (!isNaN(parsedDate.getTime())) {
-        return parsedDate;
-      }
-    }
+    // Extract only the date part (year, month, day)
+    const year = parsedDate.getFullYear();
+    const month = parsedDate.getMonth();
+    const day = parsedDate.getDate();
 
-    return null;
+    // Get current time
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const currentSecond = now.getSeconds();
+    const currentMillisecond = now.getMilliseconds();
+
+    // Combine the date from Excel with current time, plus order index for proper sequencing
+    const finalDate = new Date(
+      year,
+      month,
+      day,
+      currentHour,
+      currentMinute,
+      currentSecond,
+      currentMillisecond + orderIndex // Add order index to milliseconds for proper ordering
+    );
+
+    return finalDate;
   };
 
   const fetchPanels = async () => {
@@ -416,7 +447,7 @@ export function BulkImportPanelHistoriesPage() {
 
       // Date validation - only validate if date is provided
       if (row.created_at !== undefined && row.created_at !== null && row.created_at !== '') {
-        const createdDate = parseExcelDate(row.created_at);
+        const createdDate = parseDateWithCurrentTime(row.created_at, index);
         if (!createdDate || isNaN(createdDate.getTime())) {
           errors.push('Invalid created_at format (supports: YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, or Excel date format)');
         }
@@ -529,8 +560,8 @@ export function BulkImportPanelHistoriesPage() {
 
         // Sort histories by created_at to maintain chronological order
         const sortedHistories = panelHistories.sort((a, b) => {
-          const dateA = a.created_at ? parseExcelDate(a.created_at) : new Date(0);
-          const dateB = b.created_at ? parseExcelDate(b.created_at) : new Date(0);
+          const dateA = a.created_at ? parseDateWithCurrentTime(a.created_at, 0) : new Date(0);
+          const dateB = b.created_at ? parseDateWithCurrentTime(b.created_at, 0) : new Date(0);
           return (dateA?.getTime() || 0) - (dateB?.getTime() || 0);
         });
 
@@ -596,7 +627,8 @@ export function BulkImportPanelHistoriesPage() {
         const batchHistoryData: any[] = [];
         let lastImportedStatus: number | null = null;
 
-        for (const history of filteredHistories) {
+        for (let i = 0; i < filteredHistories.length; i++) {
+          const history = filteredHistories[i];
           // Find user ID - default to "admin" if changed_by is empty
           const changedByUser = history.changed_by?.trim() || 'admin';
           const user = userMap.get(changedByUser.toLowerCase());
@@ -610,8 +642,8 @@ export function BulkImportPanelHistoriesPage() {
             continue;
           }
 
-          // Prepare history data
-          const createdAt = history.created_at ? parseExcelDate(history.created_at) : new Date();
+          // Prepare history data with proper ordering
+          const createdAt = history.created_at ? parseDateWithCurrentTime(history.created_at, i) : new Date();
           const statusValue = mapStatusToNumber(history.status);
           console.log(`Preparing: status="${history.status}" -> value=${statusValue}`);
 
@@ -752,6 +784,287 @@ export function BulkImportPanelHistoriesPage() {
     }
   };
 
+  const updateExistingHistories = async () => {
+    if (!canCreateHistories) {
+      setError('You do not have permission to update panel histories');
+      return;
+    }
+
+    const validData = parsedData.filter((_, index) => validationResults[index]?.isValid);
+    if (validData.length === 0) {
+      setError('No valid data to update');
+      return;
+    }
+
+    setIsUpdating(true);
+    setUpdateProgress(0);
+    setUpdateResults([]);
+
+    const results: UpdateResult[] = [];
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Pre-fetch all required data to avoid repeated lookups
+    console.log('Pre-fetching all required data for update...');
+    const startTime = Date.now();
+    const allPanels = await supabase.from('panels').select('id, name').order('name');
+    const allUsers = await supabase.from('users').select('id, name').order('name');
+    
+    console.log(`Data pre-fetch completed in ${Date.now() - startTime}ms`);
+    
+    if (allPanels.error) {
+      setError('Failed to fetch panels: ' + allPanels.error.message);
+      setIsUpdating(false);
+      return;
+    }
+    
+    if (allUsers.error) {
+      setError('Failed to fetch users: ' + allUsers.error.message);
+      setIsUpdating(false);
+      return;
+    }
+
+    // Create lookup maps for faster access
+    const panelMap = new Map(allPanels.data.map(p => [p.name.toLowerCase(), p]));
+    const userMap = new Map(allUsers.data.map(u => [u.name.toLowerCase(), u]));
+
+    // Group data by panel name to handle sequential update and duplicate status filtering
+    const groupedData: { [panelName: string]: PanelHistoryImportData[] } = {};
+    validData.forEach(row => {
+      if (!groupedData[row.panel_name]) {
+        groupedData[row.panel_name] = [];
+      }
+      groupedData[row.panel_name].push(row);
+    });
+
+    const totalPanels = Object.keys(groupedData).length;
+    let processedPanels = 0;
+
+    // Process each panel's history sequentially
+    for (const [panelName, panelHistories] of Object.entries(groupedData)) {
+      try {
+        // Find panel ID using pre-fetched data
+        const panel = panelMap.get(panelName.toLowerCase());
+        if (!panel) {
+          results.push({
+            success: false,
+            message: `Panel "${panelName}" not found`,
+            errors: ['Panel not found in database']
+          });
+          errorCount++;
+          continue;
+        }
+
+        // Sort histories by created_at to maintain chronological order
+        const sortedHistories = panelHistories.sort((a, b) => {
+          const dateA = a.created_at ? parseDateWithCurrentTime(a.created_at, 0) : new Date(0);
+          const dateB = b.created_at ? parseDateWithCurrentTime(b.created_at, 0) : new Date(0);
+          return (dateA?.getTime() || 0) - (dateB?.getTime() || 0);
+        });
+
+        // Filter out duplicate consecutive statuses
+        const filteredHistories: PanelHistoryImportData[] = [];
+        let lastStatus: string | null = null;
+
+        for (const history of sortedHistories) {
+          const normalizedStatus = history.status.toLowerCase().trim();
+          
+          // Apply typo correction for duplicate filtering
+          const statusVariations: { [key: string]: string } = {
+            'issued for production': 'issued for production',
+            'produced': 'produced',
+            'proceed for delivery': 'proceed for delivery',
+            'procced for delivery': 'proceed for delivery', // Handle typo
+            'delivered': 'delivered',
+            'approved material': 'approved material',
+            'rejected material': 'rejected material',
+            'installed': 'installed',
+            'inspected': 'inspected',
+            'approved final': 'approved final',
+            'on hold': 'on hold',
+            'cancelled': 'cancelled',
+            'broken at site': 'broken at site'
+          };
+          
+          const matchedStatus = statusVariations[normalizedStatus] || normalizedStatus;
+          
+          if (matchedStatus !== lastStatus) {
+            filteredHistories.push(history);
+            lastStatus = matchedStatus;
+          }
+        }
+
+        // Map status text to numeric value
+        const mapStatusToNumber = (statusText: string): number => {
+          if (!statusText.trim()) return 0;
+          
+          const status = statusText.toLowerCase().trim();
+          const statusMap: { [key: string]: number } = {
+            'issued for production': 0,
+            'produced': 1,
+            'proceed for delivery': 2,
+            'procced for delivery': 2, // Handle typo
+            'delivered': 3,
+            'approved material': 4,
+            'rejected material': 5,
+            'installed': 6,
+            'inspected': 7,
+            'approved final': 8,
+            'on hold': 9,
+            'cancelled': 10,
+            'broken at site': 11
+          };
+          
+          return statusMap[status] || 0;
+        };
+
+        // Get existing panel histories for this panel
+        const { data: existingHistories, error: fetchError } = await supabase
+          .from('panel_status_histories')
+          .select('id, status, user_id, created_at')
+          .eq('panel_id', panel.id)
+          .order('created_at', { ascending: true });
+
+        if (fetchError) {
+          results.push({
+            success: false,
+            message: `Failed to fetch existing histories for panel "${panelName}"`,
+            errors: [fetchError.message]
+          });
+          errorCount++;
+          continue;
+        }
+
+        if (!existingHistories || existingHistories.length === 0) {
+          results.push({
+            success: false,
+            message: `No existing histories found for panel "${panelName}"`,
+            errors: ['No existing panel histories to update']
+          });
+          errorCount++;
+          continue;
+        }
+
+        // Create a map of existing histories by status and user for efficient lookup
+        const existingHistoryMap = new Map<string, any>();
+        existingHistories.forEach(history => {
+          const key = `${history.status}-${history.user_id}`;
+          if (!existingHistoryMap.has(key)) {
+            existingHistoryMap.set(key, history);
+          }
+        });
+
+        // Update histories that match the Excel data
+        let updatedCount = 0;
+        const updatePromises: PromiseLike<any>[] = [];
+
+        for (let i = 0; i < filteredHistories.length; i++) {
+          const history = filteredHistories[i];
+          // Find user ID - default to "admin" if changed_by is empty
+          const changedByUser = history.changed_by?.trim() || 'admin';
+          const user = userMap.get(changedByUser.toLowerCase());
+          if (!user) {
+            results.push({
+              success: false,
+              message: `User "${changedByUser}" not found for panel "${panelName}"`,
+              errors: ['User not found in database']
+            });
+            errorCount++;
+            continue;
+          }
+
+          const statusValue = mapStatusToNumber(history.status);
+          const key = `${statusValue}-${user.id}`;
+          const existingHistory = existingHistoryMap.get(key);
+
+          if (existingHistory && history.created_at) {
+            const newCreatedAt = parseDateWithCurrentTime(history.created_at, i);
+            if (newCreatedAt && !isNaN(newCreatedAt.getTime())) {
+              // Only update if the date is different
+              const existingDate = new Date(existingHistory.created_at);
+              if (Math.abs(newCreatedAt.getTime() - existingDate.getTime()) > 1000) { // 1 second tolerance
+                updatePromises.push(
+                  supabase
+                    .from('panel_status_histories')
+                    .update({ created_at: newCreatedAt.toISOString() })
+                    .eq('id', existingHistory.id)
+                    .then(result => result)
+                );
+                updatedCount++;
+              }
+            }
+          }
+        }
+
+        // Execute all updates for this panel in parallel
+        if (updatePromises.length > 0) {
+          try {
+            const updateResults = await Promise.all(updatePromises);
+            const failedUpdates = updateResults.filter(result => result.error);
+            
+            if (failedUpdates.length > 0) {
+              results.push({
+                success: false,
+                message: `Failed to update ${failedUpdates.length} histories for panel "${panelName}"`,
+                errors: failedUpdates.map(result => result.error.message)
+              });
+              errorCount += failedUpdates.length;
+            } else {
+              results.push({
+                success: true,
+                message: `Successfully updated ${updatedCount} histories for panel "${panelName}"`,
+                updatedCount
+              });
+              successCount += updatedCount;
+            }
+          } catch (err: any) {
+            results.push({
+              success: false,
+              message: `Failed to update histories for panel "${panelName}"`,
+              errors: [err.message]
+            });
+            errorCount += updatePromises.length;
+          }
+        } else {
+          results.push({
+            success: true,
+            message: `No updates needed for panel "${panelName}" - all dates are already correct`,
+            updatedCount: 0
+          });
+        }
+      } catch (err: any) {
+        results.push({
+          success: false,
+          message: `Failed to process panel "${panelName}"`,
+          errors: [err.message]
+        });
+        errorCount++;
+      }
+
+      // Update progress (less frequently for better performance)
+      processedPanels++;
+      if (processedPanels % 10 === 0 || processedPanels === totalPanels) {
+        setUpdateProgress((processedPanels / totalPanels) * 100);
+        setUpdateResults([...results]);
+      }
+    }
+
+    const totalTime = Date.now() - startTime;
+    setIsUpdating(false);
+    setUpdateProgress(100);
+
+    // Show summary with performance metrics
+    const summary = `Update completed in ${(totalTime / 1000).toFixed(1)}s: ${successCount} successful, ${errorCount} failed`;
+    const rate = successCount > 0 ? (successCount / (totalTime / 1000)).toFixed(1) : '0';
+    console.log(`Update Performance: ${successCount} records in ${(totalTime / 1000).toFixed(1)}s (${rate} records/sec)`);
+    
+    if (errorCount > 0) {
+      setError(summary);
+    } else {
+      setError(null);
+    }
+  };
+
   const resetForm = () => {
     setFile(null);
     setParsedData([]);
@@ -759,6 +1072,8 @@ export function BulkImportPanelHistoriesPage() {
     setImportResults([]);
     setProgress(0);
     setError(null);
+    setUpdateResults([]);
+    setUpdateProgress(0);
   };
 
   const totalRows = parsedData.length;
@@ -1016,7 +1331,7 @@ export function BulkImportPanelHistoriesPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                  <span>Supports Excel date formats like "01/15/2024 09:00:00"</span>
+                  <span><strong>Smart Date Handling:</strong> Date from Excel + Current Time for proper ordering</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
@@ -1029,6 +1344,40 @@ export function BulkImportPanelHistoriesPage() {
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
                   <span><strong>Important:</strong> Duplicate consecutive statuses are automatically filtered out</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
+                  <span><strong>Ordering:</strong> Records maintain Excel row order with unique timestamps</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Update Mode Information */}
+            <div className="space-y-3">
+              <h4 className="font-semibold text-card-foreground flex items-center gap-2">
+                <History className="h-4 w-4 text-purple-500" />
+                Update Mode Features
+              </h4>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
+                  <span><strong>Update Existing:</strong> Updates created_at for existing panel histories</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                  <span>Matches records by panel name, status, and user</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                  <span><strong>Smart Date Update:</strong> Excel date + Current time + Order index</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
+                  <span>Optimized for performance with minimal database calls</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                  <span><strong>Note:</strong> Use this mode when you have existing panel histories with empty created_at fields</span>
                 </div>
               </div>
             </div>
@@ -1159,6 +1508,59 @@ export function BulkImportPanelHistoriesPage() {
           </Card>
         )}
 
+        {/* Update Existing Histories Actions */}
+        {parsedData.length > 0 && validRows > 0 && (
+          <Card className="border-0 shadow-xl bg-card">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                  <History className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-bold text-card-foreground">Update Existing Histories</CardTitle>
+                  <CardDescription className="text-muted-foreground">
+                    Update created_at timestamps for existing panel histories based on Excel data
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <Alert className="border-blue-200 bg-blue-50 backdrop-blur-sm">
+                <AlertCircle className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-blue-800">
+                  <strong>Update Mode:</strong> This will update the <code>created_at</code> field for existing panel histories that match the panel name, status, and user from your Excel file. Duplicate consecutive statuses are automatically filtered out.
+                </AlertDescription>
+              </Alert>
+
+              {isUpdating && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 p-4 bg-secondary/50 rounded-lg">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <span className="font-medium text-card-foreground">Updating panel histories...</span>
+                  </div>
+                  <Progress value={updateProgress} className="w-full h-3" />
+                </div>
+              )}
+
+              <div className="flex gap-4">
+                <Button 
+                  onClick={updateExistingHistories} 
+                  disabled={!canCreateHistories || isUpdating || validRows === 0}
+                  className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 h-12 px-8 text-base font-semibold"
+                >
+                  {isUpdating ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <History className="h-5 w-5" />
+                  )}
+                  Update {validRows} Panel Histories
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Import Results */}
         {importResults.length > 0 && (
           <Card className="border-0 shadow-xl bg-card">
@@ -1195,6 +1597,65 @@ export function BulkImportPanelHistoriesPage() {
                       <span className={`font-medium ${result.success ? 'text-status-complete-foreground' : 'text-status-rejected-foreground'}`}>
                         {result.message}
                       </span>
+                    </div>
+                    {result.errors && result.errors.length > 0 && (
+                      <div className="mt-3 text-sm text-destructive space-y-1">
+                        {result.errors.map((error, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <div className="w-1 h-1 bg-destructive rounded-full"></div>
+                            {error}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Update Results */}
+        {updateResults.length > 0 && (
+          <Card className="border-0 shadow-xl bg-card">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                  <History className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl font-bold text-card-foreground">Update Results</CardTitle>
+                  <CardDescription className="text-muted-foreground">
+                    Results from the latest update operation
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {updateResults.map((result, index) => (
+                  <div 
+                    key={index} 
+                    className={`p-4 rounded-xl border-2 ${
+                      result.success 
+                        ? 'bg-status-complete/10 border-status-complete' 
+                        : 'bg-status-rejected/10 border-status-rejected'
+                    } backdrop-blur-sm`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {result.success ? (
+                        <CheckCircle className="h-5 w-5 text-status-complete" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-status-rejected" />
+                      )}
+                      <span className={`font-medium ${result.success ? 'text-status-complete-foreground' : 'text-status-rejected-foreground'}`}>
+                        {result.message}
+                      </span>
+                      {result.updatedCount !== undefined && result.updatedCount > 0 && (
+                        <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+                          {result.updatedCount} updated
+                        </Badge>
+                      )}
                     </div>
                     {result.errors && result.errors.length > 0 && (
                       <div className="mt-3 text-sm text-destructive space-y-1">

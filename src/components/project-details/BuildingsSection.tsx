@@ -60,6 +60,7 @@ export function BuildingsSection({
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
   const canCreateBuildings = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'buildings', 'canCreate') : false;
   const canUpdateBuildings = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'buildings', 'canUpdate') : false;
   const canDeleteBuildings = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'buildings', 'canDelete') : false;
@@ -216,30 +217,39 @@ export function BuildingsSection({
   };
 
   const handleAddBuilding = async (buildingData: Omit<BuildingModel, "id" | "created_at" | "totalArea" | "totalAmount" | "totalWeight" | "totalPanels">) => {
-    const { data, error } = await supabase
-      .from('buildings')
-      .insert({
-        name: buildingData.name,
-        project_id: buildingData.project_id,
-        status: buildingData.status,
-        description: buildingData.description
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error adding building:', error);
-      return;
+    if (isCreating) {
+      return; // Prevent double-clicking
     }
 
-    const buildingWithTotals = {
-      ...data,
-      totalArea: 0,
-      totalAmount: 0,
-      totalWeight: 0
-    };
+    setIsCreating(true);
+    try {
+      const { data, error } = await supabase
+        .from('buildings')
+        .insert({
+          name: buildingData.name,
+          project_id: buildingData.project_id,
+          status: buildingData.status,
+          description: buildingData.description
+        })
+        .select()
+        .single();
 
-    setBuildings([...buildings, buildingWithTotals]);
+      if (error) {
+        console.error('Error adding building:', error);
+        return;
+      }
+
+      const buildingWithTotals = {
+        ...data,
+        totalArea: 0,
+        totalAmount: 0,
+        totalWeight: 0
+      };
+
+      setBuildings([...buildings, buildingWithTotals]);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const filteredBuildings = buildings.filter((building) => {
@@ -296,7 +306,7 @@ export function BuildingsSection({
           <BuildingModalTrigger 
             onSubmit={handleAddBuilding}
             currentProject={currentProject}
-            disabled={!canCreateBuildings}
+            disabled={!canCreateBuildings || isCreating}
           />
         </div>
       </div>
@@ -501,7 +511,7 @@ export function BuildingsSection({
             <BuildingModalTrigger 
               onSubmit={handleAddBuilding}
               currentProject={currentProject}
-              disabled={!canCreateBuildings}
+              disabled={!canCreateBuildings || isCreating}
             />
           )}
         </div>

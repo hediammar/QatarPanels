@@ -61,6 +61,7 @@ export function UsersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [customersLoading, setCustomersLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // RBAC Permission checks
   const canManageUsersPermission = currentUser?.role ? canManageUsers(currentUser.role as UserRole) : false;
@@ -245,144 +246,148 @@ export function UsersPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (isSubmitting) {
+      return; // Prevent double-clicking
+    }
+    
     if (!canManageUsersPermission) {
       showToast('You do not have permission to manage users', 'error');
       return;
     }
 
-    // Required field validation
-    if (!formData.name.trim()) {
-      showToast('Full name is required', 'error');
-      return;
-    }
-    if (!formData.email.trim()) {
-      showToast('Email address is required', 'error');
-      return;
-    }
-    if (!formData.username.trim()) {
-      showToast('Username is required', 'error');
-      return;
-    }
-    if (!formData.role) {
-      showToast('Role is required', 'error');
-      return;
-    }
-
-    // Email format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      showToast('Please enter a valid email address', 'error');
-      return;
-    }
-
-    // Username validation (length and characters)
-    if (formData.username.length < 3) {
-      showToast('Username must be at least 3 characters long', 'error');
-      return;
-    }
-    if (formData.username.length > 50) {
-      showToast('Username must be 50 characters or less', 'error');
-      return;
-    }
-    
-    // Check for special characters in username (allow only alphanumeric, underscore, hyphen, period)
-    const usernameRegex = /^[a-zA-Z0-9._-]+$/;
-    if (!usernameRegex.test(formData.username)) {
-      showToast('Username can only contain letters, numbers, underscore, hyphen, and period', 'error');
-      return;
-    }
-
-    // Name validation (length)
-    if (formData.name.length > 255) {
-      showToast('Full name must be 255 characters or less', 'error');
-      return;
-    }
-
-    // Email validation (length)
-    if (formData.email.length > 255) {
-      showToast('Email address must be 255 characters or less', 'error');
-      return;
-    }
-
-    // Department validation (length)
-    if (formData.department && formData.department.length > 100) {
-      showToast('Department must be 100 characters or less', 'error');
-      return;
-    }
-
-    // Phone number validation (length)
-    if (formData.phone_number && formData.phone_number.length > 20) {
-      showToast('Phone number must be 20 characters or less', 'error');
-      return;
-    }
-
-    // Check for duplicate email (exclude current user when editing)
-    const existingEmailUser = users.find(user => 
-      user.email.toLowerCase() === formData.email.toLowerCase() && 
-      (!editingUser || user.id !== editingUser.id)
-    );
-    if (existingEmailUser) {
-      showToast('Email address is already in use', 'error');
-      return;
-    }
-
-    // Check for duplicate username (exclude current user when editing)
-    const existingUsernameUser = users.find(user => 
-      user.username.toLowerCase() === formData.username.toLowerCase() && 
-      (!editingUser || user.id !== editingUser.id)
-    );
-    if (existingUsernameUser) {
-      showToast('Username is already taken', 'error');
-      return;
-    }
-
-    // Role validation - check if role exists in the allowed roles
-    const validRoles = USER_ROLES.map(role => role.value);
-    if (!validRoles.includes(formData.role)) {
-      showToast('Please select a valid role', 'error');
-      return;
-    }
-
-    // Status validation
-    if (!['active', 'inactive'].includes(formData.status)) {
-      showToast('Please select a valid status', 'error');
-      return;
-    }
-
-    // Customer validation for Customer role
-    if (formData.role === 'Customer' && !formData.customer_id) {
-      showToast('Customer selection is required for Customer role', 'error');
-      return;
-    }
-
-    // Password validation
-    if (!editingUser) {
-      // For new users, password is required
-      if (!formData.password) {
-        showToast('Password is required for new users', 'error');
-        return;
-      }
-      if (formData.password.length < 6) {
-        showToast('Password must be at least 6 characters long', 'error');
-        return;
-      }
-      if (formData.password !== formData.confirmPassword) {
-        showToast('Passwords do not match', 'error');
-        return;
-      }
-    } else {
-      // For editing users, password is optional but must match if provided
-      if (formData.password && formData.password.length < 6) {
-        showToast('Password must be at least 6 characters long', 'error');
-        return;
-      }
-      if (formData.password && formData.password !== formData.confirmPassword) {
-        showToast('Passwords do not match', 'error');
-        return;
-      }
-    }
-    
+    setIsSubmitting(true);
     try {
+      // Required field validation
+      if (!formData.name.trim()) {
+        showToast('Full name is required', 'error');
+        return;
+      }
+      if (!formData.email.trim()) {
+        showToast('Email address is required', 'error');
+        return;
+      }
+      if (!formData.username.trim()) {
+        showToast('Username is required', 'error');
+        return;
+      }
+      if (!formData.role) {
+        showToast('Role is required', 'error');
+        return;
+      }
+
+      // Email format validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        showToast('Please enter a valid email address', 'error');
+        return;
+      }
+
+      // Username validation (length and characters)
+      if (formData.username.length < 3) {
+        showToast('Username must be at least 3 characters long', 'error');
+        return;
+      }
+      if (formData.username.length > 50) {
+        showToast('Username must be 50 characters or less', 'error');
+        return;
+      }
+      
+      // Check for special characters in username (allow only alphanumeric, underscore, hyphen, period)
+      const usernameRegex = /^[a-zA-Z0-9._-]+$/;
+      if (!usernameRegex.test(formData.username)) {
+        showToast('Username can only contain letters, numbers, underscore, hyphen, and period', 'error');
+        return;
+      }
+
+      // Name validation (length)
+      if (formData.name.length > 255) {
+        showToast('Full name must be 255 characters or less', 'error');
+        return;
+      }
+
+      // Email validation (length)
+      if (formData.email.length > 255) {
+        showToast('Email address must be 255 characters or less', 'error');
+        return;
+      }
+
+      // Department validation (length)
+      if (formData.department && formData.department.length > 100) {
+        showToast('Department must be 100 characters or less', 'error');
+        return;
+      }
+
+      // Phone number validation (length)
+      if (formData.phone_number && formData.phone_number.length > 20) {
+        showToast('Phone number must be 20 characters or less', 'error');
+        return;
+      }
+
+      // Check for duplicate email (exclude current user when editing)
+      const existingEmailUser = users.find(user => 
+        user.email.toLowerCase() === formData.email.toLowerCase() && 
+        (!editingUser || user.id !== editingUser.id)
+      );
+      if (existingEmailUser) {
+        showToast('Email address is already in use', 'error');
+        return;
+      }
+
+      // Check for duplicate username (exclude current user when editing)
+      const existingUsernameUser = users.find(user => 
+        user.username.toLowerCase() === formData.username.toLowerCase() && 
+        (!editingUser || user.id !== editingUser.id)
+      );
+      if (existingUsernameUser) {
+        showToast('Username is already taken', 'error');
+        return;
+      }
+
+      // Role validation - check if role exists in the allowed roles
+      const validRoles = USER_ROLES.map(role => role.value);
+      if (!validRoles.includes(formData.role)) {
+        showToast('Please select a valid role', 'error');
+        return;
+      }
+
+      // Status validation
+      if (!['active', 'inactive'].includes(formData.status)) {
+        showToast('Please select a valid status', 'error');
+        return;
+      }
+
+      // Customer validation for Customer role
+      if (formData.role === 'Customer' && !formData.customer_id) {
+        showToast('Customer selection is required for Customer role', 'error');
+        return;
+      }
+
+      // Password validation
+      if (!editingUser) {
+        // For new users, password is required
+        if (!formData.password) {
+          showToast('Password is required for new users', 'error');
+          return;
+        }
+        if (formData.password.length < 6) {
+          showToast('Password must be at least 6 characters long', 'error');
+          return;
+        }
+        if (formData.password !== formData.confirmPassword) {
+          showToast('Passwords do not match', 'error');
+          return;
+        }
+      } else {
+        // For editing users, password is optional but must match if provided
+        if (formData.password && formData.password.length < 6) {
+          showToast('Password must be at least 6 characters long', 'error');
+          return;
+        }
+        if (formData.password && formData.password !== formData.confirmPassword) {
+          showToast('Passwords do not match', 'error');
+          return;
+        }
+      }
       if (editingUser) {
         // Update existing user
         const updateData: any = {
@@ -473,6 +478,8 @@ export function UsersPage() {
     } catch (error) {
       console.error('Error saving user:', error);
       showToast('Error saving user', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -850,7 +857,19 @@ export function UsersPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit">Add User</Button>
+                <Button 
+                  type="submit"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Adding...
+                    </>
+                  ) : (
+                    'Add User'
+                  )}
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -1416,7 +1435,19 @@ export function UsersPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit">Update User</Button>
+                <Button 
+                  type="submit"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Updating...
+                    </>
+                  ) : (
+                    'Update User'
+                  )}
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>

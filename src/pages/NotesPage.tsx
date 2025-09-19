@@ -43,6 +43,7 @@ const NotesPage: React.FC = () => {
   const [selectedNote, setSelectedNote] = useState<NoteWithPanelGroups | null>(null);
   const [newNote, setNewNote] = useState({ title: '', content: '' });
   const [selectedPanelGroups, setSelectedPanelGroups] = useState<string[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
   const { showToast } = useToastContext();
   const { user: currentUser } = useAuth();
 
@@ -166,11 +167,16 @@ const NotesPage: React.FC = () => {
   };
 
   const handleCreateNote = async () => {
+    if (isCreating) {
+      return; // Prevent double-clicking
+    }
+
     if (!newNote.title.trim()) {
       showToast('Note title is required', 'error');
       return;
     }
 
+    setIsCreating(true);
     try {
       // Create the note
       const { data: noteData, error: noteError } = await supabase
@@ -203,6 +209,8 @@ const NotesPage: React.FC = () => {
     } catch (error) {
       console.error('Error creating note:', error);
       showToast('Error creating note', 'error');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -375,8 +383,18 @@ const NotesPage: React.FC = () => {
                 <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreateNote}>
-                  Create Note
+                <Button 
+                  onClick={handleCreateNote}
+                  disabled={isCreating}
+                >
+                  {isCreating ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Creating...
+                    </>
+                  ) : (
+                    'Create Note'
+                  )}
                 </Button>
               </div>
             </div>
@@ -565,8 +583,18 @@ const NotesPage: React.FC = () => {
                   <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleCreateNote}>
-                    Create Note
+                  <Button 
+                    onClick={handleCreateNote}
+                    disabled={isCreating}
+                  >
+                    {isCreating ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Creating...
+                      </>
+                    ) : (
+                      'Create Note'
+                    )}
                   </Button>
                 </div>
               </div>

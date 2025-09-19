@@ -66,6 +66,7 @@ export function NotesSection({ projectId, projectName }: NotesSectionProps) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [selectedPanelGroups, setSelectedPanelGroups] = useState<string[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     content: "",
@@ -178,6 +179,11 @@ export function NotesSection({ projectId, projectName }: NotesSectionProps) {
       return;
     }
 
+    if (isCreating) {
+      return; // Prevent double-clicking
+    }
+
+    setIsCreating(true);
     try {
       // Create the note
       const { data, error } = await supabase
@@ -219,6 +225,8 @@ export function NotesSection({ projectId, projectName }: NotesSectionProps) {
     } catch (err) {
       console.error('Error creating note:', err);
       showToast('Error creating note', 'error');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -406,7 +414,7 @@ export function NotesSection({ projectId, projectName }: NotesSectionProps) {
           {canCreateNotes && panelGroups.length > 0 && (
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="qatar-button">
+                <Button className="qatar-button" disabled={isCreating}>
                   <Plus className="h-4 w-4 mr-2" />
                   Add Note
                 </Button>
@@ -486,8 +494,19 @@ export function NotesSection({ projectId, projectName }: NotesSectionProps) {
                 <Button variant="outline" onClick={closeCreateDialog}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreateNote} className="qatar-button">
-                  Create Note
+                <Button 
+                  onClick={handleCreateNote} 
+                  className="qatar-button"
+                  disabled={isCreating}
+                >
+                  {isCreating ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Creating...
+                    </>
+                  ) : (
+                    'Create Note'
+                  )}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -631,7 +650,11 @@ export function NotesSection({ projectId, projectName }: NotesSectionProps) {
             }
           </p>
           {!searchTerm && canCreateNotes && panelGroups.length > 0 && (
-            <Button onClick={() => setIsCreateDialogOpen(true)} className="qatar-button">
+            <Button 
+              onClick={() => setIsCreateDialogOpen(true)} 
+              className="qatar-button"
+              disabled={isCreating}
+            >
               <Plus className="h-4 w-4 mr-2" />
               Create Note
             </Button>

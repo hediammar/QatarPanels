@@ -1046,6 +1046,7 @@ export function PanelGroupsSection({
   const [isUpdateStatusDialogOpen, setIsUpdateStatusDialogOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<PanelGroupModel | null>(null);
   const [isUpdatePanelGroupDialogOpen, setIsUpdatePanelGroupDialogOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Form data for new group and note
   const [newGroupData, setNewGroupData] = useState({
@@ -1209,6 +1210,11 @@ export function PanelGroupsSection({
       return;
     }
 
+    if (isCreating) {
+      return; // Prevent double-clicking
+    }
+
+    setIsCreating(true);
     try {
       // Direct insert into panel_groups table
       const { data, error } = await supabase
@@ -1245,6 +1251,8 @@ export function PanelGroupsSection({
     } catch (err) {
       console.error('Unexpected error:', err);
       showToast('An unexpected error occurred', 'error');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -1398,15 +1406,21 @@ export function PanelGroupsSection({
         
         <div className="flex items-center gap-2">
           {canCreatePanelGroups && (
-            <Button onClick={() => setIsAddDialogOpen(true)}>
-              Add Group
+            <Button 
+              onClick={() => setIsAddDialogOpen(true)}
+              disabled={isCreating}
+            >
+              {isCreating ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Creating...
+                </>
+              ) : (
+                'Add Group'
+              )}
             </Button>
           )}
-          {canCreateNotes && (
-            <Button variant="outline" onClick={() => setIsAddNoteDialogOpen(true)}>
-              Add Note
-            </Button>
-          )}
+         
         </div>
       </div>
 
@@ -1547,8 +1561,19 @@ export function PanelGroupsSection({
                     : 'Get started by creating your first panel group.'}
                 </p>
                 {!searchTerm && statusFilter === 'all' && !panelCountMinFilter && !panelCountMaxFilter && dateRangeFilter === 'all' && (
-                  <Button onClick={() => setIsAddDialogOpen(true)} className="mt-4">
-                    Add Panel Group
+                  <Button 
+                    onClick={() => setIsAddDialogOpen(true)} 
+                    className="mt-4"
+                    disabled={isCreating}
+                  >
+                    {isCreating ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Creating...
+                      </>
+                    ) : (
+                      'Add Panel Group'
+                    )}
                   </Button>
                 )}
               </div>
@@ -1816,8 +1841,18 @@ export function PanelGroupsSection({
             >
               Cancel
             </Button>
-            <Button onClick={handleCreateGroup}>
-              Create Group
+            <Button 
+              onClick={handleCreateGroup}
+              disabled={isCreating}
+            >
+              {isCreating ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Creating...
+                </>
+              ) : (
+                'Create Group'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

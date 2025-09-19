@@ -282,11 +282,11 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                     className="bg-primary h-2 rounded-full transition-all duration-300" 
                     style={{ 
                       width: `${project.estimated_panels > 0 ? 
-                        (((panelStatusCounts['Issued For Production'] || 0) + (panelStatusCounts['Produced'] || 0) + 
+                        Math.min(100, (((panelStatusCounts['Issued For Production'] || 0) + (panelStatusCounts['Produced'] || 0) + 
                          (panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
                          (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
                          (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
-                         (panelStatusCounts['Approved Final'] || 0) ) / project.estimated_panels) * 100 : 0}%` 
+                         (panelStatusCounts['Approved Final'] || 0) ) / project.estimated_panels) * 100) : 0}%` 
                     }}
                   />
                 </div>
@@ -314,10 +314,10 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                     className="bg-primary h-2 rounded-full transition-all duration-300" 
                     style={{ 
                       width: `${project.estimated_panels > 0 ? 
-                        (((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
+                        Math.min(100, (((panelStatusCounts['Produced'] || 0) + (panelStatusCounts['Proceed for Delivery'] || 0) + 
                          (panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
                          (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
-                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100 : 0}%` 
+                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100) : 0}%` 
                     }}
                   />
                 </div>
@@ -344,10 +344,10 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                     className="bg-red-500 h-2 rounded-full transition-all duration-300" 
                     style={{ 
                       width: `${project.estimated_panels > 0 ? 
-                        (((panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
+                        Math.min(100, (((panelStatusCounts['Proceed for Delivery'] || 0) + (panelStatusCounts['Delivered'] || 0) + 
                         (panelStatusCounts['Approved Material'] || 0) + (panelStatusCounts['Rejected Material'] || 0) + 
                         (panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + 
-                        (panelStatusCounts['Approved Final'] || 0) ) / project.estimated_panels) * 100 : 0}%` 
+                        (panelStatusCounts['Approved Final'] || 0) ) / project.estimated_panels) * 100) : 0}%` 
                     }}
                   />
                 </div>
@@ -373,9 +373,9 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                     className="bg-primary h-2 rounded-full transition-all duration-300" 
                     style={{ 
                       width: `${project.estimated_panels > 0 ? 
-                        (((panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
+                        Math.min(100, (((panelStatusCounts['Delivered'] || 0) + (panelStatusCounts['Approved Material'] || 0) + 
                          (panelStatusCounts['Rejected Material'] || 0) + (panelStatusCounts['Installed'] || 0) + 
-                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100 : 0}%` 
+                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100) : 0}%` 
                     }}
                   />
                 </div>
@@ -400,7 +400,7 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                     className="bg-primary h-2 rounded-full transition-all duration-300" 
                     style={{ 
                       width: `${project.estimated_panels > 0 ? 
-                        (((panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100 : 0}%` 
+                        Math.min(100, (((panelStatusCounts['Installed'] || 0) + (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100) : 0}%` 
                     }}
                   />
                 </div>
@@ -421,8 +421,8 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                     className="bg-primary h-2 rounded-full transition-all duration-300" 
                     style={{ 
                       width: `${project.estimated_panels > 0 ? 
-                        ((
-                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100 : 0}%` 
+                        Math.min(100, ((
+                         (panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100) : 0}%` 
                     }}
                   />
                 </div>
@@ -431,7 +431,28 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                       ((((panelStatusCounts['Inspected'] || 0) + (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(2) : 0}% panels inspected
                 </p>
               </div>
-
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-card-foreground">Approved Final Progress</span>
+                  <span className="text-muted-foreground">
+                    {(panelStatusCounts['Approved Final'] || 0)} / {project.estimated_panels || 0}
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-300" 
+                    style={{ 
+                      width: `${project.estimated_panels > 0 ? 
+                        Math.min(100, ((
+                        (panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100) : 0}%` 
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {project.estimated_panels > 0 ? 
+                      ((((panelStatusCounts['Approved Final'] || 0)) / project.estimated_panels) * 100).toFixed(2) : 0}% panels approved final
+                </p>
+              </div>  
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-medium text-card-foreground">On Hold Progress</span>
@@ -444,7 +465,7 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                     className="bg-orange-500 h-2 rounded-full transition-all duration-300" 
                     style={{ 
                       width: `${project.estimated_panels > 0 ? 
-                        ((panelStatusCounts['On Hold'] || 0) / project.estimated_panels) * 100 : 0}%` 
+                        Math.min(100, ((panelStatusCounts['On Hold'] || 0) / project.estimated_panels) * 100) : 0}%` 
                     }}
                   />
                 </div>

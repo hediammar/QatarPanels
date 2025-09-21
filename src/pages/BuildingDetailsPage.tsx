@@ -307,6 +307,7 @@ export function BuildingDetailsPage() {
     }
   };
 
+
   const getStatusBadge = (status: number) => {
     const statusMap: { [key: number]: string } = {
       0: "inactive",

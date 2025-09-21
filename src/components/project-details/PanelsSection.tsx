@@ -11,6 +11,7 @@ import {
   ChevronsRight,
   Download,
   Edit,
+  FileSpreadsheet,
   FileText,
   FolderOpen,
   FolderPlus,
@@ -1488,6 +1489,10 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
           if (existingPanel) {
             console.log(`Panel "${panel.name}" already exists in this project. Updating...`);
             
+            // Check if status has changed for status history tracking
+            const statusChanged = existingPanel.status !== panel.status;
+            const previousStatus = existingPanel.status;
+            
             // Update existing panel
             const { data: updatedPanel, error: updateError } = await supabase
               .from('panels')
@@ -1504,9 +1509,30 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               });
               errorCount++;
             } else {
+              // Create status history record if status changed
+              if (statusChanged && currentUser) {
+                try {
+                  console.log(`Status changed from ${previousStatus} to ${panel.status}, creating history record`);
+                  const { error: historyError } = await createPanelStatusHistory(
+                    existingPanel.id,
+                    panel.status,
+                    currentUser.id,
+                    `Bulk import: Status changed from ${statusMap[previousStatus]} to ${statusMap[panel.status]}`
+                  );
+                  
+                  if (historyError) {
+                    console.error('Error creating status history:', historyError);
+                    // Don't fail the import for history errors, just log them
+                  }
+                } catch (historyError) {
+                  console.error('Error creating status history:', historyError);
+                  // Don't fail the import for history errors, just log them
+                }
+              }
+              
               results.push({
                 success: true,
-                message: `Successfully updated panel "${panel.name}"`,
+                message: `Successfully updated panel "${panel.name}"${statusChanged ? ` (status: ${statusMap[previousStatus]} → ${statusMap[panel.status]})` : ''}`,
                 data: updatedPanel
               });
               successCount++;
@@ -1583,6 +1609,87 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Panels Template");
     XLSX.writeFile(wb, "panels_import_template.xlsx");
+  };
+
+  const handleExportPanelsToExcel = async () => {
+    if (panels.length === 0) {
+      showToast("No panels to export", "error");
+      return;
+    }
+
+    try {
+      showToast("Exporting panels to Excel...", "success");
+
+      // Fetch detailed panel data for export
+      const { data: panelsData, error: panelsError } = await supabase
+        .from('panels')
+        .select(`
+          id,
+          name,
+          type,
+          status,
+          project_id,
+          building_id,
+          facade_id,
+          issue_transmittal_no,
+          drawing_number,
+          unit_rate_qr_m2,
+          ifp_qty_area_sm,
+          ifp_qty_nos,
+          weight,
+          dimension,
+          issued_for_production_date,
+          buildings(name),
+          facades(name),
+          projects(name)
+        `)
+        .eq('project_id', projectId);
+
+      if (panelsError) {
+        console.error("Database error:", panelsError);
+        throw panelsError;
+      }
+
+      if (!panelsData || panelsData.length === 0) {
+        showToast("No panel data found to export", "error");
+        return;
+      }
+
+      // Format data to match the bulk import template structure
+      const exportData = panelsData.map(panel => ({
+        "Panel Name": panel.name || "",
+        "Type": typeMap[panel.type] || "Unknown",
+        "Status": statusMap[panel.status] || "Unknown",
+        "Building Name": (panel.buildings as any)?.name || "",
+        "Facade Name": (panel.facades as any)?.name || "",
+        "Issue Transmittal No": panel.issue_transmittal_no || "",
+        "Drawing Number": panel.drawing_number || "",
+        "Unit Rate QR/m2": panel.unit_rate_qr_m2 || 0,
+        "IFP Qty Area SM": panel.ifp_qty_area_sm || 0,
+        "IFP Qty Nos": panel.ifp_qty_nos || 0,
+        "Weight": panel.weight || 0,
+        "Dimension": panel.dimension || "",
+        "Issued for Production Date": panel.issued_for_production_date ? 
+          new Date(panel.issued_for_production_date).toISOString().split('T')[0] : "",
+      }));
+
+      // Create Excel workbook and worksheet
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Panels");
+
+      // Generate filename with project name and current date
+      const sanitizedProjectName = (projectName || 'panels').replace(/[^a-zA-Z0-9]/g, '_');
+      const fileName = `project_${sanitizedProjectName}_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      // Save the file
+      XLSX.writeFile(wb, fileName);
+      
+      showToast(`Successfully exported ${exportData.length} panels to ${fileName}`, "success");
+    } catch (error) {
+      console.error("Error exporting panels to Excel:", error);
+      showToast(`Error exporting panels: ${error instanceof Error ? error.message : 'Unknown error'}`, "error");
+    }
   };
 
   // Bulk import filters
@@ -2423,6 +2530,17 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               <span className="sm:hidden">Import</span>
             </Button>
             )}
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleExportPanelsToExcel}
+              disabled={panels.length === 0}
+              className="h-9 text-xs sm:text-sm"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+              <span className="hidden sm:inline">Export to Excel</span>
+              <span className="sm:hidden">Export</span>
+            </Button>
             <Button onClick={() => setIsAddPanelDialogOpen(true)} disabled={!canCreatePanels} className="h-9 text-xs sm:text-sm">
               <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
               <span className="hidden sm:inline">Add Panel</span>
@@ -2568,6 +2686,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                       Bulk Import
                     </Button>
                     )}
+                    
                   </div>
                 )}
               </div>

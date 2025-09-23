@@ -1692,6 +1692,138 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
     }
   };
 
+  const handleExportPanelHistoryToExcel = async () => {
+    try {
+      showToast("Exporting panel history to Excel...", "success");
+
+      // First, get all panel IDs for this project
+      const { data: projectPanels, error: panelsError } = await supabase
+        .from('panels')
+        .select('id')
+        .eq('project_id', projectId);
+
+      if (panelsError) {
+        console.error("Error fetching project panels:", panelsError);
+        throw panelsError;
+      }
+
+      if (!projectPanels || projectPanels.length === 0) {
+        showToast("No panels found in this project", "error");
+        return;
+      }
+
+      const panelIds = projectPanels.map(p => p.id);
+
+      // Fetch panel status histories for panels in this project
+      const { data: historyData, error: historyError } = await supabase
+        .from('panel_status_histories')
+        .select(`
+          id,
+          panel_id,
+          status,
+          created_at,
+          user_id,
+          notes,
+          panels(
+            id,
+            name
+          ),
+          users!panel_status_histories_user_id_fkey(
+            id,
+            name,
+            email
+          )
+        `)
+        .in('panel_id', panelIds)
+        .order('created_at', { ascending: false });
+
+      if (historyError) {
+        console.error("Database error:", historyError);
+        throw historyError;
+      }
+
+      if (!historyData || historyData.length === 0) {
+        showToast("No panel history found to export", "error");
+        return;
+      }
+
+      // Group history by panel_id and sort by date for each panel
+      const historyByPanel = new Map();
+      historyData.forEach(history => {
+        if (!historyByPanel.has(history.panel_id)) {
+          historyByPanel.set(history.panel_id, []);
+        }
+        historyByPanel.get(history.panel_id).push(history);
+      });
+
+      // Sort each panel's history by date (oldest first)
+      historyByPanel.forEach((panelHistory, panelId) => {
+        panelHistory.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      });
+
+      // Create export data with proper old status logic
+      const exportDataWithOldStatus = historyData.map((history) => {
+        const panel = history.panels as any;
+        const user = history.users as any;
+        
+        // Get the panel's history in chronological order
+        const panelHistory = historyByPanel.get(history.panel_id) || [];
+        const currentIndex = panelHistory.findIndex((h: any) => h.id === history.id);
+        
+        // Determine old status
+        let oldStatus = " ";
+        if (currentIndex > 0) {
+          // Get the previous status in the timeline
+          const previousHistory = panelHistory[currentIndex - 1];
+          oldStatus = statusMap[previousHistory.status] || "Unknown";
+        }
+
+        return {
+          "Panel Name": panel?.name || "Unknown Panel",
+          "Old Status": oldStatus,
+          "New Status": statusMap[history.status] || "Unknown",
+          "Changed By": user?.name || user?.email || "Unknown User",
+          "Date of Change": history.created_at ? 
+            new Date(history.created_at).toLocaleString() : "",
+          "Notes": history.notes || "",
+          // Keep original data for sorting
+          panelName: panel?.name || "Unknown Panel",
+          createdAt: history.created_at
+        };
+      });
+
+      // Sort by panel name first, then by date (oldest to newest within each panel)
+      const exportData = exportDataWithOldStatus.sort((a, b) => {
+        // First sort by panel name
+        if (a.panelName !== b.panelName) {
+          return a.panelName.localeCompare(b.panelName);
+        }
+        // Then sort by date (oldest to newest)
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+
+      // Remove the temporary sorting fields
+      const finalExportData = exportData.map(({ panelName, createdAt, ...rest }) => rest);
+
+      // Create Excel workbook and worksheet
+      const ws = XLSX.utils.json_to_sheet(finalExportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Panel History");
+
+      // Generate filename with project name and current date
+      const sanitizedProjectName = (projectName || 'panels').replace(/[^a-zA-Z0-9]/g, '_');
+      const fileName = `project_${sanitizedProjectName}_history_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      // Save the file
+      XLSX.writeFile(wb, fileName);
+      
+      showToast(`Successfully exported ${finalExportData.length} history records to ${fileName}`, "success");
+    } catch (error) {
+      console.error("Error exporting panel history to Excel:", error);
+      showToast(`Error exporting panel history: ${error instanceof Error ? error.message : 'Unknown error'}`, "error");
+    }
+  };
+
   // Bulk import filters
   const filteredImportedPanels = importedPanels.filter((panel) => {
     const matchesSearch =
@@ -2540,6 +2672,16 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               <FileSpreadsheet className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
               <span className="hidden sm:inline">Export to Excel</span>
               <span className="sm:hidden">Export</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleExportPanelHistoryToExcel}
+              className="h-9 text-xs sm:text-sm"
+            >
+              <History className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+              <span className="hidden sm:inline">Export History</span>
+              <span className="sm:hidden">History</span>
             </Button>
             <Button onClick={() => setIsAddPanelDialogOpen(true)} disabled={!canCreatePanels} className="h-9 text-xs sm:text-sm">
               <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />

@@ -812,9 +812,9 @@ export function UsersPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {customersLoading ? (
-                          <SelectItem value="" disabled>Loading customers...</SelectItem>
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading customers...</div>
                         ) : customers.length === 0 ? (
-                          <SelectItem value="" disabled>No customers found</SelectItem>
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">No customers found</div>
                         ) : (
                           customers.map((customer) => (
                             <SelectItem key={customer.id} value={customer.id}>
@@ -1392,9 +1392,9 @@ export function UsersPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {customersLoading ? (
-                          <SelectItem value="" disabled>Loading customers...</SelectItem>
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading customers...</div>
                         ) : customers.length === 0 ? (
-                          <SelectItem value="" disabled>No customers found</SelectItem>
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">No customers found</div>
                         ) : (
                           customers.map((customer) => (
                             <SelectItem key={customer.id} value={customer.id}>

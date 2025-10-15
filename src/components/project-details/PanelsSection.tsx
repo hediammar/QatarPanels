@@ -240,6 +240,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
   const canDeletePanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canDelete') : false;
   const canBulkImportPanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canBulkImport') : false;
   const canChangePanelStatus = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canChangeStatus') : false;
+  const canSelectPanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canSelect') : false;
 
   // Fetch previous status from panel status history
   const fetchPreviousStatus = async (panelId: string) => {
@@ -2571,7 +2572,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
           <span className="text-xs sm:text-sm text-muted-foreground hidden sm:inline">in {projectName}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-           {isSelectionMode && canUpdatePanels && (
+           {isSelectionMode && canSelectPanels && (
             <>
               <Button
                 variant="outline"
@@ -2606,7 +2607,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               
             </>
           )}
-         {isSelectionMode && canUpdatePanels && (
+         {isSelectionMode && canSelectPanels && (
             <Button
             variant="outline"
             onClick={toggleSelectAll}
@@ -2628,7 +2629,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
             )}
             </Button>
           )}
-          {canUpdatePanels && (
+          {canSelectPanels && (
           <Button
             variant={isSelectionMode ? "default" : "outline"}
             onClick={toggleSelectionMode}
@@ -2844,7 +2845,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                         {/* Mobile Layout */}
                         <div className="w-full sm:hidden">
                           {/* Selection checkbox */}
-                          {isSelectionMode && canUpdatePanels && (
+                          {isSelectionMode && canSelectPanels && (
                             <div 
                               className="flex items-center mb-3"
                               onClick={(e) => {
@@ -2960,7 +2961,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
 
                         {/* Desktop Layout */}
                         <div className="hidden sm:flex items-center space-x-4 flex-1">
-                          {isSelectionMode && canUpdatePanels && (
+                          {isSelectionMode && canSelectPanels && (
                             <div 
                               className="flex items-center"
                               onClick={(e) => {
@@ -3781,36 +3782,46 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                       <SelectContent className="max-h-[200px] overflow-y-auto">
                         {PANEL_STATUSES.map((status, index) => {
                           const isSpecial = isSpecialStatus(index);
-                          // Admin can skip forward to any status but not backwards
                           let isValidTransition = true;
+                          let isRoleAllowed = true;
+                          
                           if (currentStatus !== null) {
-                            if (currentUser?.role === 'Administrator') {
-                              const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
-                              const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
-                              const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
-                              
-                              if (currentStatus === onHoldStatusIndex) {
-                                // From On Hold, check if index is in allowed statuses
-                                const allowedStatuses = [cancelledStatusIndex, brokenAtSiteStatusIndex];
-                                // Note: For bulk updates, we can't easily get previous status for each panel
-                                // So we only allow special statuses from On Hold in bulk updates
-                                isValidTransition = allowedStatuses.includes(index);
+                            // First check if the role is allowed to change to this status
+                            const roleValidation = validateStatusTransitionWithRole(currentStatus, index, currentUser?.role || '');
+                            isRoleAllowed = roleValidation.isValid;
+                            
+                            if (isRoleAllowed) {
+                              // Then check if the transition follows the status flow logic
+                              if (currentUser?.role === 'Administrator') {
+                                const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
+                                const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
+                                const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
+                                
+                                if (currentStatus === onHoldStatusIndex) {
+                                  // From On Hold, check if index is in allowed statuses
+                                  const allowedStatuses = [cancelledStatusIndex, brokenAtSiteStatusIndex];
+                                  // Note: For bulk updates, we can't easily get previous status for each panel
+                                  // So we only allow special statuses from On Hold in bulk updates
+                                  isValidTransition = allowedStatuses.includes(index);
+                                } else {
+                                  // For other statuses, check if index is a forward status or a special status
+                                  const forwardStatuses = getAllForwardStatuses(currentStatus);
+                                  const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex, brokenAtSiteStatusIndex];
+                                  const allowedStatuses = Array.from(new Set([...forwardStatuses, ...specialStatuses]));
+                                  isValidTransition = allowedStatuses.includes(index);
+                                }
                               } else {
-                                // For other statuses, check if index is a forward status or a special status
-                                const forwardStatuses = getAllForwardStatuses(currentStatus);
-                                const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex, brokenAtSiteStatusIndex];
-                                const allowedStatuses = Array.from(new Set([...forwardStatuses, ...specialStatuses]));
-                                isValidTransition = allowedStatuses.includes(index);
+                                isValidTransition = validateStatusTransition(currentStatus, index).isValid;
                               }
-                            } else {
-                              isValidTransition = validateStatusTransition(currentStatus, index).isValid;
                             }
                           }
+                          
+                          const isOptionValid = isValidTransition && isRoleAllowed;
                           return (
                             <SelectItem 
                               key={status} 
                               value={status}
-                              disabled={!isValidTransition}
+                              disabled={!isOptionValid}
                             >
                               <div className="flex items-center gap-2">
                                 <span>{status}</span>
@@ -3819,8 +3830,13 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                                     Special
                                   </Badge>
                                 )}
-                                {!isValidTransition && (
-                                  <span className="text-xs text-muted-foreground">(Invalid)</span>
+                                {!isRoleAllowed && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    Role Restricted
+                                  </Badge>
+                                )}
+                                {!isValidTransition && isRoleAllowed && (
+                                  <span className="text-xs text-muted-foreground">(Invalid Transition)</span>
                                 )}
                               </div>
                             </SelectItem>
@@ -3838,7 +3854,13 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                         <>
                           This will update the status of {selectedPanels.size} selected panel(s) to the new status.
                           <br />
-                          <strong>Title:</strong> Only valid status transitions will be allowed.
+                          <strong>Note:</strong> Only valid status transitions and statuses allowed for your role ({currentUser?.role}) will be available.
+                          {currentUser?.role !== 'Administrator' && currentUser?.role !== 'Data Entry' && (
+                            <>
+                              <br />
+                              <strong>Role Restriction:</strong> Your role can only change to specific statuses as defined in the workflow.
+                            </>
+                          )}
                         </>
                       )}
                     </p>

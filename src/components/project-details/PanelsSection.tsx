@@ -984,7 +984,25 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
     panel.isValid = errors.length === 0;
   };
 
-  const normalizeName = (value?: string) => (value || "").trim().toLowerCase();
+  const normalizeName = (value?: string | number) => {
+    if (value === null || value === undefined) return "";
+    return String(value).trim().toLowerCase();
+  };
+
+  // Helper function to parse numeric values that might have comma decimal separators
+  const parseNumericValue = (value: any): number | undefined => {
+    if (value === null || value === undefined || value === "") return undefined;
+    
+    // Convert to string and handle comma decimal separators
+    const stringValue = String(value).trim();
+    if (stringValue === "" || stringValue === "0") return undefined;
+    
+    // Replace comma with dot for decimal parsing
+    const normalizedValue = stringValue.replace(",", ".");
+    const parsed = parseFloat(normalizedValue);
+    
+    return isNaN(parsed) ? undefined : parsed;
+  };
 
   // New function to find existing panel by name within the same project
   const findExistingPanelByName = async (panelName: string): Promise<any | null> => {
@@ -1016,14 +1034,14 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
     }
   };
 
-  const findBuildingIdByName = (name?: string): string | undefined => {
+  const findBuildingIdByName = (name?: string | number): string | undefined => {
     if (!name) return undefined;
     const target = normalizeName(name);
     const match = buildings.find((b) => normalizeName(b.name) === target);
     return match?.id;
   };
 
-  const findFacadeIdByName = (name?: string, buildingId?: string): string | undefined => {
+  const findFacadeIdByName = (name?: string | number, buildingId?: string): string | undefined => {
     if (!name) return undefined;
     const target = normalizeName(name);
     const match = facades.find((f) => 
@@ -1281,10 +1299,10 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
           facade_name: facadeNameFromRow || undefined,
           issue_transmittal_no: row["Issue Transmittal No"] || row["IssueTransmittalNo"] || row["issue_transmittal_no"] || undefined,
           drawing_number: row["Drawing Number"] || row["DrawingNumber"] || row["drawing_number"] || undefined,
-          unit_rate_qr_m2: parseFloat(row["Unit Rate QR/m2"] || row["unit_rate_qr_m2"] || "0") || undefined,
-          ifp_qty_area_sm: parseFloat(row["IFP Qty Area SM"] || row["ifp_qty_area_sm"] || "0") || undefined,
-          ifp_qty_nos: parseInt(row["IFP Qty Nos"] || row["ifp_qty_nos"] || "0") || undefined,
-          weight: parseFloat(row["Weight"] || row["weight"] || "0") || undefined,
+          unit_rate_qr_m2: parseNumericValue(row["Unit Rate QR/m2"] || row["unit_rate_qr_m2"]),
+          ifp_qty_area_sm: parseNumericValue(row["IFP Qty Area SM"] || row["ifp_qty_area_sm"]),
+          ifp_qty_nos: parseNumericValue(row["IFP Qty Nos"] || row["ifp_qty_nos"]),
+          weight: parseNumericValue(row["Weight"] || row["weight"]),
           dimension: row["Dimension"] || row["dimension"] || undefined,
           issued_for_production_date: issuedForProductionISO,
           isValid: true,

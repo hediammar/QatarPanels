@@ -2853,12 +2853,39 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               </div>
             ) : (
               paginatedPanels.map((panel) => (
-                <Collapsible key={panel.id} >
+                <Collapsible 
+                  key={panel.id}
+                  open={isSelectionMode ? false : expandedRows.has(panel.id)}
+                  onOpenChange={(open) => {
+                    // Prevent opening when in selection mode
+                    if (isSelectionMode) {
+                      return;
+                    }
+                    if (open) {
+                      setExpandedRows(prev => new Set(prev).add(panel.id));
+                    } else {
+                      setExpandedRows(prev => {
+                        const newSet = new Set(prev);
+                        newSet.delete(panel.id);
+                        return newSet;
+                      });
+                    }
+                  }}
+                >
                   <div className="border rounded-lg">
                     <CollapsibleTrigger asChild>
                       <div 
                         className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 hover:bg-muted/50 cursor-pointer gap-3 sm:gap-4"
-                        onClick={() => handlePanelClick(panel)}
+                        onClick={(e) => {
+                          // If in selection mode, toggle selection and prevent collapsible from opening
+                          if (isSelectionMode && canSelectPanels) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            togglePanelSelection(panel.id);
+                          } else {
+                            handlePanelClick(panel);
+                          }
+                        }}
                       >
                         {/* Mobile Layout */}
                         <div className="w-full sm:hidden">

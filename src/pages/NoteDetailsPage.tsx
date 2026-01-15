@@ -42,6 +42,7 @@ interface NoteWithPanelGroups extends Note {
 
 // Separate component for panel group card
 function PanelGroupCard({ panelGroup, navigate }: { panelGroup: PanelGroup; navigate: any }) {
+  const { user: currentUser } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
   const [groupPanels, setGroupPanels] = useState<any[]>([]);
   const [loadingPanels, setLoadingPanels] = useState(false);
@@ -179,7 +180,7 @@ function PanelGroupCard({ panelGroup, navigate }: { panelGroup: PanelGroup; navi
             <span>Total Area: {panelGroup.total_area.toFixed(2)} m²</span>
           </div>
           <div className="flex items-center gap-1">
-            <span>Total Amount: {panelGroup.total_amount.toFixed(2)} QR</span>
+            <span>Total Amount: {currentUser?.role === 'Customer' ? "---" : `${panelGroup.total_amount.toFixed(2)} QR`}</span>
           </div>
           <div className="flex items-center gap-1">
             <span>Total Weight: {panelGroup.total_weight.toFixed(2)} kg</span>
@@ -1151,7 +1152,7 @@ export function NoteDetailsPage() {
                     <span className="text-sm font-medium text-muted-foreground">Total Amount</span>
                   </div>
                   <div className="text-2xl font-bold text-card-foreground">
-                    {formatQatarRiyal(note.panel_groups.reduce((sum, group) => sum + group.total_amount, 0))}
+                    {currentUser?.role === 'Customer' ? "---" : formatQatarRiyal(note.panel_groups.reduce((sum, group) => sum + group.total_amount, 0))}
                   </div>
                 </div>
                 <div className="text-center">

@@ -19,6 +19,7 @@ import { Project } from "../../pages/ProjectDetailsPage";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
+import { useAuth } from "../../contexts/AuthContext";
 
 
 
@@ -30,6 +31,9 @@ interface ProjectOverviewProps {
 }
 
 export function ProjectOverview({ project, customer, onEdit, onSettings }: ProjectOverviewProps) {
+  const { user: currentUser } = useAuth();
+  const isCustomer = currentUser?.role === 'Customer';
+  
   // Panel status domain used across the app
   const PANEL_STATUSES = [
   'Issued For Production',
@@ -228,7 +232,7 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
           </CardHeader>
           <CardContent>
             <div className="text-lg sm:text-xl font-bold">
-              {formatCurrency(project.estimated_cost)}
+              {isCustomer ? "---" : formatCurrency(project.estimated_cost)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Estimated Cost
@@ -636,7 +640,7 @@ export function ProjectOverview({ project, customer, onEdit, onSettings }: Proje
                     <span className="text-xs sm:text-sm font-medium text-muted-foreground">Total Amount</span>
                   </div>
                   <div className="text-lg sm:text-2xl font-bold text-card-foreground">
-                    {formatQatarRiyal(project.total_amount || 0)}
+                    {isCustomer ? "---" : formatQatarRiyal(project.total_amount || 0)}
                   </div>
                 </div>
                 <div className="text-center">

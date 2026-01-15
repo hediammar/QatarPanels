@@ -669,7 +669,7 @@ export function PanelDetailsPage() {
                     <span className="text-xs sm:text-sm font-medium text-muted-foreground">Total Amount</span>
                   </div>
                   <div className="text-lg sm:text-2xl font-bold text-card-foreground">
-                    {formatQatarRiyal((panel.ifp_qty_area_sm || 0) * (panel.unit_rate_qr_m2 || 0))}
+                    {currentUser?.role === 'Customer' ? "---" : formatQatarRiyal((panel.ifp_qty_area_sm || 0) * (panel.unit_rate_qr_m2 || 0))}
                   </div>
                 </div>
                 <div className="text-center">

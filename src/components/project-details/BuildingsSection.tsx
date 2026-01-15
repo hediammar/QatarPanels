@@ -433,7 +433,7 @@ export function BuildingsSection({
                   <div className="flex items-center gap-2 text-sm">
                     <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <span className="font-semibold text-card-foreground">Total Amount:</span>
-                    <span className="text-muted-foreground">{building.totalAmount.toFixed(2)} QR</span>
+                    <span className="text-muted-foreground">{currentUser?.role === 'Customer' ? "---" : `${building.totalAmount.toFixed(2)} QR`}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Weight className="h-4 w-4 text-muted-foreground flex-shrink-0" />

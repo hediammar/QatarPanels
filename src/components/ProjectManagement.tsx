@@ -1683,7 +1683,7 @@ export function ProjectManagement() {
                     <div className="flex items-center gap-2 text-sm">
                       <DollarSign className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                       <span className="text-card-foreground font-medium text-sm">
-                        {formatCurrency(project.estimated_cost)}
+                        {currentUser?.role === 'Customer' ? "---" : formatCurrency(project.estimated_cost)}
                       </span>
                     </div>
                   </div>
@@ -1725,7 +1725,7 @@ export function ProjectManagement() {
                           <DollarSign className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-green-600 mb-1" />
                           <span className="text-muted-foreground text-[9px] sm:text-[10px] uppercase tracking-wide">Amount</span>
                           <span className="font-semibold text-card-foreground text-[10px] sm:text-xs">
-                            {formatQatarRiyal(project.total_amount || 0)}
+                            {currentUser?.role === 'Customer' ? "---" : formatQatarRiyal(project.total_amount || 0)}
                           </span>
                         </div>
                         <div className="flex flex-col items-center text-center p-1.5 sm:p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">

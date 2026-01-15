@@ -1757,7 +1757,7 @@ export function PanelGroupsPage({
                               <span>Total Area: {totalArea.toFixed(2)} m²</span>
                             </div>
                             <div className="flex items-center gap-1">
-                              <span>Total Amount: {totalAmount.toFixed(2)} QR</span>
+                              <span>Total Amount: {currentUser?.role === 'Customer' ? "---" : `${totalAmount.toFixed(2)} QR`}</span>
                             </div>
                             <div className="flex items-center gap-1">
                               <span>Total Weight: {totalWeight.toFixed(2)} kg</span>

@@ -921,7 +921,7 @@ export function BuildingDetailsPage() {
                     <span className="text-xs sm:text-sm font-medium text-muted-foreground">Total Amount</span>
                   </div>
                   <div className="text-lg sm:text-2xl font-bold text-card-foreground">
-                    {formatQatarRiyal(building.totalAmount || 0)}
+                    {currentUser?.role === 'Customer' ? "---" : formatQatarRiyal(building.totalAmount || 0)}
                   </div>
                 </div>
                 <div className="text-center">

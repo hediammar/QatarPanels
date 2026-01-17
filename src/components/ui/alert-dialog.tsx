@@ -1,5 +1,4 @@
 import React, { createContext, useContext, forwardRef } from "react"
-import { X } from "lucide-react"
 
 interface AlertDialogContextType {
   open: boolean
@@ -112,12 +111,14 @@ AlertDialogFooter.displayName = "AlertDialogFooter"
 const AlertDialogTitle = forwardRef<
   HTMLHeadingElement,
   React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => (
   <h2
     ref={ref}
     className={`text-lg font-semibold ${className || ""}`}
     {...props}
-  />
+  >
+    {children || '\u00A0'}
+  </h2>
 ))
 AlertDialogTitle.displayName = "AlertDialogTitle"
 

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { UserHeader } from "./UserHeader";
 import { LayoutDashboard, Users, FolderOpen, Package, RefreshCw, Upload, AlertTriangle, Wifi, WifiOff, Layers, PackagePlus, UserCog, Menu, X, Building2, Building, LogOut, FileText } from "lucide-react";
@@ -25,6 +24,7 @@ export function Layout({ children }: LayoutProps) {
     if (!initialized) {
       initializeApp();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialized]);
 
   // Prevent body scroll when mobile menu is open
@@ -63,25 +63,6 @@ export function Layout({ children }: LayoutProps) {
     }
   };
 
-  const handleRetryConnection = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      console.log('Attempting to retry connection...');
-      
-      // Reset initialization state to force a retry
-      setInitialized(false);
-      
-      // Try to initialize again
-      await initializeApp();
-      
-    } catch (error) {
-      console.error('Error retrying connection:', error);
-      setError('Failed to reconnect. Please check your connection and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);

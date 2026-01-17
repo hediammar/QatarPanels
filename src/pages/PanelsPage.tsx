@@ -1,6 +1,4 @@
 import {
-  AlertCircle,
-  CheckCircle,
   CheckSquare,
   ChevronDown,
   ChevronLeft,
@@ -24,7 +22,6 @@ import {
   Trash2,
   Upload,
   Users,
-  X,
   RefreshCw
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -47,7 +44,6 @@ import { Button } from "../components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
@@ -88,7 +84,7 @@ import { QRCodeModal } from "../components/QRCodeModal";
 import { useToastContext } from "../contexts/ToastContext";
 import { DateInput } from "../components/ui/date-input";
 import { crudOperations, testDatabaseConnection, checkTableStructure, testMinimalPanelCreation } from "../utils/userTracking";
-import { createPanelStatusHistory, createBulkPanelStatusHistory } from "../utils/panelStatusHistory";
+import { createPanelStatusHistory } from "../utils/panelStatusHistory";
 import { StatusChangeDialog } from "../components/StatusChangeDialog";
 import { useAuth } from "../contexts/AuthContext";
 import { hasPermission, isCustomerRole, UserRole } from "../utils/rolePermissions";
@@ -190,8 +186,8 @@ export function PanelsPage() {
   const [panelToDelete, setPanelToDelete] = useState<PanelModel | null>(null);
   const [editingPanel, setEditingPanel] = useState<PanelModel | null>(null);
   const [selectedPanelForQR, setSelectedPanelForQR] = useState<PanelModel | null>(null);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [expandAllRows, setExpandAllRows] = useState(false);
+  const [expandedRows] = useState<Set<string>>(new Set());
+  const [expandAllRows] = useState(false);
   const [isBulkImportMode, setIsBulkImportMode] = useState(false);
   const [bulkImportStep, setBulkImportStep] = useState<"upload" | "preview" | "importing" | "complete">("upload");
   const [bulkImportFile, setBulkImportFile] = useState<File | null>(null);
@@ -225,9 +221,7 @@ export function PanelsPage() {
   const canCreatePanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canCreate') : false;
   const canUpdatePanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canUpdate') : false;
   const canDeletePanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canDelete') : false;
-  const canBulkImportPanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canBulkImport') : false;
   const canChangePanelStatus = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canChangeStatus') : false;
-  const canCreatePanelGroups = currentUser?.role ? hasPermission(currentUser.role as any, 'panelGroups', 'canCreate') : false;
 
   // Fetch previous status from panel status history
   const fetchPreviousStatus = async (panelId: string) => {
@@ -322,7 +316,7 @@ export function PanelsPage() {
     return validStatuses.sort((a, b) => a - b);
   };
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Removed unused fileInputRef
   const itemsPerPage = 10;
 
   // Map database integers to UI strings
@@ -581,6 +575,7 @@ export function PanelsPage() {
 
   useEffect(() => {
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.customer_id]);
 
   // Reset add panel project selection when dialog opens
@@ -595,6 +590,7 @@ export function PanelsPage() {
       setFilteredBuildings([]);
       setFacades(allFacades);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAddPanelDialogOpen]);
 
   // Filter panels
@@ -711,7 +707,6 @@ export function PanelsPage() {
       const startX = margin + (availableWidth - (qrCodesPerRow * qrWithSpacing - spacing)) / 2;
       
       let currentY = margin;
-      let currentRow = 0;
       let currentCol = 0;
       
       for (let i = 0; i < filteredPanels.length; i++) {
@@ -721,7 +716,6 @@ export function PanelsPage() {
         if (currentY + qrSize + (textHeight * 2) + spacing > pageHeight - margin) {
           pdf.addPage();
           currentY = margin;
-          currentRow = 0;
           currentCol = 0;
         }
         
@@ -757,7 +751,6 @@ export function PanelsPage() {
         currentCol++;
         if (currentCol >= qrCodesPerRow) {
           currentCol = 0;
-          currentRow++;
           currentY += qrSize + (textHeight * 2) + spacing;
         }
       }
@@ -1177,6 +1170,7 @@ export function PanelsPage() {
     panel.isValid = errors.length === 0;
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleFileUpload = async (selectedFile: File) => {
     if (!selectedFile) return;
 
@@ -1238,6 +1232,7 @@ export function PanelsPage() {
     setImportedPanels(updatedPanels);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const removeImportedPanel = (index: number) => {
     const panelToRemove = filteredImportedPanels[index];
     setImportedPanels((prev) => prev.filter((p) => p.id !== panelToRemove.id));
@@ -1331,6 +1326,7 @@ export function PanelsPage() {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const downloadTemplate = () => {
     const template = [
       {
@@ -1388,6 +1384,7 @@ export function PanelsPage() {
     setBulkImportCurrentPage(1);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const activeBulkImportFiltersCount = [
     bulkImportSearchTerm,
     bulkImportStatusFilter !== "all" ? bulkImportStatusFilter : "",
@@ -1400,6 +1397,7 @@ export function PanelsPage() {
     setSelectedPanels(new Set());
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const toggleSelectAll = () => {
     if (selectedPanels.size === paginatedPanels.length) {
       setSelectedPanels(new Set());

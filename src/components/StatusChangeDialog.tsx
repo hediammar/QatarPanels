@@ -6,14 +6,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
-import { Upload, X, Image as ImageIcon, AlertCircle, Calendar } from 'lucide-react';
+import { Upload, X, AlertCircle, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { crudOperations } from '../utils/userTracking';
 import { 
   PANEL_STATUSES, 
-  validateStatusTransition, 
   validateStatusTransitionWithRole,
   getValidNextStatuses,
   getValidNextStatusesForRole,
@@ -363,7 +362,7 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
         notes: notes.trim() || null
       };
 
-      const { data: newHistory, error: historyError } = await supabase
+      const { error: historyError } = await supabase
         .from('panel_status_histories')
         .insert(historyData)
         .select()

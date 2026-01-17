@@ -12,7 +12,6 @@ import {
   Search,
   Square,
   Trash2,
-  Upload,
   User,
   Weight
 } from "lucide-react";
@@ -174,57 +173,12 @@ export function ProjectManagement() {
     return `${baseName} (${new Date().getTime()})`;
   };
 
-  // Function to check if project name is available
-  const checkProjectNameAvailability = async (name: string): Promise<{ available: boolean; suggestedName?: string }> => {
-    if (!name.trim()) {
-      return { available: true };
-    }
-    
-    const { data: existingProjects, error } = await supabase
-      .from('projects')
-      .select('id, name')
-      .eq('name', name);
-    
-    if (error) {
-      console.error('Error checking project name availability:', error);
-      return { available: true }; // Assume available if we can't check
-    }
-    
-    if (!existingProjects || existingProjects.length === 0) {
-      return { available: true };
-    }
-    
-    const suggestedName = await suggestUniqueProjectName(name);
-    return { available: false, suggestedName };
-  };
-
-  // Function to debug customer issues
-  const debugCustomerIssues = async () => {
-    console.log('=== CUSTOMER DEBUG ===');
-    
-    // Check all customers
-    try {
-      const { data: allCustomers, error } = await supabase
-        .from('customers')
-        .select('id, name, email')
-        .order('name');
-      
-      if (error) {
-        console.error('Error fetching all customers:', error);
-      } else {
-        console.log('All available customers:', allCustomers);
-      }
-    } catch (error) {
-      console.error('Exception fetching all customers:', error);
-    }
-    
-    console.log('=== END CUSTOMER DEBUG ===');
-  };
 
   // Fetch customers and projects on mount
   useEffect(() => {
     fetchCustomers();
     fetchProjects();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Reset submitting state when dialog closes
@@ -1013,14 +967,6 @@ export function ProjectManagement() {
     setCurrentPage(1);
   };
 
-  const handleSort = (column: string) => {
-    if (sortBy === column) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortBy(column);
-      setSortOrder("asc");
-    }
-  };
 
   const activeFiltersCount = [
     searchTerm,
@@ -1058,14 +1004,6 @@ export function ProjectManagement() {
     }).format(amount || 0);
   };
 
-  const SortIcon = ({ column }: { column: string }) => {
-    if (sortBy !== column) return null;
-    return sortOrder === "asc" ? (
-      <ChevronUp className="h-4 w-4" />
-    ) : (
-      <ChevronDown className="h-4 w-4" />
-    );
-  };
 
   // Generate page numbers for pagination
   const getVisiblePages = () => {

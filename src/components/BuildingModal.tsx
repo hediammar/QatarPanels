@@ -28,13 +28,6 @@ interface Project {
   customer?: string;
 }
 
-interface ProjectData {
-  id: string;
-  name: string;
-  customers: {
-    name: string;
-  } | null;
-}
 
 interface BuildingData {
   id: string;
@@ -181,7 +174,7 @@ export function BuildingModal({
         description: ""
       });
     }
-  }, [editingBuilding, isOpen, effectiveProject]);
+  }, [editingBuilding, isOpen, effectiveProject, numberToStatus]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -117,6 +117,7 @@ export function Timeline({ panel }: TimelineProps) {
     }
 
     fetchStatusHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [panel.id]);
 
   const getStatusColor = (status: string) => {
@@ -209,6 +210,7 @@ export function Timeline({ panel }: TimelineProps) {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isImageModalOpen]);
 
   if (loading) {

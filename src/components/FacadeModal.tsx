@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -90,14 +90,6 @@ export function FacadeModal({
   const { user: currentUser } = useAuth();
   const { showToast } = useToastContext();
 
-  // Map database integer to UI status display
-  const statusDisplay: { [key: number]: string } = {
-    0: "Inactive",
-    1: "Active",
-    2: "On Hold",
-    3: "Completed"
-  };
-
   // Map UI select values to database integers
   const statusOptions = [
     { value: 1, label: "Active" },
@@ -107,15 +99,19 @@ export function FacadeModal({
   ];
 
   // Determine the current project and building context
-  const effectiveProject = currentProject || (currentProjectId && currentProjectName ? {
-    id: currentProjectId,
-    name: currentProjectName
-  } : null);
+  const effectiveProject = useMemo(() => {
+    return currentProject || (currentProjectId && currentProjectName ? {
+      id: currentProjectId,
+      name: currentProjectName
+    } : null);
+  }, [currentProject, currentProjectId, currentProjectName]);
 
-  const effectiveBuilding = currentBuilding || (currentBuildingId && currentBuildingName ? {
-    id: currentBuildingId,
-    name: currentBuildingName
-  } : null);
+  const effectiveBuilding = useMemo(() => {
+    return currentBuilding || (currentBuildingId && currentBuildingName ? {
+      id: currentBuildingId,
+      name: currentBuildingName
+    } : null);
+  }, [currentBuilding, currentBuildingId, currentBuildingName]);
 
   const isProjectPredefined = !!effectiveProject;
   const isBuildingPredefined = !!effectiveBuilding;

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, forwardRef } from "react"
+import React, { createContext, useContext, forwardRef } from "react"
 import { X } from "lucide-react"
 
 interface DialogContextType {
@@ -118,12 +118,14 @@ DialogFooter.displayName = "DialogFooter"
 const DialogTitle = forwardRef<
   HTMLHeadingElement,
   React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => (
   <h3
     ref={ref}
     className={`text-lg font-semibold leading-none tracking-tight ${className || ""}`}
     {...props}
-  />
+  >
+    {children || '\u00A0'}
+  </h3>
 ))
 DialogTitle.displayName = "DialogTitle"
 

@@ -1,4 +1,4 @@
-import * as React from "react"
+import * as React from "react" // eslint-disable-line @typescript-eslint/no-unused-vars
 import * as CollapsiblePrimitive from "@radix-ui/react-collapsible"
 
 const Collapsible = CollapsiblePrimitive.Root

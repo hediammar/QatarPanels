@@ -681,13 +681,6 @@ export function UsersPage() {
   const endIndex = startIndex + pageSize;
   const paginatedUsers = sortedUsers.slice(startIndex, endIndex);
 
-  const activeUsersCount = users.filter(u => u.status === 'active').length;
-  const recentLoginCount = users.filter(u => {
-    if (!u.last_login) return false;
-    const daysSinceLogin = (new Date().getTime() - new Date(u.last_login).getTime()) / (1000 * 60 * 60 * 24);
-    return daysSinceLogin <= 7;
-  }).length;
-
   return (
     <div className="space-y-6">
       {/* Header */}

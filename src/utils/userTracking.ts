@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 function generateUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    const v = c === 'x' ? r : ((r & 0x3) | 0x8);
     return v.toString(16);
   });
 }
@@ -438,7 +438,7 @@ export const crudOperations = {
       // Test connection first for projects table
       if (table === 'projects') {
         console.log('Testing connection to projects table...');
-        const { data: testData, error: testError } = await supabase
+        const { error: testError } = await supabase
           .from('projects')
           .select('id')
           .limit(1);
@@ -453,7 +453,7 @@ export const crudOperations = {
       // Test connection for panels table
       if (table === 'panels') {
         console.log('Testing connection to panels table...');
-        const { data: testData, error: testError } = await supabase
+        const { error: testError } = await supabase
           .from('panels')
           .select('id')
           .limit(1);
@@ -1031,7 +1031,7 @@ export const testDatabaseConnection = async () => {
     console.log('Testing database connection...');
     
     // Test basic connection
-    const { data: testData, error: testError } = await supabase
+    const { error: testError } = await supabase
       .from('panels')
       .select('id')
       .limit(1);
@@ -1044,7 +1044,7 @@ export const testDatabaseConnection = async () => {
     console.log('Database connection test successful');
     
     // Test if we can read from projects table
-    const { data: projectData, error: projectError } = await supabase
+    const { error: projectError } = await supabase
       .from('projects')
       .select('id, name')
       .limit(1);
@@ -1068,7 +1068,7 @@ export const checkTableStructure = async (tableName: string) => {
     console.log(`Checking structure for table: ${tableName}`);
     
     // Try to get table information
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from(tableName)
       .select('*')
       .limit(0);

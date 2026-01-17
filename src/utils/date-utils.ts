@@ -2,6 +2,7 @@
 export function forceEnglishLocale() {
   // Override the browser's locale for date inputs
   const originalToLocaleDateString = Date.prototype.toLocaleDateString;
+  // eslint-disable-next-line no-extend-native
   Date.prototype.toLocaleDateString = function(locales?: string | string[], options?: Intl.DateTimeFormatOptions) {
     return originalToLocaleDateString.call(this, 'en-US', options);
   };

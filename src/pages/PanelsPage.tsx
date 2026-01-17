@@ -773,6 +773,39 @@ export function PanelsPage() {
     }
   };
 
+  const handleBulkQRCodeExcelDownload = () => {
+    if (filteredPanels.length === 0) {
+      showToast("No panels to export", "error");
+      return;
+    }
+
+    try {
+      showToast("Generating QR codes Excel file...", "success");
+      
+      // Prepare data for Excel export
+      const exportData = filteredPanels.map(panel => ({
+        "Panel Name": panel.name || "",
+        "Panel Link": `${window.location.origin}/panels/${panel.id}`
+      }));
+
+      // Create Excel workbook and worksheet
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "QR Codes");
+
+      // Generate filename with current date
+      const fileName = `panels_qr_codes_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      // Save the file
+      XLSX.writeFile(wb, fileName);
+      
+      showToast(`QR codes Excel file generated successfully with ${filteredPanels.length} panels`, "success");
+    } catch (error) {
+      console.error("Error generating QR codes Excel file:", error);
+      showToast("Error generating QR codes Excel file", "error");
+    }
+  };
+
   const confirmDeletePanel = async () => {
     if (panelToDelete) {
       try {
@@ -1438,6 +1471,14 @@ export function PanelsPage() {
           >
             <Download className="h-4 w-4 mr-2" />
             Bulk Download QRCode
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={handleBulkQRCodeExcelDownload}
+            disabled={filteredPanels.length === 0}
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Export QR Links to Excel
           </Button>
           {canCreatePanels && (
             <Button onClick={() => setIsAddPanelDialogOpen(true)} disabled={!canCreatePanels}>

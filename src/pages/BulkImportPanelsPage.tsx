@@ -15,7 +15,7 @@ import {
   CheckCircle, 
   XCircle, 
   AlertCircle,
-  Building,
+  Building as BuildingIcon,
   Calendar,
   Hash,
   Loader2,
@@ -67,7 +67,7 @@ interface ImportResult {
   errors?: string[];
 }
 
-interface Building {
+interface BuildingData {
   id: string;
   name: string;
   project_id: string;
@@ -92,9 +92,10 @@ export function BulkImportPanelsPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
-  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [buildings, setBuildings] = useState<BuildingData[]>([]);
   const [facades, setFacades] = useState<Facade[]>([]);
   const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existingPanels, setExistingPanels] = useState<{ [key: string]: any }>({});
@@ -267,6 +268,7 @@ export function BulkImportPanelsPage() {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const createProjectIfNotExists = async (projectName: string, customerId: string): Promise<string | null> => {
     if (!projectName) return null;
     
@@ -332,6 +334,7 @@ export function BulkImportPanelsPage() {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const createFacadeIfNotExists = async (facadeName: string, buildingId: string): Promise<string | null> => {
     if (!facadeName || !buildingId) return null;
     
@@ -371,6 +374,7 @@ export function BulkImportPanelsPage() {
     return match?.id;
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const createCustomerIfNotExists = async (customerName: string): Promise<string | null> => {
     if (!customerName) return null;
     
@@ -1833,7 +1837,7 @@ export function BulkImportPanelsPage() {
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-                <Building className="h-6 w-6 text-white" />
+                <BuildingIcon className="h-6 w-6 text-white" />
               </div>
               <div>
                 <CardTitle className="text-xl font-bold text-card-foreground">Available Projects</CardTitle>

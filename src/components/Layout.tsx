@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { UserHeader } from "./UserHeader";
-import { LayoutDashboard, Users, FolderOpen, Package, RefreshCw, Upload, AlertTriangle, Wifi, WifiOff, Layers, PackagePlus, UserCog, Menu, X, Building2, Building, LogOut, FileText } from "lucide-react";
+import { LayoutDashboard, Users, FolderOpen, Package, RefreshCw, Layers, PackagePlus, UserCog, Menu, X, Building2, Building, FileText } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { canAccessNavigation } from "../utils/rolePermissions";
 

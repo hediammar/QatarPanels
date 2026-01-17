@@ -1,7 +1,5 @@
 import {
   Calendar,
-  ChevronDown,
-  ChevronUp,
   DollarSign,
   Edit,
   ExternalLink,

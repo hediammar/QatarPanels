@@ -1,9 +1,6 @@
-import { createClient } from '@supabase/supabase-js'
 import {
   Building2,
-  Edit,
   FolderOpen,
-  MapPin,
   Search,
   Trash2,
   Square,

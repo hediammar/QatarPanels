@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -73,7 +73,7 @@ export function BuildingModal({
     description: ""
   });
   const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
   const [projectsLoading, setProjectsLoading] = useState(true);
 
   // Map UI status to database integer
@@ -84,19 +84,21 @@ export function BuildingModal({
     completed: 3
   };
 
-  // Map database integer to UI status
-  const numberToStatus: { [key: number]: string } = {
+  // Map database integer to UI status - wrapped in useMemo to prevent re-creation
+  const numberToStatus: { [key: number]: string } = useMemo(() => ({
     0: "inactive",
     1: "active",
     2: "on-hold",
     3: "completed"
-  };
+  }), []);
 
-  // Determine the current project context
-  const effectiveProject = currentProject || (currentProjectId && currentProjectName ? {
-    id: currentProjectId,
-    name: currentProjectName
-  } : null);
+  // Determine the current project context - wrapped in useMemo
+  const effectiveProject = useMemo(() => {
+    return currentProject || (currentProjectId && currentProjectName ? {
+      id: currentProjectId,
+      name: currentProjectName
+    } : null);
+  }, [currentProject, currentProjectId, currentProjectName]);
 
   // Fetch projects from Supabase
   useEffect(() => {

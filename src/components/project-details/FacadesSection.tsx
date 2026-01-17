@@ -15,7 +15,6 @@ import {
 import {
   Layers,
   Search,
-  Edit,
   Trash2,
   Building,
   FolderOpen,
@@ -211,6 +210,7 @@ export function FacadesSection({
     fetchFacades();
   }, [projectId, buildingId]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleEdit = async (facade: FacadeData) => {
     // The FacadeModalTrigger will handle opening the modal
   };

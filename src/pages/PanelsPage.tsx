@@ -168,8 +168,9 @@ export function PanelsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [buildingFilter, setBuildingFilter] = useState<string>("all");
-  const [facadeFilter, setFacadeFilter] = useState<string>("all");
+  const [projectFilter, setProjectFilter] = useState<string>("all");
+  const [buildingFilter, setBuildingFilter] = useState<string>("all"); // building_id
+  const [facadeFilter, setFacadeFilter] = useState<string>("all"); // facade_id
   const [currentPage, setCurrentPage] = useState(1);
   const [isAddPanelDialogOpen, setIsAddPanelDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -596,11 +597,12 @@ export function PanelsPage() {
       (panel.facade_name?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
       (panel.drawing_number?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
       (panel.issue_transmittal_no?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
+    const matchesProject = projectFilter === "all" || panel.project_id === projectFilter;
     const matchesStatus = statusFilter === "all" || statusMap[panel.status] === statusFilter;
     const matchesType = typeFilter === "all" || typeMap[panel.type] === typeFilter;
-    const matchesBuilding = buildingFilter === "all" || panel.building_name === buildingFilter;
-    const matchesFacade = facadeFilter === "all" || panel.facade_name === facadeFilter;
-    return matchesSearch && matchesStatus && matchesType && matchesBuilding && matchesFacade;
+    const matchesBuilding = buildingFilter === "all" || panel.building_id === buildingFilter;
+    const matchesFacade = facadeFilter === "all" || panel.facade_id === facadeFilter;
+    return matchesSearch && matchesProject && matchesStatus && matchesType && matchesBuilding && matchesFacade;
   });
 
   // Debug logging
@@ -613,11 +615,20 @@ export function PanelsPage() {
 
   const activeFiltersCount = [
     searchTerm !== "",
+    projectFilter !== "all",
     statusFilter !== "all",
     typeFilter !== "all",
     buildingFilter !== "all",
     facadeFilter !== "all",
   ].filter(Boolean).length;
+
+  const buildingsForFilter = projectFilter === "all"
+    ? []
+    : buildings.filter((b) => b.project_id === projectFilter);
+
+  const facadesForFilter = buildingFilter === "all"
+    ? []
+    : allFacades.filter((f) => f.building_id === buildingFilter);
 
   // Function to filter facades based on selected building
   const filterFacadesByBuilding = (buildingId: string | undefined) => {
@@ -642,6 +653,7 @@ export function PanelsPage() {
 
   const clearFilters = () => {
     setSearchTerm("");
+    setProjectFilter("all");
     setStatusFilter("all");
     setTypeFilter("all");
     setBuildingFilter("all");
@@ -1529,7 +1541,7 @@ export function PanelsPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
               <div className="space-y-2">
                 <Label>Search</Label>
                 <div className="relative">
@@ -1575,15 +1587,48 @@ export function PanelsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
+                <Label>Project</Label>
+                <Select
+                  value={projectFilter}
+                  onValueChange={(value) => {
+                    setProjectFilter(value);
+                    // cascade reset
+                    setBuildingFilter("all");
+                    setFacadeFilter("all");
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All projects" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="all">All projects</SelectItem>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label>Building</Label>
-                <Select value={buildingFilter} onValueChange={setBuildingFilter}>
+                <Select
+                  value={buildingFilter}
+                  onValueChange={(value) => {
+                    setBuildingFilter(value);
+                    setFacadeFilter("all");
+                    setCurrentPage(1);
+                  }}
+                  disabled={projectFilter === "all"}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="All buildings" />
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
                     <SelectItem value="all">All buildings</SelectItem>
-                    {buildings.map((building) => (
-                      <SelectItem key={building.id} value={building.name}>
+                    {buildingsForFilter.map((building) => (
+                      <SelectItem key={building.id} value={building.id}>
                         {building.name}
                       </SelectItem>
                     ))}
@@ -1592,14 +1637,21 @@ export function PanelsPage() {
               </div>
               <div className="space-y-2">
                 <Label>Facade</Label>
-                <Select value={facadeFilter} onValueChange={setFacadeFilter}>
+                <Select
+                  value={facadeFilter}
+                  onValueChange={(value) => {
+                    setFacadeFilter(value);
+                    setCurrentPage(1);
+                  }}
+                  disabled={projectFilter === "all" || buildingFilter === "all"}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="All facades" />
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
                     <SelectItem value="all">All facades</SelectItem>
-                    {facades.map((facade) => (
-                      <SelectItem key={facade.id} value={facade.name}>
+                    {facadesForFilter.map((facade) => (
+                      <SelectItem key={facade.id} value={facade.id}>
                         {facade.name}
                       </SelectItem>
                     ))}
@@ -1631,16 +1683,16 @@ export function PanelsPage() {
               <div className="text-center py-12">
                 <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium mb-2">
-                  {searchTerm || statusFilter !== "all" || typeFilter !== "all" || buildingFilter !== "all" || facadeFilter !== "all"
+                  {searchTerm || projectFilter !== "all" || statusFilter !== "all" || typeFilter !== "all" || buildingFilter !== "all" || facadeFilter !== "all"
                     ? "No panels match your search criteria"
                     : "No panels found"}
                 </h3>
                 <p className="text-muted-foreground mb-4">
-                  {searchTerm || statusFilter !== "all" || typeFilter !== "all" || buildingFilter !== "all" || facadeFilter !== "all"
+                  {searchTerm || projectFilter !== "all" || statusFilter !== "all" || typeFilter !== "all" || buildingFilter !== "all" || facadeFilter !== "all"
                     ? "Try adjusting your filters to see more results."
                     : "Get started by adding your first precast panel."}
                 </p>
-                {!searchTerm && statusFilter === "all" && typeFilter === "all" && buildingFilter === "all" && facadeFilter === "all" && (
+                {!searchTerm && projectFilter === "all" && statusFilter === "all" && typeFilter === "all" && buildingFilter === "all" && facadeFilter === "all" && (
                   <div className="flex items-center justify-center gap-2">
                     <Button onClick={() => setIsAddPanelDialogOpen(true)}>
                       <Plus className="mr-2 h-4 w-4" />

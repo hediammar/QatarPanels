@@ -646,8 +646,8 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
       (panel.issue_transmittal_no?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
     const matchesStatus = statusFilter === "all" || statusMap[panel.status] === statusFilter;
     const matchesType = typeFilter === "all" || typeMap[panel.type] === typeFilter;
-    const matchesBuilding = buildingFilter === "all" || panel.building_name === buildingFilter;
-    const matchesFacade = facadeFilter === "all" || panel.facade_name === facadeFilter;
+    const matchesBuilding = buildingFilter === "all" || panel.building_id === buildingFilter;
+    const matchesFacade = facadeFilter === "all" || panel.facade_id === facadeFilter;
     return matchesSearch && matchesStatus && matchesType && matchesBuilding && matchesFacade;
   });
 
@@ -662,6 +662,10 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
     buildingFilter !== "all",
     facadeFilter !== "all",
   ].filter(Boolean).length;
+
+  const facadesForFilter = buildingFilter === "all"
+    ? []
+    : allFacades.filter((f) => f.building_id === buildingFilter);
 
   // Function to filter facades based on selected building
   const filterFacadesByBuilding = (buildingId: string | undefined) => {
@@ -2803,14 +2807,21 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Building</Label>
-                <Select value={buildingFilter} onValueChange={setBuildingFilter}>
+                <Select
+                  value={buildingFilter}
+                  onValueChange={(value) => {
+                    setBuildingFilter(value);
+                    setFacadeFilter("all");
+                    setCurrentPage(1);
+                  }}
+                >
                   <SelectTrigger className="h-11">
                     <SelectValue placeholder="All buildings" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All buildings</SelectItem>
                     {buildings.map((building) => (
-                      <SelectItem key={building.id} value={building.name}>
+                      <SelectItem key={building.id} value={building.id}>
                         {building.name}
                       </SelectItem>
                     ))}
@@ -2819,14 +2830,21 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Facade</Label>
-                <Select value={facadeFilter} onValueChange={setFacadeFilter}>
+                <Select
+                  value={facadeFilter}
+                  onValueChange={(value) => {
+                    setFacadeFilter(value);
+                    setCurrentPage(1);
+                  }}
+                  disabled={buildingFilter === "all"}
+                >
                   <SelectTrigger className="h-11">
                     <SelectValue placeholder="All facades" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All facades</SelectItem>
-                    {facades.map((facade) => (
-                      <SelectItem key={facade.id} value={facade.name}>
+                    {facadesForFilter.map((facade) => (
+                      <SelectItem key={facade.id} value={facade.id}>
                         {facade.name}
                       </SelectItem>
                     ))}

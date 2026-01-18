@@ -1933,7 +1933,7 @@ export function ProjectManagement() {
                       id="edit-estimatedCost"
                       type="number"
                       min="0"
-                      step="100"
+                      step="1"
                       value={formData.estimated_cost}
                       onChange={(e) =>
                         setFormData({

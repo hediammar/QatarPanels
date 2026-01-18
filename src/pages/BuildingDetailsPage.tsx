@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Building2, Edit, Trash2, Square, DollarSign, Weight, Package, TrendingUp, Clock, User, MapPin, Download } from "lucide-react";
+import { ArrowLeft, Building2, Edit, Trash2, Square, DollarSign, Weight, Package, TrendingUp, Clock, User, MapPin, Download, FileText } from "lucide-react";
 import QRCode from "qrcode";
 import { jsPDF } from "jspdf";
+import * as XLSX from "xlsx";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -307,6 +308,41 @@ export function BuildingDetailsPage() {
     }
   };
 
+  const handleBulkQRCodeExcelDownload = () => {
+    if (buildingPanels.length === 0) {
+      showToast("No panels to export", "error");
+      return;
+    }
+
+    try {
+      showToast("Generating QR links Excel file...", "success");
+
+      const exportData = buildingPanels.map((panel) => ({
+        "Panel Name": panel.name || "",
+        "Panel Link": `${window.location.origin}/panels/${panel.id}`,
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "QR Links");
+
+      const safeBuildingName = (building?.name || "building")
+        .replace(/[<>:"/\\|?*]+/g, "_")
+        .trim();
+
+      const fileName = `building_${safeBuildingName}_qr_links_${new Date().toISOString().split("T")[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+
+      showToast(
+        `QR links Excel file generated successfully with ${buildingPanels.length} panels`,
+        "success"
+      );
+    } catch (error) {
+      console.error("Error generating QR links Excel file:", error);
+      showToast("Error generating QR links Excel file", "error");
+    }
+  };
+
 
   const getStatusBadge = (status: number) => {
     const statusMap: { [key: number]: string } = {
@@ -444,6 +480,17 @@ export function BuildingDetailsPage() {
             <Download className="h-4 w-4 mr-2" />
             <span className="hidden sm:inline">Download QR Codes</span>
             <span className="sm:hidden">QR Codes</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleBulkQRCodeExcelDownload}
+            disabled={buildingPanels.length === 0}
+            className="h-9"
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">Export QR Links to Excel</span>
+            <span className="sm:hidden">Excel</span>
           </Button>
           {canEditBuildings && (
             <BuildingModalTrigger

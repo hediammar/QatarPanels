@@ -76,7 +76,7 @@ import { QRCodeModal } from "../components/QRCodeModal";
 import { useToastContext } from "../contexts/ToastContext";
 import { DateInput } from "../components/ui/date-input";
 import { crudOperations, testDatabaseConnection, checkTableStructure, testMinimalPanelCreation } from "../utils/userTracking";
-import { createPanelStatusHistory } from "../utils/panelStatusHistory";
+import { createPanelStatusHistory, syncLatestPanelStatusHistoryTimestamp } from "../utils/panelStatusHistory";
 import { StatusChangeDialog } from "../components/StatusChangeDialog";
 import { useAuth } from "../contexts/AuthContext";
 import { hasPermission, isCustomerRole, UserRole } from "../utils/rolePermissions";
@@ -968,6 +968,9 @@ export function PanelsPage() {
       if (editingPanel) {
         // Check if status changed
         const statusChanged = editingPanel.status !== panelData.status;
+        const issuedForProductionStatusIndex = PANEL_STATUSES.indexOf("Issued For Production");
+        const issuedDateChanged =
+          (editingPanel.issued_for_production_date ?? null) !== (validatedPanelData.issued_for_production_date ?? null);
         console.log(`Updating panel ${editingPanel.id}:`, {
           oldStatus: editingPanel.status,
           newStatus: panelData.status,
@@ -982,11 +985,20 @@ export function PanelsPage() {
         // Create status history record manually when status changes (since triggers are disabled)
         if (statusChanged && currentUser) {
           console.log(`Status changed from ${editingPanel.status} to ${validatedPanelData.status}, creating history record`);
+          const issuedCreatedAt =
+            validatedPanelData.status === issuedForProductionStatusIndex && validatedPanelData.issued_for_production_date
+              ? (() => {
+                  const d = validatedPanelData.issued_for_production_date;
+                  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T00:00:00`) : new Date(d);
+                })()
+              : undefined;
           const { error: historyError } = await createPanelStatusHistory(
             editingPanel.id,
             validatedPanelData.status,
             currentUser.id,
-            `Status changed from ${PANEL_STATUSES[editingPanel.status]} to ${PANEL_STATUSES[validatedPanelData.status]}`
+            `Status changed from ${PANEL_STATUSES[editingPanel.status]} to ${PANEL_STATUSES[validatedPanelData.status]}`,
+            null,
+            issuedCreatedAt
           );
           
           if (historyError) {
@@ -995,6 +1007,30 @@ export function PanelsPage() {
           }
         } else {
           console.log(`Status unchanged (${validatedPanelData.status}), no history needed`);
+        }
+
+        // Special-case sync: make "Issued For Production" timeline timestamp match edited date/time
+        if (
+          currentUser &&
+          issuedDateChanged &&
+          validatedPanelData.issued_for_production_date &&
+          !(statusChanged && validatedPanelData.status === issuedForProductionStatusIndex)
+        ) {
+          const issuedAt = (() => {
+            const d = validatedPanelData.issued_for_production_date;
+            return /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T00:00:00`) : new Date(d);
+          })();
+
+          const { error: syncError } = await syncLatestPanelStatusHistoryTimestamp(
+            editingPanel.id,
+            issuedForProductionStatusIndex,
+            currentUser.id,
+            issuedAt
+          );
+
+          if (syncError) {
+            console.error('Error syncing issued-for-production history timestamp:', syncError);
+          }
         }
         
         // Fetch the updated panel data with relations to get correct project name

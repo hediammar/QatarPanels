@@ -41,6 +41,65 @@ export async function createPanelStatusHistory(
 }
 
 /**
+ * Syncs the timestamp of the latest status history row for a given (panel_id, status).
+ *
+ * This is used for the special case where a panel has an explicit business date/time
+ * (e.g. "Issued for Production Date") that must match the timeline entry timestamp.
+ *
+ * - If a history row exists: update the latest row's created_at
+ * - If none exists: create a new history row
+ */
+export async function syncLatestPanelStatusHistoryTimestamp(
+  panelId: string,
+  status: number,
+  userId: string,
+  createdAt: Date,
+  options?: {
+    notes?: string | null;
+    imageUrl?: string | null;
+  }
+): Promise<{ data: any; error: any }> {
+  try {
+    const { data: existingRows, error: fetchError } = await supabase
+      .from('panel_status_histories')
+      .select('id, created_at')
+      .eq('panel_id', panelId)
+      .eq('status', status)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (fetchError) {
+      return { data: null, error: fetchError };
+    }
+
+    const existing = Array.isArray(existingRows) ? existingRows[0] : null;
+
+    if (existing?.id) {
+      const { data, error } = await supabase
+        .from('panel_status_histories')
+        .update({ created_at: createdAt.toISOString() })
+        .eq('id', existing.id)
+        .select()
+        .single();
+
+      return { data, error };
+    }
+
+    // No existing row -> create one
+    return await createPanelStatusHistory(
+      panelId,
+      status,
+      userId,
+      options?.notes ?? null,
+      options?.imageUrl ?? null,
+      createdAt
+    );
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+/**
  * Creates panel status history records for multiple panels (bulk operation)
  * @param panels - Array of panel data with id, status, and user_id
  * @param notes - Optional notes for all panels

@@ -243,40 +243,40 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
       const panelsData = allPanels;
       console.log(`🔍 Dashboard: Total panels fetched: ${panelsData.length}`);
       
-      // Fetch panel status histories separately for better performance
+      // NOTE:
+      // The dashboard should match project-level counts, so we treat `panels.status`
+      // as the source of truth for a panel's current status. Status histories may be
+      // missing/stale depending on how the status was changed (triggers disabled).
+      // We only consult history if `panels.status` is null/undefined.
+      let latestHistoryByPanelId: Record<string, number> = {};
+
       const { data: statusHistoriesData, error: statusError } = await supabase
         .from('panel_status_histories')
         .select('panel_id, status, created_at')
         .order('created_at', { ascending: false })
         .limit(10000);
-      
+
       if (statusError) {
         console.warn('⚠️ Dashboard: Warning - Could not fetch status histories:', statusError);
-        // Continue without status histories, panels will use default status
+      } else if (Array.isArray(statusHistoriesData)) {
+        // Since results are ordered desc by created_at, first time we see a panel_id is its latest (within this result set)
+        for (const row of statusHistoriesData) {
+          if (row?.panel_id && typeof latestHistoryByPanelId[row.panel_id] === 'undefined') {
+            latestHistoryByPanelId[row.panel_id] = row.status;
+          }
+        }
       }
-      
-      // Process panels to get current status
+
       const processedPanels = panelsData?.map(panel => {
-        // Find the most recent status for this panel
-        const panelStatuses = statusHistoriesData?.filter(
-          status => status.panel_id === panel.id
-        ) || [];
-        
-        // Get the most recent status, or use the panel's default status
-        const currentStatus = panelStatuses.length > 0 
-          ? panelStatuses[0].status 
-          : panel.status || 1; // Default to status 1 (Produced)
-        
-        // Map status integer to string for display
-        const statusString = mapStatusToString(currentStatus);
-        
-        // Debug logging for status processing
-        console.log(`🔍 Panel ${panel.name}: statusCode=${currentStatus}, mappedStatus=${statusString}`);
-        
+        const panelStatusCode =
+          panel.status ?? latestHistoryByPanelId[panel.id] ?? 0; // default to Issued For Production
+
+        const statusString = mapStatusToString(panelStatusCode);
+
         return {
           ...panel,
           status: statusString,
-          statusCode: currentStatus,
+          statusCode: panelStatusCode,
           // Add fallback values for missing data
           projectId: panel.project_id,
           buildingId: panel.building_id,
@@ -641,6 +641,63 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
   const updateFacadeFilter = (key: keyof typeof facadeFilters, value: any) => {
     setFacadeFilters(prev => ({ ...prev, [key]: value }));
   };
+
+  // Manufacturing pipeline (match ProjectOverview logic)
+  const totalEstimatedPanels = metrics.financial.totalEstimatedPanels || 0;
+  const statusAll = metrics.status.all;
+
+  const pipelineIssuedCount =
+    (statusAll['Issued For Production'] || 0) +
+    (statusAll['Produced'] || 0) +
+    (statusAll['Proceed for Delivery'] || 0) +
+    (statusAll['Delivered'] || 0) +
+    (statusAll['Approved Material'] || 0) +
+    (statusAll['Rejected Material'] || 0) +
+    (statusAll['Installed'] || 0) +
+    (statusAll['Inspected'] || 0) +
+    (statusAll['Approved Final'] || 0);
+
+  const pipelineProducedCount =
+    (statusAll['Produced'] || 0) +
+    (statusAll['Proceed for Delivery'] || 0) +
+    (statusAll['Delivered'] || 0) +
+    (statusAll['Approved Material'] || 0) +
+    (statusAll['Rejected Material'] || 0) +
+    (statusAll['Installed'] || 0) +
+    (statusAll['Inspected'] || 0) +
+    (statusAll['Approved Final'] || 0);
+
+  const pipelineProceedCount =
+    (statusAll['Proceed for Delivery'] || 0) +
+    (statusAll['Delivered'] || 0) +
+    (statusAll['Approved Material'] || 0) +
+    (statusAll['Rejected Material'] || 0) +
+    (statusAll['Installed'] || 0) +
+    (statusAll['Inspected'] || 0) +
+    (statusAll['Approved Final'] || 0);
+
+  const pipelineDeliveredCount =
+    (statusAll['Delivered'] || 0) +
+    (statusAll['Approved Material'] || 0) +
+    (statusAll['Rejected Material'] || 0) +
+    (statusAll['Installed'] || 0) +
+    (statusAll['Inspected'] || 0) +
+    (statusAll['Approved Final'] || 0);
+
+  const pipelineInstalledCount =
+    (statusAll['Installed'] || 0) +
+    (statusAll['Inspected'] || 0) +
+    (statusAll['Approved Final'] || 0);
+
+  const pipelineInspectedCount =
+    (statusAll['Inspected'] || 0) +
+    (statusAll['Approved Final'] || 0);
+
+  const pipelineApprovedFinalCount = statusAll['Approved Final'] || 0;
+  const pipelineOnHoldCount = statusAll['On Hold'] || 0;
+
+  const pipelinePct = (count: number) =>
+    totalEstimatedPanels > 0 ? (count / totalEstimatedPanels) * 100 : 0;
 
   return (
     <div className="space-y-4 sm:space-y-6 p-4 sm:p-6">
@@ -1221,76 +1278,51 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-card-foreground">Issued For Production</span>
                 <span className="text-muted-foreground">
-                  {metrics.status.primary['Issued For Production'] + metrics.status.primary['Produced'] + 
-                   metrics.status.primary['Delivered'] + metrics.status.primary['Installed'] + 
-                   metrics.status.secondary['Proceed for Delivery'] + metrics.status.secondary['Approved Material'] + 
-                   metrics.status.secondary['Rejected Material'] + metrics.status.secondary['Inspected'] + 
-                   metrics.status.secondary['Approved Final'] + metrics.status.secondary['On Hold'] + 
-                   metrics.status.secondary['Cancelled'] + metrics.status.secondary['Broken at Site']} / {metrics.financial.totalEstimatedPanels}
+                  {pipelineIssuedCount} / {totalEstimatedPanels}
                 </span>
               </div>
-              <Progress value={((metrics.status.primary['Issued For Production'] + metrics.status.primary['Produced'] + 
-                   metrics.status.primary['Delivered'] + metrics.status.primary['Installed'] + 
-                   metrics.status.secondary['Proceed for Delivery'] + metrics.status.secondary['Approved Material'] + 
-                   metrics.status.secondary['Rejected Material'] + metrics.status.secondary['Inspected'] + 
-                   metrics.status.secondary['Approved Final'] + metrics.status.secondary['On Hold'] + 
-                   metrics.status.secondary['Cancelled'] + metrics.status.secondary['Broken at Site']) / metrics.financial.totalEstimatedPanels) * 100} className="h-2" />
+              <Progress value={pipelinePct(pipelineIssuedCount)} className="h-2" />
               <p className="text-xs text-muted-foreground mt-1">
-                {(((metrics.status.primary['Issued For Production'] + metrics.status.primary['Produced'] + 
-                   metrics.status.primary['Delivered'] + metrics.status.primary['Installed'] + 
-                   metrics.status.secondary['Proceed for Delivery'] + metrics.status.secondary['Approved Material'] + 
-                   metrics.status.secondary['Rejected Material'] + metrics.status.secondary['Inspected'] + 
-                   metrics.status.secondary['Approved Final'] + metrics.status.secondary['On Hold'] + 
-                   metrics.status.secondary['Cancelled'] + metrics.status.secondary['Broken at Site']) / metrics.financial.totalEstimatedPanels) * 100).toFixed(1)}% panels issued for production
+                {pipelinePct(pipelineIssuedCount).toFixed(1)}% panels issued for production
               </p>
             </div>
 
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-card-foreground">Delivered Progress</span>
-                <span className="text-muted-foreground">
-                  {metrics.status.primary['Delivered'] + metrics.status.primary['Installed'] + 
-                   metrics.status.secondary['Approved Material'] + metrics.status.secondary['Rejected Material'] + 
-                   metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']} / {metrics.financial.totalEstimatedPanels}
-                </span>
-              </div>
-              <Progress value={((metrics.status.primary['Delivered'] + metrics.status.primary['Installed'] + 
-                   metrics.status.secondary['Approved Material'] + metrics.status.secondary['Rejected Material'] + 
-                   metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']) / metrics.financial.totalEstimatedPanels) * 100} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-1">
-                {(((metrics.status.primary['Delivered'] + metrics.status.primary['Installed'] + 
-                   metrics.status.secondary['Approved Material'] + metrics.status.secondary['Rejected Material'] + 
-                   metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']) / metrics.financial.totalEstimatedPanels) * 100).toFixed(1)}% panels delivered
-              </p>
-            </div>
-            
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-card-foreground">Production Progress</span>
-                <span className="text-muted-foreground">
-                  {metrics.status.primary['Produced'] + metrics.status.primary['Delivered'] + 
-                   metrics.status.primary['Installed'] + metrics.status.secondary['Approved Material'] + metrics.status.secondary['Rejected Material'] + 
-                   metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']} / {metrics.financial.totalEstimatedPanels}
-                </span>
-              </div>
-              <Progress value={metrics.efficiency.productionEfficiency} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-1">
-                {metrics.efficiency.productionEfficiency.toFixed(1)}% panels produced
-              </p>
-            </div>
-            
-            <div>
-              <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-card-foreground">Produced Progress</span>
                 <span className="text-muted-foreground">
-                  {metrics.status.primary['Produced'] + metrics.status.primary['Delivered'] + 
-                   metrics.status.primary['Installed'] + metrics.status.secondary['Approved Material'] + metrics.status.secondary['Rejected Material'] + 
-                   metrics.status.secondary['Inspected'] + metrics.status.secondary['Approved Final']} / {metrics.financial.totalEstimatedPanels}
+                  {pipelineProducedCount} / {totalEstimatedPanels}
                 </span>
               </div>
-              <Progress value={metrics.efficiency.productionEfficiency} className="h-2" />
+              <Progress value={pipelinePct(pipelineProducedCount)} className="h-2" />
               <p className="text-xs text-muted-foreground mt-1">
-                {metrics.efficiency.productionEfficiency.toFixed(1)}% panels produced
+                {pipelinePct(pipelineProducedCount).toFixed(1)}% panels produced
+              </p>
+            </div>
+            
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-card-foreground">Proceed for Delivery Progress</span>
+                <span className="text-muted-foreground">
+                  {pipelineProceedCount} / {totalEstimatedPanels}
+                </span>
+              </div>
+              <Progress value={pipelinePct(pipelineProceedCount)} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {pipelinePct(pipelineProceedCount).toFixed(1)}% panels proceed for delivery
+              </p>
+            </div>
+            
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-card-foreground">Delivered Progress</span>
+                <span className="text-muted-foreground">
+                  {pipelineDeliveredCount} / {totalEstimatedPanels}
+                </span>
+              </div>
+              <Progress value={pipelinePct(pipelineDeliveredCount)} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {pipelinePct(pipelineDeliveredCount).toFixed(1)}% panels delivered
               </p>
             </div>
 
@@ -1298,12 +1330,38 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-card-foreground">Installation Progress</span>
                 <span className="text-sm text-muted-foreground">
-                  {metrics.status.primary['Installed']} / {metrics.financial.totalEstimatedPanels}
+                  {pipelineInstalledCount} / {totalEstimatedPanels}
                 </span>
               </div>
-              <Progress value={metrics.financial.totalEstimatedPanels > 0 ? (metrics.status.primary['Installed'] / metrics.financial.totalEstimatedPanels) * 100 : 0} className="h-2" />
+              <Progress value={pipelinePct(pipelineInstalledCount)} className="h-2" />
               <p className="text-xs text-muted-foreground mt-1">
-                {metrics.financial.totalEstimatedPanels > 0 ? ((metrics.status.primary['Installed'] / metrics.financial.totalEstimatedPanels) * 100).toFixed(1) : 0}% panels installed
+                {pipelinePct(pipelineInstalledCount).toFixed(1)}% panels installed
+              </p>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-card-foreground">Inspected Progress</span>
+                <span className="text-sm text-muted-foreground">
+                  {pipelineInspectedCount} / {totalEstimatedPanels}
+                </span>
+              </div>
+              <Progress value={pipelinePct(pipelineInspectedCount)} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {pipelinePct(pipelineInspectedCount).toFixed(1)}% panels inspected
+              </p>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-card-foreground">Approved Final Progress</span>
+                <span className="text-sm text-muted-foreground">
+                  {pipelineApprovedFinalCount} / {totalEstimatedPanels}
+                </span>
+              </div>
+              <Progress value={pipelinePct(pipelineApprovedFinalCount)} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {pipelinePct(pipelineApprovedFinalCount).toFixed(1)}% panels approved final
               </p>
             </div>
 
@@ -1311,38 +1369,12 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-card-foreground">On Hold Progress</span>
                 <span className="text-sm text-muted-foreground">
-                  {metrics.status.secondary['On Hold']} / {metrics.financial.totalEstimatedPanels}
+                  {pipelineOnHoldCount} / {totalEstimatedPanels}
                 </span>
               </div>
-              <Progress value={metrics.status.secondary['On Hold'] > 0 ? (metrics.status.secondary['On Hold'] / metrics.financial.totalEstimatedPanels) * 100 : 0} className="h-2" />
+              <Progress value={pipelinePct(pipelineOnHoldCount)} className="h-2" />
               <p className="text-xs text-muted-foreground mt-1">
-                {metrics.status.secondary['On Hold'] > 0 ? ((metrics.status.secondary['On Hold'] / metrics.financial.totalEstimatedPanels) * 100).toFixed(1) : 0}% panels on hold
-              </p>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-card-foreground">Cancelled Progress</span>
-                <span className="text-sm text-muted-foreground">
-                  {metrics.status.secondary['Cancelled']} / {metrics.financial.totalEstimatedPanels}
-                </span>
-              </div>
-              <Progress value={metrics.status.secondary['Cancelled'] > 0 ? (metrics.status.secondary['Cancelled'] / metrics.financial.totalEstimatedPanels) * 100 : 0} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-1">
-                {metrics.status.secondary['Cancelled'] > 0 ? ((metrics.status.secondary['Cancelled'] / metrics.financial.totalEstimatedPanels) * 100).toFixed(1) : 0}% panels cancelled
-              </p>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-card-foreground">Broken at Site Progress</span>
-                <span className="text-sm text-muted-foreground">
-                  {metrics.status.secondary['Broken at Site']} / {metrics.financial.totalEstimatedPanels}
-                </span>
-              </div>
-              <Progress value={metrics.status.secondary['Broken at Site'] > 0 ? (metrics.status.secondary['Broken at Site'] / metrics.financial.totalEstimatedPanels) * 100 : 0} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-1">
-                {metrics.status.secondary['Broken at Site'] > 0 ? ((metrics.status.secondary['Broken at Site'] / metrics.financial.totalEstimatedPanels) * 100).toFixed(1) : 0}% panels broken at site
+                {pipelinePct(pipelineOnHoldCount).toFixed(1)}% panels on hold
               </p>
             </div>
           </CardContent>

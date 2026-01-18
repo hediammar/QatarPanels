@@ -17,7 +17,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { hasPermission, UserRole } from "../utils/rolePermissions";
 import { useToastContext } from "../contexts/ToastContext";
 import { crudOperations } from "../utils/userTracking";
-import { createPanelStatusHistory } from "../utils/panelStatusHistory";
+import { createPanelStatusHistory, syncLatestPanelStatusHistoryTimestamp } from "../utils/panelStatusHistory";
 import { PanelModel } from "../components/project-details/PanelsSection";
 import { PANEL_STATUSES, validateStatusTransition, getValidNextStatuses, isSpecialStatus } from "../utils/statusValidation";
 
@@ -269,24 +269,62 @@ export function PanelDetailsPage() {
     };
 
     try {
+      const issuedForProductionStatusIndex = PANEL_STATUSES.indexOf("Issued For Production");
+
       // Check if status changed
       const statusChanged = panel.status !== newPanelModel.status;
+      const issuedDateChanged =
+        (panel.issued_for_production_date ?? null) !== (newPanelModel.issued_for_production_date ?? null);
       
       // Update panel with user tracking
       await crudOperations.update("panels", panel.id, panelData);
       
       // Create status history record manually when status changes (since triggers are disabled)
       if (statusChanged && currentUser) {
+        const issuedCreatedAt =
+          newPanelModel.status === issuedForProductionStatusIndex && newPanelModel.issued_for_production_date
+            ? (() => {
+                const d = newPanelModel.issued_for_production_date;
+                return /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T00:00:00`) : new Date(d);
+              })()
+            : undefined;
+
         const { error: historyError } = await createPanelStatusHistory(
           panel.id,
           newPanelModel.status,
           currentUser.id,
-          `Status changed from ${PANEL_STATUSES[panel.status]} to ${PANEL_STATUSES[newPanelModel.status]}`
+          `Status changed from ${PANEL_STATUSES[panel.status]} to ${PANEL_STATUSES[newPanelModel.status]}`,
+          null,
+          issuedCreatedAt
         );
         
         if (historyError) {
           console.error('Error creating status history:', historyError);
           showToast('Panel updated but failed to create status history', 'error');
+        }
+      }
+
+      // Special-case sync: make "Issued For Production" timeline timestamp match edited date/time
+      if (
+        currentUser &&
+        issuedDateChanged &&
+        newPanelModel.issued_for_production_date &&
+        !(statusChanged && newPanelModel.status === issuedForProductionStatusIndex)
+      ) {
+        const issuedAt = (() => {
+          const d = newPanelModel.issued_for_production_date;
+          return /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T00:00:00`) : new Date(d);
+        })();
+
+        const { error: syncError } = await syncLatestPanelStatusHistoryTimestamp(
+          panel.id,
+          issuedForProductionStatusIndex,
+          currentUser.id,
+          issuedAt
+        );
+
+        if (syncError) {
+          console.error('Error syncing issued-for-production history timestamp:', syncError);
         }
       }
       

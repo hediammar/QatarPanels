@@ -197,6 +197,8 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [panelToDelete, setPanelToDelete] = useState<PanelModel | null>(null);
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
+  const [isBulkDeletingPanels, setIsBulkDeletingPanels] = useState(false);
   const [editingPanel, setEditingPanel] = useState<PanelModel | null>(null);
   const [selectedPanelForQR, setSelectedPanelForQR] = useState<PanelModel | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -223,6 +225,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
   const [selectedPanelForTimeline, setSelectedPanelForTimeline] = useState<PanelModel | null>(null);
   const [isBulkStatusDialogOpen, setIsBulkStatusDialogOpen] = useState(false);
   const [bulkStatusValue, setBulkStatusValue] = useState<number | null>(null); // Will be set when dialog opens
+  const [bulkStatusChangeDate, setBulkStatusChangeDate] = useState<string>("");
   const [isStatusChangeDialogOpen, setIsStatusChangeDialogOpen] = useState(false);
   const [selectedPanelForStatusChange, setSelectedPanelForStatusChange] = useState<PanelModel | null>(null);
   const [isSavingPanel, setIsSavingPanel] = useState(false);
@@ -492,6 +495,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
     try {
       const panelIds = Array.from(selectedPanels);
       const selectedPanelObjects = panels.filter(panel => selectedPanels.has(panel.id));
+      const bulkCreatedAt = bulkStatusChangeDate ? new Date(`${bulkStatusChangeDate}T00:00:00`) : undefined;
       
       // Check if all selected panels have the same status
       const uniqueStatuses = new Set(selectedPanelObjects.map(panel => panel.status));
@@ -502,11 +506,13 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
       }
       
       // Validate status transitions for all selected panels with role-based restrictions
-      for (const panel of selectedPanelObjects) {
-        const validation = validateStatusTransitionWithRole(panel.status, bulkStatusValue, currentUser.role);
-        if (!validation.isValid) {
-          showToast(`Cannot update panel "${panel.name}": ${validation.error}`, "error");
-          return;
+      if (currentUser.role !== 'Administrator') {
+        for (const panel of selectedPanelObjects) {
+          const validation = validateStatusTransitionWithRole(panel.status, bulkStatusValue, currentUser.role);
+          if (!validation.isValid) {
+            showToast(`Cannot update panel "${panel.name}": ${validation.error}`, "error");
+            return;
+          }
         }
       }
       
@@ -521,7 +527,9 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
             panelId,
             bulkStatusValue as number,
             currentUser.id,
-            `Bulk status update to ${statusMap[bulkStatusValue as number]}`
+            `Bulk status update to ${statusMap[bulkStatusValue as number]}`,
+            null,
+            bulkCreatedAt
           );
           
           if (historyError) {
@@ -542,6 +550,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
       setSelectedPanels(new Set());
       setIsSelectionMode(false);
       setBulkStatusValue(null);
+      setBulkStatusChangeDate("");
     } catch (error) {
       console.error("Unexpected error:", error);
       showToast("An unexpected error occurred", "error");
@@ -623,6 +632,17 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
     fetchData();
     fetchPanelGroups();
   }, [projectId]);
+
+  // Default bulk status history date to today when opening
+  useEffect(() => {
+    if (isBulkStatusDialogOpen) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      setBulkStatusChangeDate(`${year}-${month}-${day}`);
+    }
+  }, [isBulkStatusDialogOpen]);
 
   // Set building and facade when facadeId is provided
   useEffect(() => {
@@ -726,6 +746,60 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
       }
       setIsDeleteDialogOpen(false);
       setPanelToDelete(null);
+    }
+  };
+
+  const confirmBulkDeletePanels = async () => {
+    if (isBulkDeletingPanels) return;
+
+    const panelIds = Array.from(selectedPanels);
+    if (panelIds.length === 0) {
+      showToast("No panels selected", "error");
+      return;
+    }
+
+    setIsBulkDeletingPanels(true);
+
+    const deletedIds: string[] = [];
+    const failed: Array<{ id: string; error: unknown }> = [];
+
+    try {
+      for (const id of panelIds) {
+        try {
+          await crudOperations.delete("panels", id);
+          deletedIds.push(id);
+        } catch (err) {
+          failed.push({ id, error: err });
+        }
+      }
+
+      if (deletedIds.length > 0) {
+        const deletedSet = new Set(deletedIds);
+        setPanels((prev) => prev.filter((p) => !deletedSet.has(p.id)));
+
+        // Remove successfully deleted panels from selection; keep failed ones selected for retry.
+        setSelectedPanels((prev) => {
+          const next = new Set(prev);
+          for (const id of deletedIds) next.delete(id);
+          return next;
+        });
+      }
+
+      if (failed.length === 0) {
+        showToast(`Deleted ${deletedIds.length} panel(s) successfully`, "success");
+      } else if (deletedIds.length === 0) {
+        console.error("Bulk delete failed for all selected panels:", failed);
+        showToast("Failed to delete selected panels", "error");
+      } else {
+        console.error("Bulk delete partial failures:", failed);
+        showToast(
+          `Deleted ${deletedIds.length} panel(s), failed to delete ${failed.length}`,
+          "error"
+        );
+      }
+    } finally {
+      setIsBulkDeletingPanels(false);
+      setIsBulkDeleteDialogOpen(false);
     }
   };
 
@@ -889,6 +963,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
 
           if (syncError) {
             console.error('Error syncing issued-for-production history timestamp:', syncError);
+            showToast('Panel updated, but failed to sync "Issued For Production" timeline date', 'error');
           }
         }
         
@@ -1547,15 +1622,17 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
 
           if (existingPanel) {
             console.log(`Panel "${panel.name}" already exists in this project. Updating...`);
-            
-            // Check if status has changed for status history tracking
-            const statusChanged = existingPanel.status !== panel.status;
-            const previousStatus = existingPanel.status;
-            
-            // Update existing panel
+
+            // IMPORTANT: For bulk import updates, do NOT update panel status.
+            // We update everything else, but ignore the imported "status" field.
+            // (Status changes must happen via the status change workflows.)
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { status: _ignoredStatus, ...panelUpdateData } = panelData;
+
+            // Update existing panel (excluding status)
             const { data: updatedPanel, error: updateError } = await supabase
               .from('panels')
-              .update(panelData)
+              .update(panelUpdateData)
               .eq('id', existingPanel.id)
               .select()
               .single();
@@ -1568,30 +1645,9 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               });
               errorCount++;
             } else {
-              // Create status history record if status changed
-              if (statusChanged && currentUser) {
-                try {
-                  console.log(`Status changed from ${previousStatus} to ${panel.status}, creating history record`);
-                  const { error: historyError } = await createPanelStatusHistory(
-                    existingPanel.id,
-                    panel.status,
-                    currentUser.id,
-                    `Bulk import: Status changed from ${statusMap[previousStatus]} to ${statusMap[panel.status]}`
-                  );
-                  
-                  if (historyError) {
-                    console.error('Error creating status history:', historyError);
-                    // Don't fail the import for history errors, just log them
-                  }
-                } catch (historyError) {
-                  console.error('Error creating status history:', historyError);
-                  // Don't fail the import for history errors, just log them
-                }
-              }
-              
               results.push({
                 success: true,
-                message: `Successfully updated panel "${panel.name}"${statusChanged ? ` (status: ${statusMap[previousStatus]} → ${statusMap[panel.status]})` : ''}`,
+                message: `Successfully updated panel "${panel.name}"`,
                 data: updatedPanel
               });
               successCount++;
@@ -2662,6 +2718,19 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                 <span className="hidden sm:inline">Create Group</span>
                 <span className="sm:hidden">Create</span>
               </Button>
+
+              {canDeletePanels && (
+                <Button
+                  variant="destructive"
+                  onClick={() => setIsBulkDeleteDialogOpen(true)}
+                  disabled={selectedPanels.size === 0 || isBulkDeletingPanels}
+                  className="h-9 text-xs sm:text-sm"
+                >
+                  <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                  <span className="hidden sm:inline">Delete ({selectedPanels.size})</span>
+                  <span className="sm:hidden">Delete ({selectedPanels.size})</span>
+                </Button>
+              )}
               
             </>
           )}
@@ -3804,6 +3873,51 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+        <AlertDialogContent className="w-[95vw] max-w-md mx-4 sm:w-full sm:mx-0 rounded-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg">Delete Selected Panels</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
+              {(() => {
+                const count = selectedPanels.size;
+                const names = panels
+                  .filter((p) => selectedPanels.has(p.id))
+                  .map((p) => p.name)
+                  .slice(0, 3);
+                return (
+                  <>
+                    Are you sure you want to delete {count} selected panel(s)? This action cannot be undone.
+                    {names.length > 0 && (
+                      <>
+                        <br />
+                        <span className="text-xs text-muted-foreground">
+                          Example: {names.join(", ")}{count > 3 ? ", ..." : ""}
+                        </span>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel
+              disabled={isBulkDeletingPanels}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmBulkDeletePanels}
+              disabled={isBulkDeletingPanels || selectedPanels.size === 0}
+              className="bg-destructive text-destructive-foreground w-full sm:w-auto"
+            >
+              {isBulkDeletingPanels ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {selectedPanelForQR && (
         <QRCodeModal
           isOpen={!!selectedPanelForQR}
@@ -3881,41 +3995,27 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                       <SelectContent className="max-h-[200px] overflow-y-auto">
                         {PANEL_STATUSES.map((status, index) => {
                           const isSpecial = isSpecialStatus(index);
+                          const isAdmin = currentUser?.role === 'Administrator';
                           let isValidTransition = true;
                           let isRoleAllowed = true;
                           
                           if (currentStatus !== null) {
-                            // First check if the role is allowed to change to this status
-                            const roleValidation = validateStatusTransitionWithRole(currentStatus, index, currentUser?.role || '');
-                            isRoleAllowed = roleValidation.isValid;
-                            
-                            if (isRoleAllowed) {
-                              // Then check if the transition follows the status flow logic
-                              if (currentUser?.role === 'Administrator') {
-                                const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
-                                const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
-                                const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
-                                
-                                if (currentStatus === onHoldStatusIndex) {
-                                  // From On Hold, check if index is in allowed statuses
-                                  const allowedStatuses = [cancelledStatusIndex, brokenAtSiteStatusIndex];
-                                  // Note: For bulk updates, we can't easily get previous status for each panel
-                                  // So we only allow special statuses from On Hold in bulk updates
-                                  isValidTransition = allowedStatuses.includes(index);
-                                } else {
-                                  // For other statuses, check if index is a forward status or a special status
-                                  const forwardStatuses = getAllForwardStatuses(currentStatus);
-                                  const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex, brokenAtSiteStatusIndex];
-                                  const allowedStatuses = Array.from(new Set([...forwardStatuses, ...specialStatuses]));
-                                  isValidTransition = allowedStatuses.includes(index);
-                                }
-                              } else {
+                            if (!isAdmin) {
+                              // First check if the role is allowed to change to this status
+                              const roleValidation = validateStatusTransitionWithRole(currentStatus, index, currentUser?.role || '');
+                              isRoleAllowed = roleValidation.isValid;
+                              
+                              if (isRoleAllowed) {
+                                // Then check if the transition follows the status flow logic
                                 isValidTransition = validateStatusTransition(currentStatus, index).isValid;
                               }
                             }
                           }
                           
-                          const isOptionValid = isValidTransition && isRoleAllowed;
+                          // Admin: no restrictions (except don't offer "no-op" selection)
+                          const isOptionValid = isAdmin
+                            ? currentStatus === null ? true : index !== currentStatus
+                            : (isValidTransition && isRoleAllowed);
                           return (
                             <SelectItem 
                               key={status} 
@@ -3929,12 +4029,12 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                                     Special
                                   </Badge>
                                 )}
-                                {!isRoleAllowed && (
+                                {!isAdmin && !isRoleAllowed && (
                                   <Badge variant="destructive" className="text-xs">
                                     Role Restricted
                                   </Badge>
                                 )}
-                                {!isValidTransition && isRoleAllowed && (
+                                {!isAdmin && !isValidTransition && isRoleAllowed && (
                                   <span className="text-xs text-muted-foreground">(Invalid Transition)</span>
                                 )}
                               </div>
@@ -3944,6 +4044,15 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <DateInput
+                    id="bulk-status-date"
+                    label="Status Date"
+                    value={bulkStatusChangeDate}
+                    onChange={setBulkStatusChangeDate}
+                    placeholder="Select status date"
+                    className={hasDifferentStatuses ? "opacity-50 pointer-events-none" : ""}
+                  />
                   
                   <div className="bg-muted/25 p-3 rounded-lg">
                     <p className="text-sm text-muted-foreground">

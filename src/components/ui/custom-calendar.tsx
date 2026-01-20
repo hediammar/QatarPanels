@@ -161,8 +161,13 @@ export function CustomCalendar({
           {formatDisplayDate(selectedDate)}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0 bg-card border-border shadow-lg custom-calendar" align="start" side="bottom">
-        <div className="p-3 w-[280px] max-h-[350px] overflow-hidden">
+      <PopoverContent
+        modal
+        className="w-[min(360px,95vw)] p-0 bg-card border-border shadow-lg custom-calendar"
+        align="center"
+        side="bottom"
+      >
+        <div className="p-3 w-full max-h-[80vh] overflow-auto">
           {/* Header */}
           <div className="flex items-center justify-between mb-3">
             <Button
@@ -197,12 +202,12 @@ export function CustomCalendar({
           </div>
 
           {/* Day headers */}
-          <div className="calendar-grid mb-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
+          <div className="calendar-grid mb-2 grid grid-cols-7 gap-1">
             {dayNames.map((day) => (
               <div
                 key={day}
                 className="calendar-day text-xs font-medium text-muted-foreground"
-                style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 {day}
               </div>
@@ -210,7 +215,7 @@ export function CustomCalendar({
           </div>
 
           {/* Calendar grid */}
-          <div className="calendar-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px' }}>
+          <div className="calendar-grid grid grid-cols-7 gap-1">
             {days.map((day, index) => (
               <div
                 key={index}
@@ -222,19 +227,19 @@ export function CustomCalendar({
                   day && !isSameMonth(day) && "other-month"
                 )}
                 style={{ 
-                  width: '28px', 
-                  height: '28px', 
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'center',
-                  cursor: day ? 'pointer' : 'default'
+                  cursor: day ? 'pointer' : 'default',
                 }}
                 onClick={(e) => {
                   e.preventDefault();
                   day && handleDateSelect(day);
                 }}
               >
-                {day ? day.getDate() : ''}
+                <div className="w-full aspect-square flex items-center justify-center">
+                  {day ? day.getDate() : ''}
+                </div>
               </div>
             ))}
           </div>

@@ -325,6 +325,7 @@ export function PanelDetailsPage() {
 
         if (syncError) {
           console.error('Error syncing issued-for-production history timestamp:', syncError);
+          showToast('Panel updated, but failed to sync "Issued For Production" timeline date', 'error');
         }
       }
       

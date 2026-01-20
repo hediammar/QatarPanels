@@ -208,6 +208,7 @@ export function PanelsPage() {
   const [selectedPanelForTimeline, setSelectedPanelForTimeline] = useState<PanelModel | null>(null);
   const [isBulkStatusDialogOpen, setIsBulkStatusDialogOpen] = useState(false);
   const [bulkStatusValue, setBulkStatusValue] = useState<number>(0); // Default to "Issued For Production"
+  const [bulkStatusChangeDate, setBulkStatusChangeDate] = useState<string>("");
   const [isStatusChangeDialogOpen, setIsStatusChangeDialogOpen] = useState(false);
   const [selectedPanelForStatusChange, setSelectedPanelForStatusChange] = useState<PanelModel | null>(null);
   const [previousStatus, setPreviousStatus] = useState<number | null>(null);
@@ -272,31 +273,11 @@ export function PanelsPage() {
   // Helper function to get valid statuses for a given current status
   const getValidStatuses = (currentStatus: number) => {
     if (currentUser?.role === 'Administrator') {
-      const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
-      const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
-      const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
-
-      let allowedStatuses: number[] = [];
-
-      if (currentStatus === onHoldStatusIndex) {
-        // From On Hold, admins can go to:
-        // 1. Previous status (if available)
-        // 2. Other special statuses (Cancelled, Broken at Site)
-        allowedStatuses = [cancelledStatusIndex, brokenAtSiteStatusIndex];
-        
-        // Add previous status if available
-        if (previousStatus !== null) {
-          allowedStatuses.push(previousStatus);
-        }
-      } else {
-        // For other statuses, use the forward traversal logic + special statuses
-        const forwardStatuses = getAllForwardStatuses(currentStatus);
-        const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex, brokenAtSiteStatusIndex];
-        allowedStatuses = Array.from(new Set([...forwardStatuses, ...specialStatuses]));
-      }
-      
-      // Exclude the current status itself from the options
-      return allowedStatuses.filter(status => status !== currentStatus).sort((a, b) => a - b);
+      // For bulk updates, admins should not be restricted by role/transition rules.
+      return PANEL_STATUSES
+        .map((_, index) => index)
+        .filter((status) => status !== currentStatus)
+        .sort((a, b) => a - b);
     }
     
     const validNextStatuses = getValidNextStatuses(currentStatus);
@@ -398,13 +379,16 @@ export function PanelsPage() {
     try {
       const panelIds = Array.from(selectedPanels);
       const selectedPanelObjects = panels.filter(panel => selectedPanels.has(panel.id));
+      const bulkCreatedAt = bulkStatusChangeDate ? new Date(`${bulkStatusChangeDate}T00:00:00`) : undefined;
       
-      // Validate status transitions for all selected panels with role-based restrictions
-      for (const panel of selectedPanelObjects) {
-        const validation = validateStatusTransitionWithRole(panel.status, bulkStatusValue, currentUser.role);
-        if (!validation.isValid) {
-          showToast(`Cannot update panel "${panel.name}": ${validation.error}`, "error");
-          return;
+      // For admins, do not enforce role/transition restrictions in bulk updates.
+      if (currentUser.role !== 'Administrator') {
+        for (const panel of selectedPanelObjects) {
+          const validation = validateStatusTransitionWithRole(panel.status, bulkStatusValue, currentUser.role);
+          if (!validation.isValid) {
+            showToast(`Cannot update panel "${panel.name}": ${validation.error}`, "error");
+            return;
+          }
         }
       }
       
@@ -418,7 +402,9 @@ export function PanelsPage() {
             panelId,
             bulkStatusValue,
             currentUser.id,
-            `Bulk status update to ${PANEL_STATUSES[bulkStatusValue]}`
+            `Bulk status update to ${PANEL_STATUSES[bulkStatusValue]}`,
+            null,
+            bulkCreatedAt
           );
           
           if (historyError) {
@@ -439,6 +425,7 @@ export function PanelsPage() {
       setSelectedPanels(new Set());
       setIsSelectionMode(false);
       setBulkStatusValue(0);
+      setBulkStatusChangeDate("");
     } catch (error) {
       console.error("Unexpected error:", error);
       showToast("An unexpected error occurred", "error");
@@ -587,6 +574,17 @@ export function PanelsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAddPanelDialogOpen]);
+
+  // Default bulk status history date to today when opening
+  useEffect(() => {
+    if (isBulkStatusDialogOpen) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      setBulkStatusChangeDate(`${year}-${month}-${day}`);
+    }
+  }, [isBulkStatusDialogOpen]);
 
   // Filter panels
   const filteredPanels = panels.filter((panel) => {
@@ -1042,6 +1040,7 @@ export function PanelsPage() {
 
           if (syncError) {
             console.error('Error syncing issued-for-production history timestamp:', syncError);
+            showToast('Panel updated, but failed to sync "Issued For Production" timeline date', 'error');
           }
         }
         
@@ -2729,6 +2728,13 @@ export function PanelsPage() {
                 </SelectContent>
               </Select>
             </div>
+            <DateInput
+              id="bulk-status-date"
+              label="Status Date"
+              value={bulkStatusChangeDate}
+              onChange={setBulkStatusChangeDate}
+              placeholder="Select status date"
+            />
             <div className="bg-muted/25 p-3 rounded-lg">
               <p className="text-sm text-muted-foreground">
                 This will update the status of {selectedPanels.size} selected panel(s) to the new status.

@@ -62,8 +62,9 @@ const PopoverContent = forwardRef<
   React.HTMLAttributes<HTMLDivElement> & { 
     align?: "start" | "center" | "end"
     side?: "top" | "right" | "bottom" | "left"
+    modal?: boolean
   }
->(({ className, children, align = "center", side = "bottom", ...props }, ref) => {
+>(({ className, children, align = "center", side = "bottom", modal = false, ...props }, ref) => {
   const { open, setOpen } = usePopoverContext()
 
   if (!open) return null
@@ -89,7 +90,11 @@ const PopoverContent = forwardRef<
       />
       <div
         ref={ref}
-        className={`absolute z-50 w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none animate-in fade-in-0 zoom-in-95 ${sideClasses[side]} ${alignClasses[align]} ${className || ""}`}
+        className={`z-50 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none animate-in fade-in-0 zoom-in-95 ${
+          modal
+            ? "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-w-[95vw] max-h-[85vh] overflow-auto"
+            : `absolute w-72 ${sideClasses[side]} ${alignClasses[align]}`
+        } ${className || ""}`}
         {...props}
       >
         {children}

@@ -173,18 +173,21 @@ export function Timeline({ panel }: TimelineProps) {
     }
   };
 
-  const formatDateTime = (timestamp: string) => {
+  const formatDateTime = (timestamp: string, options?: { timeZone?: string }) => {
     const date = new Date(timestamp);
+    const timeZone = options?.timeZone;
     return {
       date: date.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
+        ...(timeZone ? { timeZone } : {}),
       }),
       time: date.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,
+        ...(timeZone ? { timeZone } : {}),
       }),
     };
   };
@@ -238,7 +241,11 @@ export function Timeline({ panel }: TimelineProps) {
       {statusHistory.length > 0 ? (
         <div className="space-y-3">
           {statusHistory.map((entry, index) => {
-            const { date, time } = formatDateTime(entry.timestamp);
+            // "Issued For Production" is a business date (often set as date-only).
+            // Format in UTC to avoid showing the previous day for users in negative timezones.
+            const { date, time } = formatDateTime(entry.timestamp, {
+              timeZone: entry.status === 'Issued For Production' ? 'UTC' : undefined,
+            });
             const isLatest = index === 0;
 
             return (

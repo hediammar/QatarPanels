@@ -495,7 +495,8 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
     try {
       const panelIds = Array.from(selectedPanels);
       const selectedPanelObjects = panels.filter(panel => selectedPanels.has(panel.id));
-      const bulkCreatedAt = bulkStatusChangeDate ? new Date(`${bulkStatusChangeDate}T00:00:00`) : undefined;
+      // Use UTC midnight for date-only strings (business date).
+      const bulkCreatedAt = bulkStatusChangeDate ? new Date(`${bulkStatusChangeDate}T00:00:00Z`) : undefined;
       
       // Check if all selected panels have the same status
       const uniqueStatuses = new Set(selectedPanelObjects.map(panel => panel.status));
@@ -922,7 +923,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
             panelData.status === issuedForProductionStatusIndex && panelData.issued_for_production_date
               ? (() => {
                   const d = panelData.issued_for_production_date;
-                  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T00:00:00`) : new Date(d);
+                  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T00:00:00Z`) : new Date(d);
                 })()
               : undefined;
           const { error: historyError } = await createPanelStatusHistory(
@@ -951,7 +952,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         ) {
           const issuedAt = (() => {
             const d = panelData.issued_for_production_date;
-            return /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T00:00:00`) : new Date(d);
+            return /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T00:00:00Z`) : new Date(d);
           })();
 
           const { error: syncError } = await syncLatestPanelStatusHistoryTimestamp(
@@ -1268,10 +1269,50 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
   };
 
   const formatDateToISO = (d: Date) => {
-    const year = d.getFullYear();
-    const month = `${d.getMonth() + 1}`.padStart(2, "0");
-    const day = `${d.getDate()}`.padStart(2, "0");
+    // Excel dates are "date-only" with no timezone. Depending on how the Date object was created,
+    // formatting using local getters can shift the calendar day (e.g. 10th -> 9th).
+    //
+    // Heuristic:
+    // - If the Date represents UTC midnight, use UTC getters.
+    // - Otherwise, use local getters.
+    const useUTC =
+      d.getUTCHours() === 0 &&
+      d.getUTCMinutes() === 0 &&
+      d.getUTCSeconds() === 0 &&
+      d.getUTCMilliseconds() === 0;
+
+    const year = useUTC ? d.getUTCFullYear() : d.getFullYear();
+    const month = `${(useUTC ? d.getUTCMonth() : d.getMonth()) + 1}`.padStart(2, "0");
+    const day = `${useUTC ? d.getUTCDate() : d.getDate()}`.padStart(2, "0");
     return `${year}-${month}-${day}`;
+  };
+
+  // Format a "date-only" string (YYYY-MM-DD or M/D/YYYY, etc) without timezone day-shifting.
+  const formatDateOnlyForDisplay = (dateStr?: string, locale: string = "en-GB") => {
+    if (!dateStr?.trim()) return "—";
+    const str = dateStr.trim();
+
+    // Prefer the explicit parser (which creates a UTC date for date-only strings).
+    const parsed = parseDate(str);
+    if (parsed && !isNaN(parsed.getTime())) {
+      return parsed.toLocaleDateString(locale, { timeZone: "UTC" });
+    }
+
+    // Fallback: handle ISO date-only directly
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+      return new Date(`${str}T00:00:00Z`).toLocaleDateString(locale, { timeZone: "UTC" });
+    }
+
+    return str;
+  };
+
+  // Normalize a "date-only" string to YYYY-MM-DD for export/storage.
+  const normalizeDateOnlyToISO = (dateStr?: string) => {
+    if (!dateStr?.trim()) return "";
+    const str = dateStr.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    const parsed = parseDate(str);
+    return parsed && !isNaN(parsed.getTime()) ? formatDateToISO(parsed) : "";
   };
 
   // Helper function to parse date in different formats (same as BulkImportPanelsPage)
@@ -1286,18 +1327,30 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
     }
     
     try {
+      const normalizeYear = (y: number) => (y >= 0 && y < 100 ? 2000 + y : y);
+
       // Try different date formats
       if (str.includes('/')) {
-        // Format: DD/MM/YYYY
+        // Format: DD/MM/YYYY or MM/DD/YYYY (Excel often displays M/D/YYYY)
         const parts = str.split('/');
         if (parts.length === 3) {
           // Check for invalid date parts (00/00/YYYY or DD/00/YYYY or DD/MM/0000)
           if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
             return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
           }
-          const year = parseInt(parts[2]);
-          const month = parseInt(parts[1]) - 1;
-          const day = parseInt(parts[0]);
+
+          const a = parseInt(parts[0]); // could be day or month
+          const b = parseInt(parts[1]); // could be month or day
+          const year = normalizeYear(parseInt(parts[2]));
+
+          // Decide between D/M/Y and M/D/Y.
+          // - If one side is > 12, it's unambiguous.
+          // - If both <= 12 (ambiguous), default to M/D/Y (matches your Excel example "1/10/2026" = Jan 10).
+          const isUnambiguousDMY = a > 12 && b <= 12;
+          const isUnambiguousMDY = b > 12 && a <= 12;
+
+          const month = (isUnambiguousDMY ? b : a) - 1;
+          const day = isUnambiguousDMY ? a : b;
           
           // Create date using UTC to avoid timezone issues
           const date = new Date(Date.UTC(year, month, day));
@@ -1313,7 +1366,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
           if (parts[0] === '00' || parts[1] === '00' || parts[2] === '0000') {
             return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
           }
-          const year = parseInt(parts[2]);
+          const year = normalizeYear(parseInt(parts[2]));
           const month = parseInt(parts[1]) - 1;
           const day = parseInt(parts[0]);
           
@@ -1331,7 +1384,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
           if (parts[0] === '0000' || parts[1] === '00' || parts[2] === '00') {
             return new Date('1900-01-01T00:00:00.000Z'); // Use UTC to avoid timezone issues
           }
-          const year = parseInt(parts[0]);
+          const year = normalizeYear(parseInt(parts[0]));
           const month = parseInt(parts[1]) - 1;
           const day = parseInt(parts[2]);
           
@@ -1359,20 +1412,50 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
 
   const parseExcelDateToISO = (value: any): string | undefined => {
     if (!value) return undefined;
-    if (value instanceof Date) return formatDateToISO(value);
+    
+    // Excel stores dates as serial numbers (days since 1900-01-01).
+    // Parse the serial number directly to avoid timezone issues.
     if (typeof value === "number") {
       try {
-        const parsed = (XLSX as any).SSF?.parse_date_code?.(value);
-        if (parsed && parsed.y && parsed.m && parsed.d) {
-          return formatDateToISO(new Date(parsed.y, parsed.m - 1, parsed.d));
+        // Check if it's likely an Excel date serial (between 1 and ~100000)
+        // Excel dates are typically > 1 (Jan 1, 1900 = 1) and < 100000 (year ~2173)
+        if (value >= 1 && value < 100000) {
+          const parsed = (XLSX as any).SSF?.parse_date_code?.(value);
+          if (parsed && parsed.y && parsed.m && parsed.d) {
+            // Create UTC date directly from parsed components - no timezone shift!
+            return formatDateToISO(new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d)));
+          }
         }
       } catch (_) {
         // ignore parsing errors
       }
     }
+    
+    // Fallback: handle Date objects (if cellDates was used)
+    if (value instanceof Date) {
+      // Extract UTC components and add 1 day to compensate for timezone shift
+      // (This is a workaround - ideally we'd use serial numbers above)
+      const year = value.getUTCFullYear();
+      const month = value.getUTCMonth();
+      const day = value.getUTCDate();
+      // Add 1 day to compensate for the timezone shift
+      const correctedDate = new Date(Date.UTC(year, month, day + 1));
+      return formatDateToISO(correctedDate);
+    }
     if (typeof value === "string") {
+      // Prefer our explicit parser over `new Date("1/10/2026")` (locale-dependent).
+      const parsed = parseDate(value);
+      if (parsed && !isNaN(parsed.getTime())) return formatDateToISO(parsed);
+
+      // Fallback (best-effort)
       const d = new Date(value);
-      if (!isNaN(d.getTime())) return formatDateToISO(d);
+      if (!isNaN(d.getTime())) {
+        // Extract local date components to avoid timezone shift
+        const year = d.getFullYear();
+        const month = d.getMonth();
+        const day = d.getDate();
+        return formatDateToISO(new Date(Date.UTC(year, month, day)));
+      }
     }
     return undefined;
   };
@@ -1384,10 +1467,13 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
       setBulkImportFile(selectedFile);
       setBulkImportErrors([]);
       const data = await selectedFile.arrayBuffer();
-      const workbook = XLSX.read(data, { cellDates: true });
+      // Don't use cellDates - we'll parse date serial numbers ourselves to avoid timezone issues
+      const workbook = XLSX.read(data);
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(sheet);
+      // IMPORTANT: Use raw:true to get Excel serial numbers for dates, then parse them ourselves
+      // to avoid timezone issues with JS Date objects.
+      const jsonData = XLSX.utils.sheet_to_json(sheet, { raw: true });
 
       if (jsonData.length === 0) {
         setBulkImportErrors(["The Excel file appears to be empty or invalid."]);
@@ -1645,12 +1731,53 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               });
               errorCount++;
             } else {
-              results.push({
-                success: true,
-                message: `Successfully updated panel "${panel.name}"`,
-                data: updatedPanel
-              });
-              successCount++;
+              let wroteResultRow = false;
+
+              // Sync the "Issued For Production" (status 0) timeline entry timestamp
+              // to match the imported "Issued for Production Date" (even if it's not the current status).
+              const issuedForProductionStatusIndex = PANEL_STATUSES.indexOf("Issued For Production");
+              const issuedDate = panelUpdateData.issued_for_production_date;
+
+              if (
+                issuedDate &&
+                (issuedForProductionStatusIndex ?? -1) >= 0
+              ) {
+                const issuedAt = (() => {
+                  const d = issuedDate as string;
+                  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T00:00:00Z`) : new Date(d);
+                })();
+
+                if (currentUser?.id) {
+                  const { error: syncError } = await syncLatestPanelStatusHistoryTimestamp(
+                    existingPanel.id,
+                    issuedForProductionStatusIndex,
+                    currentUser.id,
+                    issuedAt,
+                    { notes: 'Synced from bulk import "Issued for Production Date"' }
+                  );
+
+                  if (syncError) {
+                    console.error('Error syncing issued-for-production history timestamp (bulk import):', syncError);
+                    results.push({
+                      success: true,
+                      message: `Successfully updated panel "${panel.name}", but failed to sync "Issued For Production" timeline date. ${syncError.message ?? ""}`.trim(),
+                      data: updatedPanel,
+                      errors: [syncError.message ?? "Failed to sync status history timestamp"]
+                    });
+                    successCount++;
+                    wroteResultRow = true;
+                  }
+                }
+              }
+
+              if (!wroteResultRow) {
+                results.push({
+                  success: true,
+                  message: `Successfully updated panel "${panel.name}"`,
+                  data: updatedPanel
+                });
+                successCount++;
+              }
             }
           } else {
             console.log('Creating new panel (or panel exists in different project):', panelData);
@@ -1785,7 +1912,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         "Weight": panel.weight || 0,
         "Dimension": panel.dimension || "",
         "Issued for Production Date": panel.issued_for_production_date ? 
-          new Date(panel.issued_for_production_date).toISOString().split('T')[0] : "",
+          normalizeDateOnlyToISO(panel.issued_for_production_date) : "",
       }));
 
       // Create Excel workbook and worksheet
@@ -3289,7 +3416,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                               <div className="flex items-center">
                                 <Calendar className="mr-2 h-3 w-3 text-muted-foreground flex-shrink-0" />
                                 <span className="text-xs text-muted-foreground">Production Date:</span>
-                                <span className="text-xs ml-2">{panel.issued_for_production_date ? new Date(panel.issued_for_production_date).toLocaleDateString('en-GB') : "—"}</span>
+                                <span className="text-xs ml-2">{formatDateOnlyForDisplay(panel.issued_for_production_date, "en-GB")}</span>
                               </div>
                             </div>
                           </div>

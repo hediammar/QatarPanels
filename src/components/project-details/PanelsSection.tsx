@@ -245,6 +245,22 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
   const canChangePanelStatus = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canChangeStatus') : false;
   const canSelectPanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canSelect') : false;
 
+  // Initialize createdAt when create group dialog opens
+  useEffect(() => {
+    if (isCreateGroupDialogOpen) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      setNewPanelGroupModel(prev => ({
+        ...prev,
+        createdAt: prev.createdAt || `${year}-${month}-${day}T${hours}:${minutes}`
+      }));
+    }
+  }, [isCreateGroupDialogOpen]);
+
   // Fetch previous status from panel status history
   const fetchPreviousStatus = async (panelId: string) => {
     try {
@@ -365,6 +381,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
   const [newPanelGroupModel, setNewPanelGroupModel] = useState({
     name: "",
     description: "",
+    createdAt: ""
   });
 
   const handleCreateGroup = async () => {
@@ -393,9 +410,24 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
         return;
       }
 
+      // Update created_at if a custom date was provided
+      if (data && newPanelGroupModel.createdAt) {
+        const createdAtDate = new Date(newPanelGroupModel.createdAt);
+        const { error: updateError } = await supabase
+          .from('panel_groups')
+          .update({ created_at: createdAtDate.toISOString() })
+          .eq('id', data);
+
+        if (updateError) {
+          console.error('Error updating panel group created_at:', updateError);
+          // Don't fail the whole operation, just log the error
+        }
+      }
+
       setNewPanelGroupModel({
         name: "",
         description: "",
+        createdAt: ""
       });
       setIsCreateGroupDialogOpen(false);
 
@@ -1784,13 +1816,66 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
             
             // Create new panel
             const newPanel = await crudOperations.create("panels", panelData);
-            // Database triggers will automatically add status history
-            results.push({
-              success: true,
-              message: `Successfully created new panel "${panel.name}"`,
-              data: newPanel
-            });
-            successCount++;
+            
+            // Sync the "Issued For Production" (status 0) timeline entry timestamp
+            // to match the imported "Issued for Production Date" if the panel is created with status "Issued For Production"
+            const issuedForProductionStatusIndex = PANEL_STATUSES.indexOf("Issued For Production");
+            const issuedDate = panelData.issued_for_production_date;
+            
+            if (
+              newPanel &&
+              panelData.status === issuedForProductionStatusIndex &&
+              issuedDate &&
+              (issuedForProductionStatusIndex ?? -1) >= 0
+            ) {
+              const issuedAt = (() => {
+                const d = issuedDate as string;
+                return /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T00:00:00Z`) : new Date(d);
+              })();
+
+              if (currentUser?.id) {
+                const { error: syncError } = await syncLatestPanelStatusHistoryTimestamp(
+                  newPanel.id,
+                  issuedForProductionStatusIndex,
+                  currentUser.id,
+                  issuedAt,
+                  { notes: 'Synced from bulk import "Issued for Production Date"' }
+                );
+
+                if (syncError) {
+                  console.error('Error syncing issued-for-production history timestamp (bulk import create):', syncError);
+                  results.push({
+                    success: true,
+                    message: `Successfully created panel "${panel.name}", but failed to sync "Issued For Production" timeline date. ${syncError.message ?? ""}`.trim(),
+                    data: newPanel,
+                    errors: [syncError.message ?? "Failed to sync status history timestamp"]
+                  });
+                  successCount++;
+                } else {
+                  results.push({
+                    success: true,
+                    message: `Successfully created new panel "${panel.name}"`,
+                    data: newPanel
+                  });
+                  successCount++;
+                }
+              } else {
+                results.push({
+                  success: true,
+                  message: `Successfully created new panel "${panel.name}"`,
+                  data: newPanel
+                });
+                successCount++;
+              }
+            } else {
+              // Database triggers will automatically add status history
+              results.push({
+                success: true,
+                message: `Successfully created new panel "${panel.name}"`,
+                data: newPanel
+              });
+              successCount++;
+            }
           }
           
           // Update progress
@@ -4277,6 +4362,27 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               className="w-full"
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="created-at" className="text-sm font-medium">Creation Date & Time</Label>
+            <div className="relative">
+              <Input
+                id="created-at"
+                type="datetime-local"
+                value={newPanelGroupModel.createdAt}
+                onChange={(e) =>
+                  setNewPanelGroupModel({
+                    ...newPanelGroupModel,
+                    createdAt: e.target.value,
+                  })
+                }
+                className="h-11 pl-8"
+              />
+              <Calendar className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Leave as current date/time or select a specific date and time for this panel group creation
+            </p>
+          </div>
                       <div className="bg-muted/25 p-3 rounded-lg">
               <p className="text-sm text-muted-foreground">
                 This will create a new panel group with {selectedPanels.size} panels from the current selection. Only panels from this project can be added to groups.
@@ -4291,6 +4397,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               setNewPanelGroupModel({
                 name: "",
                 description: "",
+                createdAt: ""
               });
             }}
             className="w-full sm:w-auto"

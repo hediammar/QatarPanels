@@ -121,11 +121,11 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
   const getValidStatuses = () => {
     if (!panel || !currentUser?.role) return [];
     
+    const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
+    const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
+    const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
+    
     if (currentUser.role === 'Administrator') {
-      const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
-      const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
-      const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
-
       let allowedStatuses: number[] = [];
 
       if (panel.status === onHoldStatusIndex) {
@@ -149,16 +149,29 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
       return allowedStatuses.filter(status => status !== panel.status).sort((a, b) => a - b);
     }
     
+    // For Data Entry role, they can only access On Hold and Cancelled
+    if (currentUser.role === 'Data Entry') {
+      const allowedStatuses = [onHoldStatusIndex, cancelledStatusIndex];
+      // Filter to only include statuses that are valid transitions from current status
+      const validNextStatuses = getValidNextStatuses(panel.status);
+      return allowedStatuses.filter(status => validNextStatuses.includes(status) || isSpecialStatus(status))
+        .filter(status => status !== panel.status)
+        .sort((a, b) => a - b);
+    }
+    
+    // For other roles, get their valid next statuses but exclude On Hold and Cancelled
+    // (only Admin and Data Entry can access these)
     const validNextStatuses = getValidNextStatusesForRole(panel.status, currentUser.role);
-    const allStatuses = PANEL_STATUSES.map((_, index) => index);
     
-    // Include special statuses (On Hold, Cancelled) that can be set from any status
-    const specialStatuses = allStatuses.filter(status => isSpecialStatus(status));
+    // Only include Broken at Site if it's a special status they can access
+    // (On Hold and Cancelled are excluded for non-Admin/Data Entry roles)
+    const restrictedSpecialStatuses = [brokenAtSiteStatusIndex];
+    const validStatuses = Array.from(new Set([
+      ...validNextStatuses.filter(status => status !== onHoldStatusIndex && status !== cancelledStatusIndex),
+      ...restrictedSpecialStatuses.filter(status => isSpecialStatus(status) && validNextStatuses.includes(status))
+    ]));
     
-    // Combine valid next statuses with special statuses, removing duplicates
-    const validStatuses = Array.from(new Set([...validNextStatuses, ...specialStatuses]));
-    
-    return validStatuses.sort((a, b) => a - b);
+    return validStatuses.filter(status => status !== panel.status).sort((a, b) => a - b);
   };
 
   // Validate status transition when newStatus changes

@@ -1051,8 +1051,25 @@ export function PanelGroupsSection({
   // Form data for new group and note
   const [newGroupData, setNewGroupData] = useState({
     name: "",
-    description: ""
+    description: "",
+    createdAt: ""
   });
+
+  // Initialize createdAt when dialog opens
+  useEffect(() => {
+    if (isAddDialogOpen) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      setNewGroupData(prev => ({
+        ...prev,
+        createdAt: prev.createdAt || `${year}-${month}-${day}T${hours}:${minutes}`
+      }));
+    }
+  }, [isAddDialogOpen]);
   
   const [newNoteData, setNewNoteData] = useState({
     title: "",
@@ -1216,13 +1233,19 @@ export function PanelGroupsSection({
 
     setIsCreating(true);
     try {
+      // Prepare created_at date - use custom date if provided, otherwise use current time
+      const createdAtDate = newGroupData.createdAt 
+        ? new Date(newGroupData.createdAt)
+        : new Date();
+
       // Direct insert into panel_groups table
       const { data, error } = await supabase
         .from('panel_groups')
         .insert([{
           name: newGroupData.name.trim(),
           description: newGroupData.description.trim() || null,
-          project_id: projectId || null
+          project_id: projectId || null,
+          created_at: createdAtDate.toISOString()
         }])
         .select()
         .single();
@@ -1235,7 +1258,13 @@ export function PanelGroupsSection({
 
       if (data) {
         // Reset form and close dialog
-        setNewGroupData({ name: "", description: "" });
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        setNewGroupData({ name: "", description: "", createdAt: `${year}-${month}-${day}T${hours}:${minutes}` });
         setIsAddDialogOpen(false);
         
         // Refresh both panel groups and panels to ensure totals are updated
@@ -1312,7 +1341,14 @@ export function PanelGroupsSection({
   };
 
   const resetNewGroupForm = () => {
-    setNewGroupData({ name: "", description: "" });
+    // Set default date to current date and time
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    setNewGroupData({ name: "", description: "", createdAt: `${year}-${month}-${day}T${hours}:${minutes}` });
   };
 
   const resetNewNoteForm = () => {
@@ -1829,6 +1865,22 @@ export function PanelGroupsSection({
                 onChange={(e) => setNewGroupData({ ...newGroupData, description: e.target.value })}
                 rows={3}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="created-at" className="text-sm font-medium">Creation Date & Time</Label>
+              <div className="relative">
+                <Input
+                  id="created-at"
+                  type="datetime-local"
+                  value={newGroupData.createdAt}
+                  onChange={(e) => setNewGroupData({ ...newGroupData, createdAt: e.target.value })}
+                  className="h-10 pl-8"
+                />
+                <Calendar className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Leave as current date/time or select a specific date and time for this panel group creation
+              </p>
             </div>
           </div>
           <DialogFooter>

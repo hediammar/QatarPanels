@@ -37,7 +37,7 @@ export const SPECIAL_STATUSES = [9, 10, 11]; // On Hold, Cancelled, Broken at Si
 // Role-based status change restrictions based on the table
 // Each role can only change to specific statuses (following the status flow logic)
 export const ROLE_STATUS_RESTRICTIONS: Record<string, number[]> = {
-  'Data Entry': [0, 9, 10], // Issued For Production, On Hold, Cancelled
+  'Data Entry': [9, 10], // On Hold, Cancelled (only these two statuses)
   'Production engineer': [1], // Produced
   'Site Engineer': [7], // Inspected
   'QC Site': [4, 5, 8], // Approved Material, Rejected Material, Approved Final
@@ -73,8 +73,17 @@ export function validateStatusTransitionWithRole(
     return validateStatusTransition(currentStatus, newStatus);
   }
 
-  // Data Entry can do everything except user management (already handled in permissions)
+  // Data Entry can only change to On Hold (9) and Cancelled (10)
   if (userRole === 'Data Entry') {
+    const allowedStatuses = ROLE_STATUS_RESTRICTIONS['Data Entry'];
+    if (!allowedStatuses.includes(newStatus)) {
+      const newStatusName = PANEL_STATUSES[newStatus];
+      const allowedStatusNames = allowedStatuses.map(index => PANEL_STATUSES[index]);
+      return { 
+        isValid: false, 
+        error: `Data Entry role can only change status to: ${allowedStatusNames.join(", ")}` 
+      };
+    }
     return validateStatusTransition(currentStatus, newStatus);
   }
 
@@ -110,9 +119,12 @@ export function getValidNextStatusesForRole(currentStatus: number, userRole: str
     return getValidNextStatuses(currentStatus);
   }
 
-  // Data Entry can do everything
+  // Data Entry can only change to On Hold (9) and Cancelled (10)
   if (userRole === 'Data Entry') {
-    return getValidNextStatuses(currentStatus);
+    const allowedStatuses = ROLE_STATUS_RESTRICTIONS['Data Entry'];
+    // Get valid next statuses from status flow and filter to only allowed ones
+    const validNextStatuses = getValidNextStatuses(currentStatus);
+    return validNextStatuses.filter(status => allowedStatuses.includes(status));
   }
 
   // Get role's allowed statuses

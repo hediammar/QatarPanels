@@ -292,11 +292,21 @@ function CreateGroupDialog({ isOpen, onOpenChange, onGroupCreated }: CreateGroup
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [projects, setProjects] = useState<Array<{id: string, name: string}>>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const [createdAt, setCreatedAt] = useState("");
   const { showToast } = useToastContext();
 
-  // Fetch projects when dialog opens
+  // Fetch projects when dialog opens and initialize date
   useEffect(() => {
     if (isOpen) {
+      // Initialize creation date to current date/time
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      setCreatedAt(`${year}-${month}-${day}T${hours}:${minutes}`);
+
       const fetchProjects = async () => {
         try {
           const { data, error } = await supabase
@@ -332,12 +342,18 @@ function CreateGroupDialog({ isOpen, onOpenChange, onGroupCreated }: CreateGroup
 
     setIsCreating(true);
     try {
+      // Prepare created_at date - use custom date if provided, otherwise use current time
+      const createdAtDate = createdAt 
+        ? new Date(createdAt)
+        : new Date();
+
       const { data, error } = await supabase
         .from('panel_groups')
         .insert([{
           name: groupName.trim(),
           description: groupDescription.trim() || null,
-          project_id: selectedProjectId
+          project_id: selectedProjectId,
+          created_at: createdAtDate.toISOString()
         }])
         .select()
         .single();
@@ -351,6 +367,7 @@ function CreateGroupDialog({ isOpen, onOpenChange, onGroupCreated }: CreateGroup
       if (data) {
         setGroupName("");
         setGroupDescription("");
+        setCreatedAt("");
         onOpenChange(false);
         onGroupCreated();
         showToast('Panel group created successfully', 'success');
@@ -410,6 +427,22 @@ function CreateGroupDialog({ isOpen, onOpenChange, onGroupCreated }: CreateGroup
               rows={3}
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="created-at" className="text-sm font-medium">Creation Date & Time</Label>
+            <div className="relative">
+              <Input
+                id="created-at"
+                type="datetime-local"
+                value={createdAt}
+                onChange={(e) => setCreatedAt(e.target.value)}
+                className="h-10 pl-8"
+              />
+              <Calendar className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Leave as current date/time or select a specific date and time for this panel group creation
+            </p>
+          </div>
         </div>
         <DialogFooter>
           <Button
@@ -419,6 +452,7 @@ function CreateGroupDialog({ isOpen, onOpenChange, onGroupCreated }: CreateGroup
               setGroupName("");
               setGroupDescription("");
               setSelectedProjectId("");
+              setCreatedAt("");
             }}
           >
             Cancel

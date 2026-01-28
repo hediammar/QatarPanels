@@ -22,7 +22,8 @@ import {
   Trash2,
   Upload,
   Users,
-  RefreshCw
+  RefreshCw,
+  Calendar
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -213,6 +214,22 @@ export function PanelsPage() {
   const [selectedPanelForStatusChange, setSelectedPanelForStatusChange] = useState<PanelModel | null>(null);
   const [previousStatus, setPreviousStatus] = useState<number | null>(null);
 
+  // Initialize createdAt when create group dialog opens
+  useEffect(() => {
+    if (isCreateGroupDialogOpen) {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      setNewPanelGroupModel(prev => ({
+        ...prev,
+        createdAt: prev.createdAt || `${year}-${month}-${day}T${hours}:${minutes}`
+      }));
+    }
+  }, [isCreateGroupDialogOpen]);
+
   // RBAC Permission checks
   const canCreatePanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canCreate') : false;
   const canUpdatePanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canUpdate') : false;
@@ -320,6 +337,7 @@ export function PanelsPage() {
     name: "",
     description: "",
     status: 0, // Default to "Issued For Production"
+    createdAt: ""
   });
 
   const handleCreateGroup = async () => {
@@ -349,10 +367,25 @@ export function PanelsPage() {
         return;
       }
 
+      // Update created_at if a custom date was provided
+      if (data && newPanelGroupModel.createdAt) {
+        const createdAtDate = new Date(newPanelGroupModel.createdAt);
+        const { error: updateError } = await supabase
+          .from('panel_groups')
+          .update({ created_at: createdAtDate.toISOString() })
+          .eq('id', data);
+
+        if (updateError) {
+          console.error('Error updating panel group created_at:', updateError);
+          // Don't fail the whole operation, just log the error
+        }
+      }
+
       setNewPanelGroupModel({
         name: "",
         description: "",
         status: 1,
+        createdAt: ""
       });
       setIsCreateGroupDialogOpen(false);
 
@@ -2823,6 +2856,27 @@ export function PanelsPage() {
               className="w-full"
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="created-at" className="text-sm font-medium">Creation Date & Time</Label>
+            <div className="relative">
+              <Input
+                id="created-at"
+                type="datetime-local"
+                value={newPanelGroupModel.createdAt}
+                onChange={(e) =>
+                  setNewPanelGroupModel({
+                    ...newPanelGroupModel,
+                    createdAt: e.target.value,
+                  })
+                }
+                className="h-11 pl-8"
+              />
+              <Calendar className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Leave as current date/time or select a specific date and time for this panel group creation
+            </p>
+          </div>
           <div className="bg-muted/25 p-3 rounded-lg">
             <p className="text-sm text-muted-foreground">
               This will create a new panel group with {selectedPanels.size} panels from the current selection.
@@ -2838,6 +2892,7 @@ export function PanelsPage() {
                 name: "",
                 description: "",
                 status: 0, // Default to "Issued For Production"
+                createdAt: ""
               });
             }}
             className="w-full sm:w-auto"

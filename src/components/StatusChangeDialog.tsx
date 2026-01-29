@@ -16,7 +16,8 @@ import {
   validateStatusTransitionWithRole,
   getValidNextStatuses,
   getValidNextStatusesForRole,
-  isSpecialStatus 
+  isSpecialStatus,
+  canShowBrokenAtSiteForCurrentStatus 
 } from '../utils/statusValidation';
 
 type PanelStatus = (typeof PANEL_STATUSES)[number];
@@ -124,22 +125,27 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
     const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
     const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
     const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
+    const deliveredStatusIndex = PANEL_STATUSES.indexOf('Delivered');
     
     if (currentUser.role === 'Administrator') {
       let allowedStatuses: number[] = [];
 
       if (panel.status === onHoldStatusIndex) {
-        // From On Hold, admins can go to: previous status (if available), Cancelled, Broken at Site
-        allowedStatuses = [cancelledStatusIndex, brokenAtSiteStatusIndex];
-        
-        // Add previous status if available
+        // From On Hold: previous status (if available), Cancelled; Broken at Site only if panel had been Delivered (previousStatus >= Delivered)
+        allowedStatuses = [cancelledStatusIndex];
+        if (previousStatus !== null && previousStatus >= deliveredStatusIndex) {
+          allowedStatuses.push(brokenAtSiteStatusIndex);
+        }
         if (previousStatus !== null) {
           allowedStatuses.push(previousStatus);
         }
       } else {
-        // For other statuses, use the forward traversal logic + special statuses (Admin can set any status)
+        // For other statuses: forward + special statuses; Broken at Site only after panel has been Delivered
         const forwardStatuses = getAllForwardStatuses(panel.status);
-        const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex, brokenAtSiteStatusIndex];
+        const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex];
+        if (canShowBrokenAtSiteForCurrentStatus(panel.status)) {
+          specialStatuses.push(brokenAtSiteStatusIndex);
+        }
         allowedStatuses = Array.from(new Set([...forwardStatuses, ...specialStatuses]));
       }
       
@@ -175,19 +181,24 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
         const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
         const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
         const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
+        const deliveredStatusIndex = PANEL_STATUSES.indexOf('Delivered');
         
         let isValidAdminTransition = false;
         if (panel.status === onHoldStatusIndex) {
-          // From On Hold, check if newStatus is in allowed statuses
-          const allowedStatuses = [cancelledStatusIndex, brokenAtSiteStatusIndex];
+          const allowedStatuses = [cancelledStatusIndex];
+          if (previousStatus !== null && previousStatus >= deliveredStatusIndex) {
+            allowedStatuses.push(brokenAtSiteStatusIndex);
+          }
           if (previousStatus !== null) {
             allowedStatuses.push(previousStatus);
           }
           isValidAdminTransition = allowedStatuses.includes(newStatus);
         } else {
-          // For other statuses, check if newStatus is a forward status or a special status
           const forwardStatuses = getAllForwardStatuses(panel.status);
-          const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex, brokenAtSiteStatusIndex];
+          const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex];
+          if (canShowBrokenAtSiteForCurrentStatus(panel.status)) {
+            specialStatuses.push(brokenAtSiteStatusIndex);
+          }
           const allowedStatuses = Array.from(new Set([...forwardStatuses, ...specialStatuses]));
           isValidAdminTransition = allowedStatuses.includes(newStatus);
         }
@@ -313,19 +324,24 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
       const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
       const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
       const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
+      const deliveredStatusIndex = PANEL_STATUSES.indexOf('Delivered');
       
       let isValidAdminTransition = false;
       if (panel.status === onHoldStatusIndex) {
-        // From On Hold, check if newStatus is in allowed statuses
-        const allowedStatuses = [cancelledStatusIndex, brokenAtSiteStatusIndex];
+        const allowedStatuses = [cancelledStatusIndex];
+        if (previousStatus !== null && previousStatus >= deliveredStatusIndex) {
+          allowedStatuses.push(brokenAtSiteStatusIndex);
+        }
         if (previousStatus !== null) {
           allowedStatuses.push(previousStatus);
         }
         isValidAdminTransition = allowedStatuses.includes(newStatus);
       } else {
-        // For other statuses, check if newStatus is a forward status or a special status
         const forwardStatuses = getAllForwardStatuses(panel.status);
-        const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex, brokenAtSiteStatusIndex];
+        const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex];
+        if (canShowBrokenAtSiteForCurrentStatus(panel.status)) {
+          specialStatuses.push(brokenAtSiteStatusIndex);
+        }
         const allowedStatuses = Array.from(new Set([...forwardStatuses, ...specialStatuses]));
         isValidAdminTransition = allowedStatuses.includes(newStatus);
       }

@@ -68,11 +68,16 @@ export function validateStatusTransitionWithRole(
     return { isValid: false, error: "Status index out of bounds" };
   }
 
-  // Only Administrator, Store Site and QC Site can change to Broken at Site
+  // Broken at Site: only Store Site and QC Site, and only after panel has been Delivered
   const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
+  const deliveredStatusIndex = PANEL_STATUSES.indexOf('Delivered');
+  const currentStatusAllowsBrokenAtSite = currentStatus >= deliveredStatusIndex && currentStatus !== 10; // 10 = Cancelled
   if (newStatus === brokenAtSiteStatusIndex) {
     if (userRole !== 'Administrator' && userRole !== 'Store Site' && userRole !== 'QC Site') {
       return { isValid: false, error: 'Only Store Site and QC Site roles can change status to "Broken at Site"' };
+    }
+    if (!currentStatusAllowsBrokenAtSite) {
+      return { isValid: false, error: '"Broken at Site" can only be set after the panel has been put to Delivered' };
     }
   }
 
@@ -121,13 +126,19 @@ export function validateStatusTransitionWithRole(
  * @param userRole - The user's role
  * @returns Array of valid next status indices
  */
-// Roles that are allowed to set status to "Broken at Site"
+// Roles that are allowed to set status to "Broken at Site" (and only after panel is Delivered)
 const ROLES_CAN_SET_BROKEN_AT_SITE = ['Store Site', 'QC Site'];
+const DELIVERED_STATUS_INDEX = 3;
+const CANCELLED_STATUS_INDEX = 10;
+// Broken at Site only appears when current status is Delivered (3) or any status after (4-9), not Cancelled (10)
+export function canShowBrokenAtSiteForCurrentStatus(currentStatus: number): boolean {
+  return currentStatus >= DELIVERED_STATUS_INDEX && currentStatus !== CANCELLED_STATUS_INDEX;
+}
 
 export function getValidNextStatusesForRole(currentStatus: number, userRole: string): number[] {
   const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
 
-  // Admin can do everything (all statuses including Broken at Site)
+  // Admin can do everything (all statuses), but we filter Broken at Site for Admin in the dialog when status < Delivered
   if (userRole === 'Administrator') {
     return getValidNextStatuses(currentStatus);
   }
@@ -149,8 +160,12 @@ export function getValidNextStatusesForRole(currentStatus: number, userRole: str
   // Get valid next statuses from status flow
   let validNextStatuses = getValidNextStatuses(currentStatus);
 
-  // Broken at Site is a special status: add it for Store Site and QC Site from any current status
-  if (ROLES_CAN_SET_BROKEN_AT_SITE.includes(userRole) && allowedStatuses.includes(brokenAtSiteStatusIndex)) {
+  // Broken at Site: only for Store Site and QC Site, and only after panel has been Delivered
+  if (
+    ROLES_CAN_SET_BROKEN_AT_SITE.includes(userRole) &&
+    allowedStatuses.includes(brokenAtSiteStatusIndex) &&
+    canShowBrokenAtSiteForCurrentStatus(currentStatus)
+  ) {
     validNextStatuses = [...validNextStatuses, brokenAtSiteStatusIndex];
   }
 

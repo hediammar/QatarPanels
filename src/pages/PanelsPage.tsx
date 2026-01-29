@@ -8,6 +8,7 @@ import {
   ChevronsRight,
   Download,
   Edit,
+  FileSpreadsheet,
   FileText,
   FolderOpen,
   FolderPlus,
@@ -231,10 +232,12 @@ export function PanelsPage() {
   }, [isCreateGroupDialogOpen]);
 
   // RBAC Permission checks
-  const canCreatePanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canCreate') : false;
-  const canUpdatePanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canUpdate') : false;
-  const canDeletePanels = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canDelete') : false;
-  const canChangePanelStatus = currentUser?.role ? hasPermission(currentUser.role as any, 'panels', 'canChangeStatus') : false;
+  const canCreatePanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canCreate') : false;
+  const canUpdatePanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canUpdate') : false;
+  const canDeletePanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canDelete') : false;
+  const canBulkImportPanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canBulkImport') : false;
+  const canChangePanelStatus = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canChangeStatus') : false;
+  const canSelectPanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canSelect') : false;
 
   // Fetch previous status from panel status history
   const fetchPreviousStatus = async (panelId: string) => {
@@ -1427,6 +1430,126 @@ export function PanelsPage() {
     XLSX.writeFile(wb, "panels_import_template.xlsx");
   };
 
+  // Normalize a "date-only" string to YYYY-MM-DD for export
+  const normalizeDateOnlyToISO = (dateStr?: string) => {
+    if (!dateStr?.trim()) return "";
+    const str = dateStr.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    const parsed = new Date(str);
+    return !isNaN(parsed.getTime()) ? parsed.toISOString().split("T")[0] : "";
+  };
+
+  const handleExportPanelsToExcel = async () => {
+    if (filteredPanels.length === 0) {
+      showToast("No panels to export", "error");
+      return;
+    }
+    try {
+      showToast("Exporting panels to Excel...", "success");
+      const exportData = filteredPanels.map((panel) => ({
+        "Panel Name": panel.name || "",
+        "Type": typeMap[panel.type] || "Unknown",
+        "Status": statusMap[panel.status] || "Unknown",
+        "Project Name": panel.project_name || "",
+        "Building Name": panel.building_name || "",
+        "Facade Name": panel.facade_name || "",
+        "Issue Transmittal No": panel.issue_transmittal_no || "",
+        "Drawing Number": panel.drawing_number || "",
+        "Unit Rate QR/m2": panel.unit_rate_qr_m2 ?? "",
+        "IFP Qty Area SM": panel.ifp_qty_area_sm ?? "",
+        "IFP Qty Nos": panel.ifp_qty_nos ?? "",
+        "Weight": panel.weight ?? "",
+        "Dimension": panel.dimension || "",
+        "Issued for Production Date": panel.issued_for_production_date
+          ? normalizeDateOnlyToISO(panel.issued_for_production_date)
+          : "",
+      }));
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Panels");
+      const fileName = `panels_export_${new Date().toISOString().split("T")[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      showToast(`Successfully exported ${exportData.length} panels to ${fileName}`, "success");
+    } catch (error) {
+      console.error("Error exporting panels to Excel:", error);
+      showToast(`Error exporting panels: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+    }
+  };
+
+  const handleExportPanelHistoryToExcel = async () => {
+    const panelIds = filteredPanels.map((p) => p.id);
+    if (panelIds.length === 0) {
+      showToast("No panels in current view to export history for", "error");
+      return;
+    }
+    try {
+      showToast("Exporting panel history to Excel...", "success");
+      const { data: historyData, error: historyError } = await supabase
+        .from("panel_status_histories")
+        .select(
+          `
+          id,
+          panel_id,
+          status,
+          created_at,
+          user_id,
+          notes,
+          panels(id, name),
+          users!panel_status_histories_user_id_fkey(id, name, email)
+        `
+        )
+        .in("panel_id", panelIds)
+        .order("created_at", { ascending: false });
+
+      if (historyError) {
+        console.error("Database error:", historyError);
+        throw historyError;
+      }
+      if (!historyData || historyData.length === 0) {
+        showToast("No panel history found to export", "error");
+        return;
+      }
+      const historyByPanel = new Map<string, typeof historyData>();
+      historyData.forEach((h) => {
+        if (!historyByPanel.has(h.panel_id)) historyByPanel.set(h.panel_id, []);
+        historyByPanel.get(h.panel_id)!.push(h);
+      });
+      historyByPanel.forEach((panelHistory) => {
+        panelHistory.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      });
+      const exportDataWithOldStatus = historyData.map((history) => {
+        const panelRaw = history.panels as unknown;
+        const userRaw = history.users as unknown;
+        const panel: { id: string; name: string } | null = Array.isArray(panelRaw) ? (panelRaw[0] ?? null) : (panelRaw as { id: string; name: string } | null);
+        const user: { id: string; name?: string; email?: string } | null = Array.isArray(userRaw) ? (userRaw[0] ?? null) : (userRaw as { id: string; name?: string; email?: string } | null);
+        const panelHistory = historyByPanel.get(history.panel_id) || [];
+        const currentIndex = panelHistory.findIndex((h) => h.id === history.id);
+        let oldStatus = " ";
+        if (currentIndex > 0) {
+          const prev = panelHistory[currentIndex - 1];
+          oldStatus = statusMap[prev.status] || "Unknown";
+        }
+        return {
+          "Panel Name": panel?.name || "Unknown Panel",
+          "Old Status": oldStatus,
+          "New Status": statusMap[history.status] || "Unknown",
+          "Changed By": user?.name || user?.email || "Unknown User",
+          "Date of Change": history.created_at ? new Date(history.created_at).toLocaleString() : "",
+          "Notes": history.notes || "",
+        };
+      });
+      const ws = XLSX.utils.json_to_sheet(exportDataWithOldStatus);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Panel History");
+      const fileName = `panels_history_export_${new Date().toISOString().split("T")[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+      showToast(`Successfully exported ${exportDataWithOldStatus.length} history records to ${fileName}`, "success");
+    } catch (error) {
+      console.error("Error exporting panel history to Excel:", error);
+      showToast(`Error exporting panel history: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
+    }
+  };
+
   // Bulk import filters
   const filteredImportedPanels = importedPanels.filter((panel) => {
     const matchesSearch =
@@ -1468,13 +1591,11 @@ export function PanelsPage() {
     bulkImportValidityFilter !== "all" ? bulkImportValidityFilter : "",
   ].filter(Boolean).length;
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const toggleSelectionMode = () => {
     setIsSelectionMode(!isSelectionMode);
     setSelectedPanels(new Set());
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const toggleSelectAll = () => {
     if (selectedPanels.size === paginatedPanels.length) {
       setSelectedPanels(new Set());
@@ -1508,58 +1629,151 @@ export function PanelsPage() {
           <h2 className="text-xl font-semibold">Panels</h2>
           <Badge variant="secondary" className="ml-2">{filteredPanels.length}</Badge>
         </div>
-        <div className="flex items-center gap-2">
-           {isSelectionMode && (
+        <div className="flex flex-wrap items-center gap-2">
+          {isSelectionMode && canSelectPanels && (
             <>
               {canChangePanelStatus && (
                 <Button
                   variant="outline"
                   onClick={() => setIsBulkStatusDialogOpen(true)}
                   disabled={selectedPanels.size === 0}
+                  className="h-9 text-xs sm:text-sm"
                 >
-                  <Edit className="h-4 w-4 mr-2" />
-                  Update Status ({selectedPanels.size})
+                  <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                  <span className="hidden sm:inline">Update Status ({selectedPanels.size})</span>
+                  <span className="sm:hidden">Status ({selectedPanels.size})</span>
                 </Button>
               )}
               <Button
                 variant="outline"
                 onClick={() => setIsAddToGroupDialogOpen(true)}
                 disabled={selectedPanels.size === 0}
+                className="h-9 text-xs sm:text-sm"
               >
-                <Users className="h-4 w-4 mr-2" />
-                Add to Group ({selectedPanels.size})
+                <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                <span className="hidden sm:inline">Add to Group ({selectedPanels.size})</span>
+                <span className="sm:hidden">Add ({selectedPanels.size})</span>
               </Button>
               <Button
                 variant="outline"
                 onClick={() => setIsCreateGroupDialogOpen(true)}
                 disabled={selectedPanels.size === 0}
+                className="h-9 text-xs sm:text-sm"
               >
-                <FolderPlus className="h-4 w-4 mr-2" />
-                Create Group
+                <FolderPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                <span className="hidden sm:inline">Create Group</span>
+                <span className="sm:hidden">Create</span>
               </Button>
             </>
           )}
-          <Button 
-            variant="outline" 
-            onClick={handleBulkQRCodeDownload}
-            disabled={filteredPanels.length === 0}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Bulk Download QRCode
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={handleBulkQRCodeExcelDownload}
-            disabled={filteredPanels.length === 0}
-          >
-            <FileText className="h-4 w-4 mr-2" />
-            Export QR Links to Excel
-          </Button>
-          {canCreatePanels && (
-            <Button onClick={() => setIsAddPanelDialogOpen(true)} disabled={!canCreatePanels}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Panel
+          {isSelectionMode && canSelectPanels && (
+            <Button
+              variant="outline"
+              onClick={toggleSelectAll}
+              disabled={paginatedPanels.length === 0}
+              className="h-9 text-xs sm:text-sm"
+            >
+              {selectedPanels.size === paginatedPanels.length && paginatedPanels.length > 0 ? (
+                <>
+                  <Square className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                  <span className="hidden sm:inline">Deselect All</span>
+                  <span className="sm:hidden">Deselect</span>
+                </>
+              ) : (
+                <>
+                  <CheckSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                  <span className="hidden sm:inline">Select All</span>
+                  <span className="sm:hidden">Select All</span>
+                </>
+              )}
             </Button>
+          )}
+          {canSelectPanels && (
+            <Button
+              variant={isSelectionMode ? "default" : "outline"}
+              onClick={toggleSelectionMode}
+              className="h-9 text-xs sm:text-sm"
+            >
+              {isSelectionMode ? (
+                <>
+                  <CheckSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                  <span className="hidden sm:inline">Exit Selection</span>
+                  <span className="sm:hidden">Exit</span>
+                </>
+              ) : (
+                <>
+                  <Square className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                  <span className="hidden sm:inline">Select Panels</span>
+                  <span className="sm:hidden">Select</span>
+                </>
+              )}
+            </Button>
+          )}
+          {!isSelectionMode && (
+            <>
+              {canBulkImportPanels && (
+                <Button
+                  variant="outline"
+                  onClick={() => setIsBulkImportMode(true)}
+                  className="bg-secondary hover:bg-secondary/90 text-secondary-foreground border-border h-9 text-xs sm:text-sm"
+                >
+                  <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                  <span className="hidden sm:inline">Bulk Import</span>
+                  <span className="sm:hidden">Import</span>
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportPanelsToExcel}
+                disabled={filteredPanels.length === 0}
+                className="h-9 text-xs sm:text-sm"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                <span className="hidden sm:inline">Export to Excel</span>
+                <span className="sm:hidden">Export</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportPanelHistoryToExcel}
+                disabled={filteredPanels.length === 0}
+                className="h-9 text-xs sm:text-sm"
+              >
+                <History className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                <span className="hidden sm:inline">Export History</span>
+                <span className="sm:hidden">History</span>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleBulkQRCodeDownload}
+                disabled={filteredPanels.length === 0}
+                className="h-9 text-xs sm:text-sm"
+              >
+                <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                <span className="hidden sm:inline">Bulk Download QRCode</span>
+                <span className="sm:hidden">QR</span>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleBulkQRCodeExcelDownload}
+                disabled={filteredPanels.length === 0}
+                className="h-9 text-xs sm:text-sm"
+              >
+                <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                <span className="hidden sm:inline">Export QR Links to Excel</span>
+                <span className="sm:hidden">QR Links</span>
+              </Button>
+              <Button
+                onClick={() => setIsAddPanelDialogOpen(true)}
+                disabled={!canCreatePanels}
+                className="h-9 text-xs sm:text-sm"
+              >
+                <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                <span className="hidden sm:inline">Add Panel</span>
+                <span className="sm:hidden">Add</span>
+              </Button>
+            </>
           )}
         </div>
       </div>

@@ -61,6 +61,8 @@ interface PanelModel {
   unitRateQrM2: number;
   ifpQtyAreaSm: number;
   weight: number;
+  buildingName?: string;
+  facadeName?: string;
   groupId?: string; // Optional since we're using many-to-many relationship
   allGroupIds?: string[];
 }
@@ -490,7 +492,9 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, proj
               issue_transmittal_no,
               unit_rate_qr_m2,
               ifp_qty_area_sm,
-              weight
+              weight,
+              buildings(name),
+              facades(name)
             `)
             .eq('project_id', projectId);
 
@@ -502,7 +506,7 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, proj
           // Filter panels that belong to the same project as the group
           const availablePanelsData = allPanels;
 
-          const formattedPanels = availablePanelsData.map(panel => ({
+          const formattedPanels = availablePanelsData.map((panel: any) => ({
             id: panel.id,
             name: panel.name,
             status: mapPanelStatus(panel.status),
@@ -512,6 +516,8 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, proj
             unitRateQrM2: panel.unit_rate_qr_m2 || 0,
             ifpQtyAreaSm: panel.ifp_qty_area_sm || 0,
             weight: panel.weight || 0,
+            buildingName: panel.buildings?.name ?? '',
+            facadeName: panel.facades?.name ?? '',
             groupId: '',
           }));
 
@@ -632,6 +638,9 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, proj
                         <span className="truncate">Tag: {panel.panelTag}</span>
                         <span className="truncate">Drawing: {panel.dwgNo}</span>
                         <span className="truncate">Qty: {panel.unitQty}</span>
+                        {panel.buildingName && <span className="truncate">Building: {panel.buildingName}</span>}
+                        {panel.facadeName && <span className="truncate">Façade: {panel.facadeName}</span>}
+                        <span className="truncate">Area: {panel.ifpQtyAreaSm != null ? `${panel.ifpQtyAreaSm} m²` : '—'}</span>
                       </div>
                     </div>
                   </div>
@@ -776,7 +785,9 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
             issue_transmittal_no,
             unit_rate_qr_m2,
             ifp_qty_area_sm,
-            weight
+            weight,
+            buildings(name),
+            facades(name)
           `)
           .in('id', currentPanelIds);
 
@@ -787,7 +798,7 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
         currentPanelsData = currentData || [];
       }
 
-      const formattedCurrentPanels = currentPanelsData.map(panel => ({
+      const formattedCurrentPanels = currentPanelsData.map((panel: any) => ({
         id: panel.id,
         name: panel.name,
         status: mapPanelStatus(panel.status),
@@ -797,6 +808,8 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
         unitRateQrM2: panel.unit_rate_qr_m2 || 0,
         ifpQtyAreaSm: panel.ifp_qty_area_sm || 0,
         weight: panel.weight || 0,
+        buildingName: panel.buildings?.name ?? '',
+        facadeName: panel.facades?.name ?? '',
         groupId: group.id,
       }));
 
@@ -814,7 +827,9 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
           issue_transmittal_no,
           unit_rate_qr_m2,
           ifp_qty_area_sm,
-          weight
+          weight,
+          buildings(name),
+          facades(name)
         `)
         .eq('project_id', group.project_id);
 
@@ -825,9 +840,9 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 
       // Filter out panels that are already in the current group
       const currentPanelIdsSet = new Set(currentPanelIds);
-      const availablePanelsData = allPanelsData?.filter(panel => !currentPanelIdsSet.has(panel.id)) || [];
+      const availablePanelsData = allPanelsData?.filter((panel: { id: string }) => !currentPanelIdsSet.has(panel.id)) || [];
 
-      const formattedAvailablePanels = availablePanelsData.map(panel => ({
+      const formattedAvailablePanels = availablePanelsData.map((panel: any) => ({
         id: panel.id,
         name: panel.name,
         status: mapPanelStatus(panel.status),
@@ -837,6 +852,8 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
         unitRateQrM2: panel.unit_rate_qr_m2 || 0,
         ifpQtyAreaSm: panel.ifp_qty_area_sm || 0,
         weight: panel.weight || 0,
+        buildingName: panel.buildings?.name ?? '',
+        facadeName: panel.facades?.name ?? '',
         groupId: '',
       }));
 
@@ -1121,6 +1138,9 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
                                   <span className="truncate">Tag: {panel.panelTag}</span>
                                   <span className="truncate">Drawing: {panel.dwgNo}</span>
                                   <span className="truncate">Qty: {panel.unitQty}</span>
+                                  {panel.buildingName && <span className="truncate">Building: {panel.buildingName}</span>}
+                                  {panel.facadeName && <span className="truncate">Façade: {panel.facadeName}</span>}
+                                  <span className="truncate">Area: {panel.ifpQtyAreaSm != null ? `${panel.ifpQtyAreaSm} m²` : '—'}</span>
                                 </div>
                               </div>
                             </div>
@@ -1262,7 +1282,9 @@ async function fetchPanels(): Promise<PanelModel[]> {
         issue_transmittal_no,
         unit_rate_qr_m2,
         ifp_qty_area_sm,
-        weight
+        weight,
+        buildings(name),
+        facades(name)
       `)
       .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -1307,7 +1329,7 @@ async function fetchPanels(): Promise<PanelModel[]> {
   });
 
   // Create panels with group information
-  const panelsWithGroups = data.map((panel) => {
+  const panelsWithGroups = data.map((panel: any) => {
     const groupIds = panelToGroupsMap.get(panel.id) || [];
 
     return {
@@ -1320,6 +1342,8 @@ async function fetchPanels(): Promise<PanelModel[]> {
       unitRateQrM2: panel.unit_rate_qr_m2 || 0,
       ifpQtyAreaSm: panel.ifp_qty_area_sm || 0,
       weight: panel.weight || 0,
+      buildingName: panel.buildings?.name ?? '',
+      facadeName: panel.facades?.name ?? '',
       groupId: '', // No longer used for many-to-many relationship
       // Store all group IDs for future use if needed
       allGroupIds: groupIds,
@@ -1822,10 +1846,13 @@ export function PanelGroupsPage({
                                     <div className="flex items-center gap-2 mb-1">
                                       <span className="font-medium">{panel.name}</span>
                                     </div>
-                                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                    <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                                       <span>Tag: {panel.panelTag}</span>
                                       <span>Drawing: {panel.dwgNo}</span>
                                       <span>Qty: {panel.unitQty}</span>
+                                      {panel.buildingName && <span>Building: {panel.buildingName}</span>}
+                                      {panel.facadeName && <span>Façade: {panel.facadeName}</span>}
+                                      <span>Area: {panel.ifpQtyAreaSm != null ? `${panel.ifpQtyAreaSm} m²` : '—'}</span>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">

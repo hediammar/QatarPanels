@@ -40,7 +40,7 @@ export const ROLE_STATUS_RESTRICTIONS: Record<string, number[]> = {
   'Data Entry': [9, 10], // On Hold, Cancelled (only these two statuses)
   'Production engineer': [1], // Produced
   'Site Engineer': [7], // Inspected
-  'QC Site': [4, 5, 8], // Approved Material, Rejected Material, Approved Final
+  'QC Site': [4, 5, 8, 11], // Approved Material, Rejected Material, Approved Final, Broken at Site
   'QC Factory': [2], // Proceed for Delivery
   'Store Site': [3, 11], // Delivered, Broken at Site
   'Foreman Site': [6], // Installed
@@ -66,6 +66,14 @@ export function validateStatusTransitionWithRole(
   // Validate that status indices are within bounds
   if (currentStatus < 0 || currentStatus >= PANEL_STATUSES.length || newStatus < 0 || newStatus >= PANEL_STATUSES.length) {
     return { isValid: false, error: "Status index out of bounds" };
+  }
+
+  // Only Administrator, Store Site and QC Site can change to Broken at Site
+  const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
+  if (newStatus === brokenAtSiteStatusIndex) {
+    if (userRole !== 'Administrator' && userRole !== 'Store Site' && userRole !== 'QC Site') {
+      return { isValid: false, error: 'Only Store Site and QC Site roles can change status to "Broken at Site"' };
+    }
   }
 
   // Admin can do everything without restrictions
@@ -113,8 +121,13 @@ export function validateStatusTransitionWithRole(
  * @param userRole - The user's role
  * @returns Array of valid next status indices
  */
+// Roles that are allowed to set status to "Broken at Site"
+const ROLES_CAN_SET_BROKEN_AT_SITE = ['Store Site', 'QC Site'];
+
 export function getValidNextStatusesForRole(currentStatus: number, userRole: string): number[] {
-  // Admin can do everything
+  const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
+
+  // Admin can do everything (all statuses including Broken at Site)
   if (userRole === 'Administrator') {
     return getValidNextStatuses(currentStatus);
   }
@@ -134,8 +147,13 @@ export function getValidNextStatusesForRole(currentStatus: number, userRole: str
   }
 
   // Get valid next statuses from status flow
-  const validNextStatuses = getValidNextStatuses(currentStatus);
-  
+  let validNextStatuses = getValidNextStatuses(currentStatus);
+
+  // Broken at Site is a special status: add it for Store Site and QC Site from any current status
+  if (ROLES_CAN_SET_BROKEN_AT_SITE.includes(userRole) && allowedStatuses.includes(brokenAtSiteStatusIndex)) {
+    validNextStatuses = [...validNextStatuses, brokenAtSiteStatusIndex];
+  }
+
   // Filter to only include statuses that the role is allowed to change to
   return validNextStatuses.filter(status => allowedStatuses.includes(status));
 }

@@ -129,9 +129,7 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
       let allowedStatuses: number[] = [];
 
       if (panel.status === onHoldStatusIndex) {
-        // From On Hold, admins can go to:
-        // 1. Previous status (if available)
-        // 2. Other special statuses (Cancelled, Broken at Site)
+        // From On Hold, admins can go to: previous status (if available), Cancelled, Broken at Site
         allowedStatuses = [cancelledStatusIndex, brokenAtSiteStatusIndex];
         
         // Add previous status if available
@@ -139,7 +137,7 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
           allowedStatuses.push(previousStatus);
         }
       } else {
-        // For other statuses, use the forward traversal logic + special statuses
+        // For other statuses, use the forward traversal logic + special statuses (Admin can set any status)
         const forwardStatuses = getAllForwardStatuses(panel.status);
         const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex, brokenAtSiteStatusIndex];
         allowedStatuses = Array.from(new Set([...forwardStatuses, ...specialStatuses]));
@@ -160,16 +158,12 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
     }
     
     // For other roles, get their valid next statuses but exclude On Hold and Cancelled
-    // (only Admin and Data Entry can access these)
+    // (only Admin and Data Entry can access these). Broken at Site is only for Store Site and QC Site (handled in getValidNextStatusesForRole).
     const validNextStatuses = getValidNextStatusesForRole(panel.status, currentUser.role);
     
-    // Only include Broken at Site if it's a special status they can access
-    // (On Hold and Cancelled are excluded for non-Admin/Data Entry roles)
-    const restrictedSpecialStatuses = [brokenAtSiteStatusIndex];
-    const validStatuses = Array.from(new Set([
-      ...validNextStatuses.filter(status => status !== onHoldStatusIndex && status !== cancelledStatusIndex),
-      ...restrictedSpecialStatuses.filter(status => isSpecialStatus(status) && validNextStatuses.includes(status))
-    ]));
+    const validStatuses = validNextStatuses.filter(
+      status => status !== onHoldStatusIndex && status !== cancelledStatusIndex
+    );
     
     return validStatuses.filter(status => status !== panel.status).sort((a, b) => a - b);
   };

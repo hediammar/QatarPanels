@@ -697,15 +697,6 @@ export function ProjectManagement() {
             buildingCount ? `${buildingCount} building(s)` : null
           ].filter(Boolean).join(', ');
           
-          const confirmed = window.confirm(
-            `This project has ${dependencyDetails} associated with it. Deleting the project will also delete all associated data. Are you sure you want to continue?`
-          );
-          
-          if (!confirmed) {
-            setDeletingProject(null);
-            return;
-          }
-          
           console.log(`Deleting dependencies for project ${deletingProject.id}: ${dependencyDetails}`);
           
           // Delete in the correct order: Panels → Facades → Buildings → Project

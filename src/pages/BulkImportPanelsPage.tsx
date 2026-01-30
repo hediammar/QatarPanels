@@ -34,6 +34,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { hasPermission, UserRole } from '../utils/rolePermissions';
 import * as XLSX from 'xlsx';
 import { crudOperations } from '../utils/userTracking';
+import { syncLatestPanelStatusHistoryTimestamp } from '../utils/panelStatusHistory';
 
 interface PanelImportData {
   project_name: string;
@@ -187,11 +188,13 @@ export function BulkImportPanelsPage() {
 
   // Helper functions for finding and creating projects, buildings, and facades
   const normalizeName = (value?: string) => (value || "").trim().toLowerCase();
+  // Project names: compare in UPPERCASE so "Project Alpha" and "project alpha" match (unique by name, no mismatch)
+  const normalizeProjectName = (value?: string) => (value || "").trim().toUpperCase();
 
   const findProjectIdByName = (name?: string): string | undefined => {
     if (!name) return undefined;
-    const target = normalizeName(name);
-    const match = projects.find((p) => normalizeName(p.name) === target);
+    const target = normalizeProjectName(name);
+    const match = projects.find((p) => normalizeProjectName(p.name) === target);
     return match?.id;
   };
 
@@ -626,32 +629,16 @@ export function BulkImportPanelsPage() {
   };
 
   const validateData = (data: PanelImportData[]): ValidationResult[] => {
-    console.log('validateData called with', data.length, 'rows');
     return data.map((row, index) => {
       const errors: string[] = [];
       const warnings: string[] = [];
-
-      // Debug logging for first few rows
-      if (index < 3) {
-        console.log(`Validating row ${index + 1}:`, {
-          name: row.name,
-          project_name: row.project_name,
-          type: row.type,
-          status: row.status,
-          date: row.date,
-          unit_qty: row.unit_qty,
-          ifp_qty_nos: row.ifp_qty_nos,
-          ifp_qty: row.ifp_qty,
-          weight: row.weight
-        });
-      }
 
       // Required field validation
       if (!row.name?.trim()) {
         errors.push('Panel name is required');
       }
 
-      // Project name validation - check if project name exists
+      // Project name from Excel - matched by uppercase so "Project A" and "project a" are the same
       if (!row.project_name?.trim()) {
         errors.push('Project name is required');
       }
@@ -861,39 +848,26 @@ export function BulkImportPanelsPage() {
     try {
       const data = await parseExcel(file);
       setParsedData(data);
-      
-      // Validate data first (this is fast and should happen immediately)
-      console.log('About to validate data:', data.slice(0, 3)); // Show first 3 rows of parsed data
-      console.log('Data type:', typeof data, 'Is array:', Array.isArray(data));
-      console.log('Calling validateData function...');
       const validation = validateData(data);
-      console.log('Validation completed. Results:', validation.slice(0, 3)); // Show first 3 validation results
-      console.log('Parsed data length:', data.length);
-      console.log('Validation results length:', validation.length);
       setValidationResults(validation);
-      console.log('Validation results set in state');
-      
-      // Check for existing panels (optimized for large datasets) - do this after validation
-      console.log('Starting existing panel check for', data.length, 'rows...');
+
+      // Check for existing panels per (project, panel) - project matched by uppercase name
       const existingPanelsMap: { [key: string]: any } = {};
-      const uniquePanelNames = Array.from(new Set(data.map(row => row.name?.trim()).filter(Boolean)));
-      console.log('Found', uniquePanelNames.length, 'unique panel names to check');
-      
-      // Process in batches to avoid overwhelming the API
-      const batchSize = 50;
-      for (let i = 0; i < uniquePanelNames.length; i += batchSize) {
-        const batch = uniquePanelNames.slice(i, i + batchSize);
-        console.log(`Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(uniquePanelNames.length/batchSize)}`);
-        
-        for (const panelName of batch) {
-          const existingPanel = await findExistingPanelByName(panelName);
-          if (existingPanel) {
-            existingPanelsMap[panelName] = existingPanel;
-          }
+      const seen = new Set<string>();
+      for (const row of data) {
+        const pName = row.project_name?.trim();
+        const panelName = row.name?.trim();
+        if (!pName || !panelName) continue;
+        const key = `${normalizeProjectName(pName)}|${panelName}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const projectId = findProjectIdByName(pName);
+        if (projectId) {
+          const existing = await findExistingPanelByNameInProject(panelName, projectId);
+          if (existing) existingPanelsMap[key] = existing;
         }
       }
       setExistingPanels(existingPanelsMap);
-      console.log('Existing panel check complete. Found', Object.keys(existingPanelsMap).length, 'existing panels');
     } catch (err: any) {
       setError('Failed to parse Excel file: ' + err.message);
     }
@@ -1059,8 +1033,8 @@ export function BulkImportPanelsPage() {
         // Helper functions that work with local caches
         const findProjectIdByNameLocal = (name?: string): string | undefined => {
           if (!name) return undefined;
-          const target = normalizeName(name);
-          const match = localProjects.find((p) => normalizeName(p.name) === target);
+          const target = normalizeProjectName(name);
+          const match = localProjects.find((p) => normalizeProjectName(p.name) === target);
           return match?.id;
         };
 
@@ -1088,58 +1062,45 @@ export function BulkImportPanelsPage() {
           return match?.id;
         };
 
-        // Resolve project, building, and facade IDs using local caches
+        // Resolve project from Excel (match by uppercase name). If not found, create project + customer + building + facade as needed.
         let resolvedProjectId = findProjectIdByNameLocal(row.project_name);
         let resolvedBuildingId: string | null = null;
         let resolvedFacadeId: string | null = null;
 
-        // If project doesn't exist, create it
         if (!resolvedProjectId) {
           try {
-            // First resolve customer if provided, or create a default one
             let customerId: string | null = null;
-            
-            if (row.customer_name && row.customer_name.trim()) {
+            if (row.customer_name?.trim()) {
               const existingCustomerId = findCustomerIdByNameLocal(row.customer_name);
               if (existingCustomerId) {
                 customerId = existingCustomerId;
               } else {
-                // Create new customer
-                const customerData = {
+                const newCustomer = await crudOperations.create("customers", {
                   name: row.customer_name,
                   email: `${row.customer_name.toLowerCase().replace(/\s+/g, '.')}@example.com`,
                   phone: '+974-0000-0000',
-                };
-                const newCustomer = await crudOperations.create("customers", customerData);
+                });
                 localCustomers.push({ id: newCustomer.id, name: row.customer_name });
                 customerId = newCustomer.id;
               }
             } else {
-              // Create a default customer for the project
               const defaultCustomerName = `${row.project_name} Customer`;
-              const customerData = {
+              const newCustomer = await crudOperations.create("customers", {
                 name: defaultCustomerName,
                 email: `${defaultCustomerName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
                 phone: '+974-0000-0000',
-              };
-              const newCustomer = await crudOperations.create("customers", customerData);
+              });
               localCustomers.push({ id: newCustomer.id, name: defaultCustomerName });
               customerId = newCustomer.id;
             }
-
-            if (!customerId) {
-              throw new Error(`Failed to create or find customer for project "${row.project_name}"`);
-            }
-
-            // Create new project
-            const projectData = {
+            if (!customerId) throw new Error(`Failed to create or find customer for project "${row.project_name}"`);
+            const newProject = await crudOperations.create("projects", {
               name: row.project_name,
               customer_id: customerId,
               location: 'Unknown Location',
               status: 'active',
               start_date: new Date().toISOString().split('T')[0],
-            };
-            const newProject = await crudOperations.create("projects", projectData);
+            });
             localProjects.push({ id: newProject.id, name: row.project_name });
             resolvedProjectId = newProject.id;
           } catch (error) {
@@ -1261,11 +1222,46 @@ export function BulkImportPanelsPage() {
             });
             errorCount++;
           } else {
-            results.push({
-              success: true,
-              message: `Successfully updated panel "${row.name}"`,
-              data: updatedPanel
-            });
+            // When status is "Issued for Production" (0), sync the date to panel_status_histories.created_at
+            const issuedForProductionStatus = 0;
+            const statusNum = mapStatusToNumber(row.status);
+            const issuedDateStr = updateData.issued_for_production_date;
+            if (
+              statusNum === issuedForProductionStatus &&
+              issuedDateStr &&
+              currentUser?.id
+            ) {
+              const issuedAt = /^\d{4}-\d{2}-\d{2}$/.test(issuedDateStr)
+                ? new Date(`${issuedDateStr}T00:00:00Z`)
+                : new Date(issuedDateStr);
+              const { error: syncError } = await syncLatestPanelStatusHistoryTimestamp(
+                existingPanel.id,
+                issuedForProductionStatus,
+                currentUser.id,
+                issuedAt,
+                { notes: 'Synced from bulk import "Issued for Production Date"' }
+              );
+              if (syncError) {
+                results.push({
+                  success: true,
+                  message: `Updated panel "${row.name}", but failed to sync Issued for Production date. ${syncError.message ?? ''}`.trim(),
+                  data: updatedPanel,
+                  errors: [syncError.message ?? 'Failed to sync status history timestamp']
+                });
+              } else {
+                results.push({
+                  success: true,
+                  message: `Successfully updated panel "${row.name}"`,
+                  data: updatedPanel
+                });
+              }
+            } else {
+              results.push({
+                success: true,
+                message: `Successfully updated panel "${row.name}"`,
+                data: updatedPanel
+              });
+            }
             successCount++;
           }
         } else {
@@ -1312,11 +1308,46 @@ export function BulkImportPanelsPage() {
             });
             errorCount++;
           } else {
-            results.push({
-              success: true,
-              message: `Successfully imported "${row.name}"`,
-              data: newPanel
-            });
+            // When status is "Issued for Production" (0), sync the date to panel_status_histories.created_at
+            const issuedForProductionStatus = 0;
+            const statusNum = mapStatusToNumber(row.status);
+            const issuedDateStr = panelData.issued_for_production_date;
+            if (
+              statusNum === issuedForProductionStatus &&
+              issuedDateStr &&
+              currentUser?.id
+            ) {
+              const issuedAt = /^\d{4}-\d{2}-\d{2}$/.test(issuedDateStr)
+                ? new Date(`${issuedDateStr}T00:00:00Z`)
+                : new Date(issuedDateStr);
+              const { error: syncError } = await syncLatestPanelStatusHistoryTimestamp(
+                newPanel.id,
+                issuedForProductionStatus,
+                currentUser.id,
+                issuedAt,
+                { notes: 'Synced from bulk import "Issued for Production Date"' }
+              );
+              if (syncError) {
+                results.push({
+                  success: true,
+                  message: `Imported "${row.name}", but failed to sync Issued for Production date. ${syncError.message ?? ''}`.trim(),
+                  data: newPanel,
+                  errors: [syncError.message ?? 'Failed to sync status history timestamp']
+                });
+              } else {
+                results.push({
+                  success: true,
+                  message: `Successfully imported "${row.name}"`,
+                  data: newPanel
+                });
+              }
+            } else {
+              results.push({
+                success: true,
+                message: `Successfully imported "${row.name}"`,
+                data: newPanel
+              });
+            }
             successCount++;
           }
         }
@@ -1662,7 +1693,7 @@ export function BulkImportPanelsPage() {
                   <TableBody>
                     {parsedData.map((row, index) => {
                       const validation = validationResults[index];
-                      const isExisting = existingPanels[row.name?.trim() || ''];
+                      const isExisting = existingPanels[`${normalizeProjectName(row.project_name)}|${row.name?.trim() || ''}`];
                       return (
                         <TableRow key={index} className="hover:bg-secondary/30 transition-colors">
                           <TableCell className="font-medium text-card-foreground">{index + 1}</TableCell>

@@ -15,35 +15,37 @@ export const PANEL_STATUSES = [
 
 export type PanelStatus = (typeof PANEL_STATUSES)[number];
 
-// Define the valid status flow - each status can only move to specific next statuses
+// Define the valid status flow per the workflow chart:
+// Data Entry: Issued For Production, On Hold, Cancelled
+// Production Engineer: Produced | QC Factory: Proceed for Delivery | Store Site: Delivered ↔ Broken at Site
+// QC Site: Approved Material ↔ Rejected Material, Final Approved | Foreman Site: Installed | Site Engineer: Inspected
 export const STATUS_FLOW: Record<number, number[]> = {
   0: [1, 9, 10], // Issued For Production -> Produced, On Hold, Cancelled
   1: [2, 9, 10], // Produced -> Proceed for Delivery, On Hold, Cancelled
   2: [3, 9, 10], // Proceed for Delivery -> Delivered, On Hold, Cancelled
-  3: [4, 5, 9, 10], // Delivered -> Approved Material, Rejected Material, On Hold, Cancelled
-  4: [6, 9, 10], // Approved Material -> Installed, On Hold, Cancelled
-  5: [0, 9, 10], // Rejected Material -> Issued For Production (rework), On Hold, Cancelled
+  3: [4, 5, 9, 10, 11], // Delivered -> Approved Material, Rejected Material, On Hold, Cancelled, Broken at Site
+  4: [5, 6, 9, 10], // Approved Material -> Rejected Material, Installed, On Hold, Cancelled (bidirectional with Rejected)
+  5: [0, 4, 9, 10], // Rejected Material -> Issued For Production (rework), Approved Material, On Hold, Cancelled (bidirectional with Approved)
   6: [7, 9, 10], // Installed -> Inspected, On Hold, Cancelled
   7: [8, 9, 10], // Inspected -> Approved Final, On Hold, Cancelled
   8: [9, 10], // Approved Final -> On Hold, Cancelled (final status)
   9: [0, 1, 2, 3, 4, 5, 6, 7, 8, 11, 10], // On Hold -> can resume to any status except itself, or cancel
   10: [], // Cancelled -> terminal status, no further transitions
-  11: [0, 9, 10], // Broken at Site -> Issued For Production (rework), On Hold, Cancelled
+  11: [0, 3, 9, 10], // Broken at Site -> Issued For Production (rework), Delivered (back), On Hold, Cancelled (Delivered ↔ Broken at Site)
 };
 
 // Special statuses that can be set from any status (emergency/administrative)
 export const SPECIAL_STATUSES = [9, 10, 11]; // On Hold, Cancelled, Broken at Site
 
-// Role-based status change restrictions based on the table
-// Each role can only change to specific statuses (following the status flow logic)
+// Role-based status change restrictions per workflow chart (left column = role, right = statuses they manage)
 export const ROLE_STATUS_RESTRICTIONS: Record<string, number[]> = {
-  'Data Entry': [9, 10], // On Hold, Cancelled (only these two statuses)
+  'Data Entry': [9, 10], // On Hold, Cancelled (initial/pause/terminal states)
   'Production engineer': [1], // Produced
-  'Site Engineer': [7], // Inspected
-  'QC Site': [4, 5, 8, 11], // Approved Material, Rejected Material, Approved Final, Broken at Site
   'QC Factory': [2], // Proceed for Delivery
-  'Store Site': [3, 11], // Delivered, Broken at Site
+  'Store Site': [3, 11], // Delivered, Broken at Site (chart: Store Site manages Delivered + issues at site)
+  'QC Site': [4, 5, 8], // Approved Material, Rejected Material, Approved Final (chart: QC Site in two stages only)
   'Foreman Site': [6], // Installed
+  'Site Engineer': [7], // Inspected
 };
 
 /**
@@ -68,13 +70,13 @@ export function validateStatusTransitionWithRole(
     return { isValid: false, error: "Status index out of bounds" };
   }
 
-  // Broken at Site: only Store Site and QC Site, and only after panel has been Delivered
+  // Broken at Site: only Store Site per chart (Delivered ↔ Broken at Site), and only after panel has been Delivered
   const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
   const deliveredStatusIndex = PANEL_STATUSES.indexOf('Delivered');
   const currentStatusAllowsBrokenAtSite = currentStatus >= deliveredStatusIndex && currentStatus !== 10; // 10 = Cancelled
   if (newStatus === brokenAtSiteStatusIndex) {
-    if (userRole !== 'Administrator' && userRole !== 'Store Site' && userRole !== 'QC Site') {
-      return { isValid: false, error: 'Only Store Site and QC Site roles can change status to "Broken at Site"' };
+    if (userRole !== 'Administrator' && userRole !== 'Store Site') {
+      return { isValid: false, error: 'Only Store Site role can change status to "Broken at Site" (per workflow chart)' };
     }
     if (!currentStatusAllowsBrokenAtSite) {
       return { isValid: false, error: '"Broken at Site" can only be set after the panel has been put to Delivered' };
@@ -126,8 +128,8 @@ export function validateStatusTransitionWithRole(
  * @param userRole - The user's role
  * @returns Array of valid next status indices
  */
-// Roles that are allowed to set status to "Broken at Site" (and only after panel is Delivered)
-const ROLES_CAN_SET_BROKEN_AT_SITE = ['Store Site', 'QC Site'];
+// Per workflow chart: only Store Site manages Delivered and Broken at Site
+const ROLES_CAN_SET_BROKEN_AT_SITE = ['Store Site'];
 const DELIVERED_STATUS_INDEX = 3;
 const CANCELLED_STATUS_INDEX = 10;
 // Broken at Site only appears when current status is Delivered (3) or any status after (4-9), not Cancelled (10)
@@ -160,7 +162,7 @@ export function getValidNextStatusesForRole(currentStatus: number, userRole: str
   // Get valid next statuses from status flow
   let validNextStatuses = getValidNextStatuses(currentStatus);
 
-  // Broken at Site: only for Store Site and QC Site, and only after panel has been Delivered
+  // Broken at Site: only for Store Site (per workflow chart), and only after panel has been Delivered
   if (
     ROLES_CAN_SET_BROKEN_AT_SITE.includes(userRole) &&
     allowedStatuses.includes(brokenAtSiteStatusIndex) &&

@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { UserHeader } from "./UserHeader";
-import { LayoutDashboard, Users, FolderOpen, Package, RefreshCw, Layers, PackagePlus, UserCog, Menu, X, Building2, Building, FileText } from "lucide-react";
+import { LayoutDashboard, Users, FolderOpen, Package, RefreshCw, Layers, PackagePlus, UserCog, Menu, X, Building2, Building, FileText, Upload } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { canAccessNavigation } from "../utils/rolePermissions";
 
@@ -83,6 +83,7 @@ export function Layout({ children }: LayoutProps) {
     { id: '/buildings', label: 'Buildings', icon: Building2, accessKey: 'buildings' as const },
     { id: '/facades', label: 'Facades', icon: Building, accessKey: 'facades' as const },
     { id: '/panels', label: 'Panels', icon: Package, accessKey: 'panels' as const },
+    { id: '/bulk-import-panels', label: 'Bulk Import Panels', icon: Upload, accessKey: 'bulkImport' as const },
     { id: '/customers', label: 'Customers', icon: Users, accessKey: 'customers' as const },
     { id: '/panel-groups', label: 'Panel Groups', icon: Layers, accessKey: 'panelGroups' as const },
     { id: '/notes', label: 'Notes', icon: FileText, accessKey: 'notes' as const },

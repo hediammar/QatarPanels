@@ -164,7 +164,7 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
     }
     
     // For other roles, get their valid next statuses but exclude On Hold and Cancelled
-    // (only Admin and Data Entry can access these). Broken at Site is only for Store Site and QC Site (handled in getValidNextStatusesForRole).
+    // (only Admin and Data Entry can access these). Broken at Site is only for Store Site (per workflow chart, handled in getValidNextStatusesForRole).
     const validNextStatuses = getValidNextStatusesForRole(panel.status, currentUser.role);
     
     const validStatuses = validNextStatuses.filter(

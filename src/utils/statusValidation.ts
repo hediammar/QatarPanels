@@ -39,7 +39,7 @@ export const SPECIAL_STATUSES = [9, 10, 11]; // On Hold, Cancelled, Broken at Si
 
 // Role-based status change restrictions per workflow chart (left column = role, right = statuses they manage)
 export const ROLE_STATUS_RESTRICTIONS: Record<string, number[]> = {
-  'Data Entry': [9, 10], // On Hold, Cancelled (initial/pause/terminal states)
+  'Data Entry': [0, 9, 10], // Issued For Production (starting point), On Hold, Cancelled (per workflow chart)
   'Production engineer': [1], // Produced
   'QC Factory': [2], // Proceed for Delivery
   'Store Site': [3, 11], // Delivered, Broken at Site (chart: Store Site manages Delivered + issues at site)
@@ -88,7 +88,7 @@ export function validateStatusTransitionWithRole(
     return validateStatusTransition(currentStatus, newStatus);
   }
 
-  // Data Entry can only change to On Hold (9) and Cancelled (10)
+  // Data Entry can only change to Issued For Production (0), On Hold (9), and Cancelled (10)
   if (userRole === 'Data Entry') {
     const allowedStatuses = ROLE_STATUS_RESTRICTIONS['Data Entry'];
     if (!allowedStatuses.includes(newStatus)) {
@@ -145,7 +145,7 @@ export function getValidNextStatusesForRole(currentStatus: number, userRole: str
     return getValidNextStatuses(currentStatus);
   }
 
-  // Data Entry can only change to On Hold (9) and Cancelled (10)
+  // Data Entry can only change to Issued For Production (0), On Hold (9), and Cancelled (10)
   if (userRole === 'Data Entry') {
     const allowedStatuses = ROLE_STATUS_RESTRICTIONS['Data Entry'];
     // Get valid next statuses from status flow and filter to only allowed ones

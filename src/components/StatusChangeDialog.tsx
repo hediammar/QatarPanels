@@ -153,9 +153,10 @@ export function StatusChangeDialog({ panel, isOpen, onClose, onStatusChanged }: 
       return allowedStatuses.filter(status => status !== panel.status).sort((a, b) => a - b);
     }
     
-    // For Data Entry role, they can only access On Hold and Cancelled
+    // For Data Entry role: Issued For Production (starting point), On Hold, Cancelled (per workflow chart)
     if (currentUser.role === 'Data Entry') {
-      const allowedStatuses = [onHoldStatusIndex, cancelledStatusIndex];
+      const issuedForProductionIndex = PANEL_STATUSES.indexOf('Issued For Production');
+      const allowedStatuses = [issuedForProductionIndex, onHoldStatusIndex, cancelledStatusIndex];
       // Filter to only include statuses that are valid transitions from current status
       const validNextStatuses = getValidNextStatuses(panel.status);
       return allowedStatuses.filter(status => validNextStatuses.includes(status) || isSpecialStatus(status))

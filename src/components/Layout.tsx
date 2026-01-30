@@ -137,7 +137,7 @@ export function Layout({ children }: LayoutProps) {
         <div className="text-center space-y-4">
           <RefreshCw className="h-8 w-8 mx-auto animate-spin text-primary" />
           <div className="space-y-2">
-            <h2 className="text-lg text-foreground">Initializing Qatar Panel Tracker</h2>
+            <h2 className="text-lg text-foreground">Initializing DohaExtraco Panels Tracker</h2>
             <p className="text-sm text-muted-foreground">Connecting to server...</p>
           </div>
         </div>
@@ -166,18 +166,15 @@ export function Layout({ children }: LayoutProps) {
         {/* Sidebar Header */}
         <div className="qatar-sidebar-header">
           <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'} mb-2`}>
-            {!sidebarCollapsed && (
+            {!sidebarCollapsed ? (
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                    <Package className="h-5 w-5 text-primary-foreground" />
-                  </div>
-                  <div>
-                    <h1 className="qatar-sidebar-brand">Qatar Panels</h1>
-                    <p className="qatar-sidebar-subtitle">Qatar Panel Tracker</p>
-                  </div>
+                  <img src="/DohaTracker.png" alt="DohaExtraco Panels Tracker" className="h-auto w-auto object-contain flex-shrink-0" />
+                  
                 </div>
               </div>
+            ) : (
+              <img src="/DohaTracker.png" alt="DohaExtraco" className="h-8 w-8 object-contain flex-shrink-0" />
             )}
             <div className="flex items-center gap-2">
               {/* Mobile close button */}

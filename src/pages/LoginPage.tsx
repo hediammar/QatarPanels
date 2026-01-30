@@ -53,7 +53,7 @@ export function LoginPage() {
             <Building2 className="h-8 w-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Qatar Panel Tracker
+            DohaExtraco Panels Tracker
           </h1>
           <p className="text-gray-600">
             Sign in to your account
@@ -151,7 +151,7 @@ export function LoginPage() {
         {/* System Info */}
         <div className="mt-8 text-center">
           <p className="text-xs text-gray-500">
-            Qatar Panel Tracker v1.0.0
+            DohaExtraco Panels Tracker v1.0.0
           </p>
         </div>
       </div>

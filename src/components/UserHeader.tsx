@@ -41,7 +41,7 @@ export function UserHeader({ onMobileMenuToggle }: UserHeaderProps) {
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <h2>Qatar Panel Tracker</h2>
+          <h2>DohaExtraco Panels Tracker</h2>
         </div>
         
         <div className="flex items-center gap-3">

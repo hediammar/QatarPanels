@@ -1,5 +1,5 @@
 // Centralized role-based access control permissions
-// This file defines all role permissions and utility functions for the Qatar Panel Tracker
+// This file defines all role permissions and utility functions for the DohaExtraco Panels Tracker
 
 export type UserRole = 
   | 'Administrator'

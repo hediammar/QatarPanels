@@ -2,7 +2,7 @@
   "name": "qatar-panel-tracker",
   "private": true,
   "version": "1.0.0",
-  "description": "Qatar Panel Tracker - A construction panel management system with Qatar red theme",
+  "description": "DohaExtraco Panels Tracker - A construction panel management system",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -61,7 +61,7 @@
     "qatar",
     "vite"
   ],
-  "author": "Qatar Panel Tracker Team",
+  "author": "DohaExtraco Panels Tracker Team",
   "license": "MIT",
   "repository": {
     "type": "git",

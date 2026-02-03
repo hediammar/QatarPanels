@@ -14,6 +14,7 @@ import {
   X
 } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -398,6 +399,17 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, proj
 function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }: UpdatePanelGroupDialogProps) {
   const [groupName, setGroupName] = useState(group.name);
   const [groupDescription, setGroupDescription] = useState(group.description || "");
+  const [createdAt, setCreatedAt] = useState(() => {
+    // Format createdAt from ISO string to YYYY-MM-DD
+    if (group.createdAt) {
+      const date = new Date(group.createdAt);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    return "";
+  });
   const [currentPanels, setCurrentPanels] = useState<PanelModel[]>([]);
   const [availablePanels, setAvailablePanels] = useState<PanelModel[]>([]);
   const [selectedPanelsToAdd, setSelectedPanelsToAdd] = useState<Set<string>>(new Set());
@@ -418,6 +430,16 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
   useEffect(() => {
     setGroupName(group.name);
     setGroupDescription(group.description || "");
+    // Format createdAt from ISO string to YYYY-MM-DD
+    if (group.createdAt) {
+      const date = new Date(group.createdAt);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      setCreatedAt(`${year}-${month}-${day}`);
+    } else {
+      setCreatedAt("");
+    }
   }, [group]);
 
   const loadPanelData = async () => {
@@ -540,13 +562,33 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 
     setIsUpdating(true);
     try {
+      // Prepare created_at date - always set time to midnight (00:00:00)
+      let createdAtDate: Date | undefined;
+      if (createdAt) {
+        // Parse the date and set to midnight
+        const dateParts = createdAt.split('-');
+        createdAtDate = new Date(
+          parseInt(dateParts[0]),
+          parseInt(dateParts[1]) - 1,
+          parseInt(dateParts[2]),
+          0, 0, 0, 0
+        );
+      }
+
       // Update group details directly
+      const updateData: { name: string; description: string | null; created_at?: string } = {
+        name: groupName.trim(),
+        description: groupDescription.trim() || null
+      };
+
+      // Only include created_at if it was changed
+      if (createdAtDate) {
+        updateData.created_at = createdAtDate.toISOString();
+      }
+
       const { error: updateError } = await supabase
         .from('panel_groups')
-        .update({
-          name: groupName.trim(),
-          description: groupDescription.trim() || null
-        })
+        .update(updateData)
         .eq('id', group.id);
 
       if (updateError) {
@@ -741,6 +783,22 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
                     rows={4}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="created-at" className="text-sm font-medium">Creation Date</Label>
+                  <div className="relative">
+                    <Input
+                      id="created-at"
+                      type="date"
+                      value={createdAt}
+                      onChange={(e) => setCreatedAt(e.target.value)}
+                      className="h-10 pl-8"
+                    />
+                    <Calendar className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Time will be set to midnight (00:00:00).
+                  </p>
+                </div>
               </div>
             ) : (
               /* Manage Panels Tab */
@@ -843,6 +901,16 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
                 onOpenChange(false);
                 setGroupName(group.name);
                 setGroupDescription(group.description || "");
+                // Reset createdAt
+                if (group.createdAt) {
+                  const date = new Date(group.createdAt);
+                  const year = date.getFullYear();
+                  const month = String(date.getMonth() + 1).padStart(2, '0');
+                  const day = String(date.getDate()).padStart(2, '0');
+                  setCreatedAt(`${year}-${month}-${day}`);
+                } else {
+                  setCreatedAt("");
+                }
                 clearAllSelections();
               }}
             >
@@ -1054,6 +1122,7 @@ export function PanelGroupsSection({
   onDeleteGroup,
   onViewGroup,
 }: PanelGroupsSectionProps) {
+  const navigate = useNavigate();
   const [panelGroups, setPanelGroups] = useState<PanelGroupModel[]>([]);
   const [panels, setPanels] = useState<PanelModel[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -1086,11 +1155,9 @@ export function PanelGroupsSection({
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const day = String(now.getDate()).padStart(2, '0');
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
       setNewGroupData(prev => ({
         ...prev,
-        createdAt: prev.createdAt || `${year}-${month}-${day}T${hours}:${minutes}`
+        createdAt: prev.createdAt || `${year}-${month}-${day}`
       }));
     }
   }, [isAddDialogOpen]);
@@ -1257,10 +1324,23 @@ export function PanelGroupsSection({
 
     setIsCreating(true);
     try {
-      // Prepare created_at date - use custom date if provided, otherwise use current time
-      const createdAtDate = newGroupData.createdAt 
-        ? new Date(newGroupData.createdAt)
-        : new Date();
+      // Prepare created_at date - use custom date if provided, otherwise use current date
+      // Always set time to midnight (00:00:00)
+      let createdAtDate: Date;
+      if (newGroupData.createdAt) {
+        // Parse the date and set to midnight
+        const dateParts = newGroupData.createdAt.split('-');
+        createdAtDate = new Date(
+          parseInt(dateParts[0]),
+          parseInt(dateParts[1]) - 1,
+          parseInt(dateParts[2]),
+          0, 0, 0, 0
+        );
+      } else {
+        // Use current date at midnight
+        const now = new Date();
+        createdAtDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      }
 
       // Direct insert into panel_groups table
       const { data, error } = await supabase
@@ -1286,9 +1366,7 @@ export function PanelGroupsSection({
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        setNewGroupData({ name: "", description: "", createdAt: `${year}-${month}-${day}T${hours}:${minutes}` });
+        setNewGroupData({ name: "", description: "", createdAt: `${year}-${month}-${day}` });
         setIsAddDialogOpen(false);
         
         // Refresh both panel groups and panels to ensure totals are updated
@@ -1365,14 +1443,12 @@ export function PanelGroupsSection({
   };
 
   const resetNewGroupForm = () => {
-    // Set default date to current date and time
+    // Set default date to current date (time will be set to midnight)
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    setNewGroupData({ name: "", description: "", createdAt: `${year}-${month}-${day}T${hours}:${minutes}` });
+    setNewGroupData({ name: "", description: "", createdAt: `${year}-${month}-${day}` });
   };
 
   const resetNewNoteForm = () => {
@@ -1744,15 +1820,17 @@ export function PanelGroupsSection({
                           ) : (
                             <div className="grid gap-3">
                               {groupPanels.map((panel) => (
-                                <div key={panel.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                                <div 
+                                  key={panel.id} 
+                                  className="flex items-center justify-between p-3 border rounded-lg bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                                  onClick={() => navigate(`/panels/${panel.id}`)}
+                                >
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
                                       <span className="font-medium">{panel.name}</span>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                                      <span>Tag: {panel.panelTag}</span>
-                                      <span>Drawing: {panel.dwgNo}</span>
-                                      <span>Qty: {panel.unitQty}</span>
+                                      
                                       {panel.buildingName && <span>Building: {panel.buildingName}</span>}
                                       {panel.facadeName && <span>Façade: {panel.facadeName}</span>}
                                       <span>Area: {panel.ifpQtyAreaSm != null ? `${panel.ifpQtyAreaSm} m²` : '—'}</span>
@@ -1894,11 +1972,11 @@ export function PanelGroupsSection({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="created-at" className="text-sm font-medium">Creation Date & Time</Label>
+              <Label htmlFor="created-at" className="text-sm font-medium">Creation Date</Label>
               <div className="relative">
                 <Input
                   id="created-at"
-                  type="datetime-local"
+                  type="date"
                   value={newGroupData.createdAt}
                   onChange={(e) => setNewGroupData({ ...newGroupData, createdAt: e.target.value })}
                   className="h-10 pl-8"
@@ -1906,7 +1984,7 @@ export function PanelGroupsSection({
                 <Calendar className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               </div>
               <p className="text-xs text-muted-foreground">
-                Leave as current date/time or select a specific date and time for this panel group creation
+                Leave as current date or select a specific date. Time will be set to midnight (00:00:00).
               </p>
             </div>
           </div>

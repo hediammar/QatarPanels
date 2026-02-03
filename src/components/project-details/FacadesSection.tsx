@@ -216,18 +216,15 @@ export function FacadesSection({
   };
 
   const handleDelete = async (facade: FacadeData) => {
-    if (window.confirm('Are you sure you want to delete this facade?')) {
-      const { error } = await supabase
-        .from('facades')
-        .delete()
-        .eq('id', facade.id);
-
-      if (error) {
+    if (window.confirm('Are you sure you want to delete this facade? This will delete all panels under it.')) {
+      try {
+        const { crudOperations } = await import('../../utils/userTracking');
+        await crudOperations.deleteFacade(facade.id);
+        setFacades(facades.filter(f => f.id !== facade.id));
+      } catch (error) {
         console.error('Error deleting facade:', error);
-        return;
+        alert('Failed to delete facade. Please try again.');
       }
-
-      setFacades(facades.filter(f => f.id !== facade.id));
     }
   };
 

@@ -654,23 +654,46 @@ export const crudOperations = {
     }
   },
 
+  // Specialized facade delete with cascade handling
+  async deleteFacade(facadeId: string) {
+    try {
+      console.log(`Starting cascade delete for facade: ${facadeId}`);
+
+      // Step 1: Delete panels linked to this facade
+      console.log('Deleting panels linked to this facade...');
+      const { error: deletePanelsError } = await supabase
+        .from('panels')
+        .delete()
+        .eq('facade_id', facadeId);
+      if (deletePanelsError) {
+        console.error('Error deleting panels:', deletePanelsError);
+        throw deletePanelsError;
+      }
+
+      // Step 2: Delete the facade
+      console.log('Deleting facade...');
+      const { error: deleteFacadeError } = await supabase
+        .from('facades')
+        .delete()
+        .eq('id', facadeId);
+      if (deleteFacadeError) {
+        console.error('Error deleting facade:', deleteFacadeError);
+        throw deleteFacadeError;
+      }
+
+      console.log('Facade cascade delete completed successfully');
+    } catch (error: any) {
+      console.error('Error in facade cascade delete:', error);
+      throw error;
+    }
+  },
+
   // Specialized building delete with cascade handling
   async deleteBuilding(buildingId: string) {
     try {
       console.log(`Starting cascade delete for building: ${buildingId}`);
 
-      // Step 1: Set building_id to NULL in panels that reference this building
-      console.log('Setting building_id to NULL in panels table...');
-      const { error: panelsUnlinkError } = await supabase
-        .from('panels')
-        .update({ building_id: null })
-        .eq('building_id', buildingId);
-      if (panelsUnlinkError) {
-        console.error('Error unlinking panels from building:', panelsUnlinkError);
-        throw panelsUnlinkError;
-      }
-
-      // Step 2: Fetch facades linked to this building
+      // Step 1: Fetch facades linked to this building
       console.log('Fetching facades linked to this building...');
       const { data: facades, error: facadesFetchError } = await supabase
         .from('facades')
@@ -684,19 +707,19 @@ export const crudOperations = {
       const facadeIds = (facades || []).map((f: any) => f.id);
       console.log('Facade IDs to delete:', facadeIds);
 
+      // Step 2: Delete panels linked to each facade
       if (facadeIds.length > 0) {
-        // Step 3: Set facade_id to NULL in panels referencing these facades
-        console.log('Setting facade_id to NULL in panels referencing these facades...');
-        const { error: panelsUnlinkFacadesError } = await supabase
+        console.log('Deleting panels linked to facades...');
+        const { error: deletePanelsFromFacadesError } = await supabase
           .from('panels')
-          .update({ facade_id: null })
+          .delete()
           .in('facade_id', facadeIds);
-        if (panelsUnlinkFacadesError) {
-          console.error('Error unlinking panels from facades:', panelsUnlinkFacadesError);
-          throw panelsUnlinkFacadesError;
+        if (deletePanelsFromFacadesError) {
+          console.error('Error deleting panels from facades:', deletePanelsFromFacadesError);
+          throw deletePanelsFromFacadesError;
         }
 
-        // Step 4: Delete facades linked to this building
+        // Step 3: Delete facades linked to this building
         console.log('Deleting facades linked to this building...');
         const { error: deleteFacadesError } = await supabase
           .from('facades')
@@ -706,8 +729,17 @@ export const crudOperations = {
           console.error('Error deleting facades:', deleteFacadesError);
           throw deleteFacadesError;
         }
-      } else {
-        console.log('No facades to delete for this building.');
+      }
+
+      // Step 4: Delete panels directly linked to this building (if any)
+      console.log('Deleting panels directly linked to this building...');
+      const { error: deletePanelsFromBuildingError } = await supabase
+        .from('panels')
+        .delete()
+        .eq('building_id', buildingId);
+      if (deletePanelsFromBuildingError) {
+        console.error('Error deleting panels from building:', deletePanelsFromBuildingError);
+        throw deletePanelsFromBuildingError;
       }
 
       // Step 5: Finally delete the building

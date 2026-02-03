@@ -75,7 +75,7 @@ function PanelGroupCard({ panelGroup, navigate }: { panelGroup: PanelGroup; navi
         return;
       }
 
-      // Fetch panel details
+      // Fetch panel details with building and facade information
       const { data: panelsData, error: panelsError } = await supabase
         .from('panels')
         .select(`
@@ -87,7 +87,11 @@ function PanelGroupCard({ panelGroup, navigate }: { panelGroup: PanelGroup; navi
           issue_transmittal_no,
           unit_rate_qr_m2,
           ifp_qty_area_sm,
-          weight
+          weight,
+          building_id,
+          facade_id,
+          buildings(name),
+          facades(name)
         `)
         .in('id', panelIds);
 
@@ -96,17 +100,43 @@ function PanelGroupCard({ panelGroup, navigate }: { panelGroup: PanelGroup; navi
         return;
       }
 
-      const formattedPanels = panelsData?.map(panel => ({
-        id: panel.id,
-        name: panel.name,
-        status: mapPanelStatus(panel.status),
-        panelTag: panel.issue_transmittal_no || `TAG-${panel.id.slice(0, 8)}`,
-        dwgNo: panel.drawing_number || 'N/A',
-        unitQty: panel.ifp_qty_nos || 0,
-        unitRateQrM2: panel.unit_rate_qr_m2 || 0,
-        ifpQtyAreaSm: panel.ifp_qty_area_sm || 0,
-        weight: panel.weight || 0,
-      })) || [];
+      // Helper function to extract name from building/facade (handles both array and object)
+      const getName = (item: any): string => {
+        if (!item) return '';
+        if (Array.isArray(item)) {
+          return item[0]?.name || '';
+        }
+        return item.name || '';
+      };
+
+      const formattedPanels = panelsData?.map(panel => {
+        // Debug: log the structure to understand what we're getting (only for first panel)
+        if (panelsData.length > 0 && panel.id === panelsData[0].id) {
+          console.log('Sample panel data structure:', {
+            panelId: panel.id,
+            building_id: panel.building_id,
+            facade_id: panel.facade_id,
+            buildings: panel.buildings,
+            facades: panel.facades,
+            buildingsType: Array.isArray(panel.buildings) ? 'array' : typeof panel.buildings,
+            facadesType: Array.isArray(panel.facades) ? 'array' : typeof panel.facades,
+          });
+        }
+
+        return {
+          id: panel.id,
+          name: panel.name,
+          status: mapPanelStatus(panel.status),
+          panelTag: panel.issue_transmittal_no || `TAG-${panel.id.slice(0, 8)}`,
+          dwgNo: panel.drawing_number || 'N/A',
+          unitQty: panel.ifp_qty_nos || 0,
+          unitRateQrM2: panel.unit_rate_qr_m2 || 0,
+          ifpQtyAreaSm: panel.ifp_qty_area_sm || 0,
+          weight: panel.weight || 0,
+          buildingName: getName(panel.buildings),
+          facadeName: getName(panel.facades),
+        };
+      }) || [];
 
       setGroupPanels(formattedPanels);
     } catch (err) {
@@ -208,15 +238,20 @@ function PanelGroupCard({ panelGroup, navigate }: { panelGroup: PanelGroup; navi
             ) : (
               <div className="grid gap-3">
                 {groupPanels.map((panel) => (
-                  <div key={panel.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div 
+                    key={panel.id} 
+                    className="flex items-center justify-between p-3 border rounded-lg bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => navigate(`/panels/${panel.id}`)}
+                  >
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium">{panel.name}</span>
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span>Tag: {panel.panelTag}</span>
-                        <span>Drawing: {panel.dwgNo}</span>
-                        <span>Qty: {panel.unitQty}</span>
+                      <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                        
+                        {panel.buildingName && <span className="truncate">Building: {panel.buildingName}</span>}
+                        {panel.facadeName && <span className="truncate">Façade: {panel.facadeName}</span>}
+                        <span className="truncate">Area: {panel.ifpQtyAreaSm != null ? `${panel.ifpQtyAreaSm} m²` : '—'}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

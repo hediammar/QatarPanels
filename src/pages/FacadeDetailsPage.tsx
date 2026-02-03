@@ -199,7 +199,7 @@ export function FacadeDetailsPage() {
     if (!facade) return;
 
     try {
-      await crudOperations.delete('facades', facade.id);
+      await crudOperations.deleteFacade(facade.id);
       showToast('Facade deleted successfully', 'success');
       navigate(`/buildings/${facade.building_id}`);
     } catch (error) {

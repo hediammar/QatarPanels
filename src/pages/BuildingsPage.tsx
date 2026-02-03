@@ -278,7 +278,7 @@ export function BuildingsPage({
   };
 
   const handleDelete = async (building: BuildingModel) => {
-    if (!window.confirm('Are you sure you want to delete this building? This will delete its facades and unlink its panels.')) {
+    if (!window.confirm('Are you sure you want to delete this building? This will delete its facades and all panels under it.')) {
       return;
     }
     try {

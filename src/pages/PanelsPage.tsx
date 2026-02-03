@@ -1962,7 +1962,16 @@ export function PanelsPage() {
                     <CollapsibleTrigger asChild>
                       <div 
                         className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 hover:bg-muted/50 cursor-pointer gap-3 sm:gap-4"
-                        onClick={() => handlePanelClick(panel)}
+                        onClick={(e) => {
+                          // If in selection mode, toggle selection and prevent navigation
+                          if (isSelectionMode && canSelectPanels) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            togglePanelSelection(panel.id);
+                          } else {
+                            handlePanelClick(panel);
+                          }
+                        }}
                       >
                         {/* Mobile Layout */}
                         <div className="w-full sm:hidden">

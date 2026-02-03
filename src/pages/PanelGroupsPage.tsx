@@ -1475,6 +1475,9 @@ export function PanelGroupsPage({
   const [panelCountMinFilter, setPanelCountMinFilter] = useState("");
   const [panelCountMaxFilter, setPanelCountMaxFilter] = useState("");
   const [dateRangeFilter, setDateRangeFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [buildingFilter, setBuildingFilter] = useState<string>("all");
+  const [facadeFilter, setFacadeFilter] = useState<string>("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
@@ -1525,10 +1528,25 @@ export function PanelGroupsPage({
 
   const getGroupPanels = (group: PanelGroupModel) => {
     // For many-to-many relationship, check if panel belongs to this group
-    return panels.filter(panel => {
+    let groupPanels = panels.filter(panel => {
       // Check if this panel belongs to the current group using allGroupIds
       return panel.allGroupIds?.includes(group.id);
     });
+
+    // Apply panel-level filters (status, building, facade)
+    if (statusFilter !== "all") {
+      groupPanels = groupPanels.filter(panel => panel.status === statusFilter);
+    }
+
+    if (buildingFilter !== "all") {
+      groupPanels = groupPanels.filter(panel => panel.buildingName === buildingFilter);
+    }
+
+    if (facadeFilter !== "all") {
+      groupPanels = groupPanels.filter(panel => panel.facadeName === facadeFilter);
+    }
+
+    return groupPanels;
   };
 
   const calculateGroupTotals = (group: PanelGroupModel) => {
@@ -1657,14 +1675,49 @@ export function PanelGroupsPage({
       }
     })();
 
-    return matchesSearch && matchesPanelCount && matchesDateRange;
+    // Check if group has panels after applying panel-level filters (status, building, facade)
+    const hasFilteredPanels = (() => {
+      // Only check if panel-level filters are active
+      if (statusFilter === "all" && buildingFilter === "all" && facadeFilter === "all") {
+        return true; // No panel-level filters, show all groups
+      }
+      // Check if this group has any panels matching the filters
+      const filteredPanels = getGroupPanels(group);
+      return filteredPanels.length > 0;
+    })();
+
+    return matchesSearch && matchesPanelCount && matchesDateRange && hasFilteredPanels;
   });
+
+  // Get unique buildings and facades from panels
+  const uniqueBuildings = useMemo(() => {
+    const buildings = new Set<string>();
+    panels.forEach(panel => {
+      if (panel.buildingName) {
+        buildings.add(panel.buildingName);
+      }
+    });
+    return Array.from(buildings).sort();
+  }, [panels]);
+
+  const uniqueFacades = useMemo(() => {
+    const facades = new Set<string>();
+    panels.forEach(panel => {
+      if (panel.facadeName) {
+        facades.add(panel.facadeName);
+      }
+    });
+    return Array.from(facades).sort();
+  }, [panels]);
 
   const activePanelGroupFiltersCount = [
     searchTerm !== "",
     panelCountMinFilter !== "",
     panelCountMaxFilter !== "",
     dateRangeFilter !== "all",
+    statusFilter !== "all",
+    buildingFilter !== "all",
+    facadeFilter !== "all",
   ].filter(Boolean).length;
 
   const handleFilterChange = () => {
@@ -1676,6 +1729,9 @@ export function PanelGroupsPage({
     setPanelCountMinFilter("");
     setPanelCountMaxFilter("");
     setDateRangeFilter("all");
+    setStatusFilter("all");
+    setBuildingFilter("all");
+    setFacadeFilter("all");
     setCurrentPage(1);
   };
 
@@ -1720,7 +1776,7 @@ export function PanelGroupsPage({
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
               <div className="space-y-2">
                 <Label>Search</Label>
                 <div className="relative">
@@ -1737,54 +1793,76 @@ export function PanelGroupsPage({
                 </div>
               </div>
 
-
-
               <div className="space-y-2">
-                <Label>Min Panels</Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={panelCountMinFilter}
-                  onChange={(e) => {
-                    setPanelCountMinFilter(e.target.value);
-                    handleFilterChange();
-                  }}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Max Panels</Label>
-                <Input
-                  type="number"
-                  placeholder="∞"
-                  value={panelCountMaxFilter}
-                  onChange={(e) => {
-                    setPanelCountMaxFilter(e.target.value);
-                    handleFilterChange();
-                  }}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Date Range</Label>
+                <Label>Status</Label>
                 <Select
-                  value={dateRangeFilter}
+                  value={statusFilter}
                   onValueChange={(value) => {
-                    setDateRangeFilter(value);
+                    setStatusFilter(value);
                     handleFilterChange();
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Any time" />
+                    <SelectValue placeholder="All statuses" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Any time</SelectItem>
-                    <SelectItem value="this-month">This month</SelectItem>
-                    <SelectItem value="this-quarter">This quarter</SelectItem>
-                    <SelectItem value="this-year">This year</SelectItem>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    {PANEL_STATUSES.map((status) => (
+                      <SelectItem key={status.value} value={status.value}>
+                        {status.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2">
+                <Label>Building</Label>
+                <Select
+                  value={buildingFilter}
+                  onValueChange={(value) => {
+                    setBuildingFilter(value);
+                    handleFilterChange();
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All buildings" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All buildings</SelectItem>
+                    {uniqueBuildings.map((building) => (
+                      <SelectItem key={building} value={building}>
+                        {building}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Facade</Label>
+                <Select
+                  value={facadeFilter}
+                  onValueChange={(value) => {
+                    setFacadeFilter(value);
+                    handleFilterChange();
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All facades" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All facades</SelectItem>
+                    {uniqueFacades.map((facade) => (
+                      <SelectItem key={facade} value={facade}>
+                        {facade}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              
             </div>
 
             <div className="flex items-center justify-between mt-4 pt-4 border-t">
@@ -1812,12 +1890,12 @@ export function PanelGroupsPage({
               <div className="flex flex-col items-center justify-center py-12">
                 <Package className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium">
-                  {searchTerm || panelCountMinFilter || panelCountMaxFilter || dateRangeFilter !== 'all'
+                  {searchTerm || panelCountMinFilter || panelCountMaxFilter || dateRangeFilter !== 'all' || statusFilter !== 'all' || buildingFilter !== 'all' || facadeFilter !== 'all'
                     ? 'No panel groups match your search criteria'
                     : 'No panel groups found'}
                 </h3>
                 <p className="text-muted-foreground text-center">
-                  {searchTerm || panelCountMinFilter || panelCountMaxFilter || dateRangeFilter !== 'all'
+                  {searchTerm || panelCountMinFilter || panelCountMaxFilter || dateRangeFilter !== 'all' || statusFilter !== 'all' || buildingFilter !== 'all' || facadeFilter !== 'all'
                     ? 'Try adjusting your filters to see more results.'
                     : 'Get started by creating your first panel group.'}
                 </p>
@@ -1888,7 +1966,16 @@ export function PanelGroupsPage({
                       <div className="flex items-center gap-6 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Package className="h-4 w-4" />
-                          <span>{group.panelCount || 0} panels</span>
+                          <span>
+                            {(() => {
+                              const filteredPanels = getGroupPanels(group);
+                              const totalPanels = group.panelCount || 0;
+                              const filteredCount = filteredPanels.length;
+                              return statusFilter !== "all" || buildingFilter !== "all" || facadeFilter !== "all"
+                                ? `${filteredCount} of ${totalPanels} panels`
+                                : `${totalPanels} panels`;
+                            })()}
+                          </span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />

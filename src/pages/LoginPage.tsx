@@ -45,28 +45,20 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo and Title */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-full mb-4">
-            <Building2 className="h-8 w-8 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            DohaExtraco Panels Tracker
-          </h1>
-          <p className="text-gray-600">
-            Sign in to your account
-          </p>
+          
+            <img src="/DohaTracker.png" alt="Logo" className="h-32 w-auto mx-auto" />
+          
         </div>
 
         {/* Login Card */}
         <Card className="shadow-xl border-0">
           <CardHeader className="space-y-1">
             <CardTitle className="text-xl text-center">Welcome back</CardTitle>
-            <CardDescription className="text-center">
-              Enter your credentials to access the system
-            </CardDescription>
+            
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">

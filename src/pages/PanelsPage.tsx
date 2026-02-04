@@ -82,6 +82,7 @@ import { createPanelStatusHistory, syncLatestPanelStatusHistoryTimestamp } from 
 import { StatusChangeDialog } from "../components/StatusChangeDialog";
 import { useAuth } from "../contexts/AuthContext";
 import { hasPermission, isCustomerRole, UserRole } from "../utils/rolePermissions";
+import { getUserAccessibleProjectIds } from "../utils/projectAccess";
 import { 
   PANEL_STATUSES, 
   PanelStatus,
@@ -474,7 +475,24 @@ export function PanelsPage() {
     // Check if current user is a customer and implement data filtering
     const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
 
-    // Fetch projects with customer filtering
+    // Get user's accessible project IDs (based on user_project_access table)
+    const userAccessibleProjectIds = await getUserAccessibleProjectIds(currentUser?.id, currentUser?.role);
+    console.log('🔐 PanelsPage: User has access to', userAccessibleProjectIds === null ? 'all projects' : `${userAccessibleProjectIds.length} projects`);
+
+    // If user has no project access (empty array), return empty data
+    if (userAccessibleProjectIds !== null && userAccessibleProjectIds.length === 0) {
+      console.log('🔐 PanelsPage: User has no project access, showing empty data');
+      setProjects([]);
+      setBuildings([]);
+      setFilteredBuildings([]);
+      setAllFacades([]);
+      setFacades([]);
+      setPanels([]);
+      setLoading(false);
+      return;
+    }
+
+    // Fetch projects with customer filtering AND project access filtering
     let projectQuery = supabase
       .from("projects")
       .select("id, name, customer_id");
@@ -482,6 +500,11 @@ export function PanelsPage() {
     if (isCustomer && currentUser?.customer_id) {
       projectQuery = projectQuery.eq('customer_id', currentUser.customer_id);
       console.log('Filtering projects for customer:', currentUser.customer_id);
+    }
+    
+    // Apply project access filtering for non-admins
+    if (userAccessibleProjectIds !== null) {
+      projectQuery = projectQuery.in('id', userAccessibleProjectIds);
     }
     
     const { data: projectData, error: projectError } = await projectQuery;
@@ -496,13 +519,23 @@ export function PanelsPage() {
     }
     const accessibleProjectIds = (projectData || []).map((p: any) => p.id);
 
-    // Fetch buildings with customer filtering
+    // Fetch buildings filtered by accessible projects
     let buildingQuery = supabase
       .from("buildings")
       .select("id, name, project_id");
-    // For customer users, restrict buildings to their accessible projects
-    if (isCustomer && accessibleProjectIds.length > 0) {
+    
+    // Filter by accessible projects (combined customer + project access)
+    if (accessibleProjectIds.length > 0) {
       buildingQuery = buildingQuery.in('project_id', accessibleProjectIds);
+    } else if (accessibleProjectIds.length === 0) {
+      // No accessible projects, return empty
+      setBuildings([]);
+      setFilteredBuildings([]);
+      setAllFacades([]);
+      setFacades([]);
+      setPanels([]);
+      setLoading(false);
+      return;
     }
     
     const { data: buildingData, error: buildingError } = await buildingQuery;
@@ -513,7 +546,7 @@ export function PanelsPage() {
       setFilteredBuildings(buildingData || []);
     }
 
-    // Fetch facades with customer filtering
+    // Fetch facades filtered by accessible projects
     let facadeQuery = supabase
       .from("facades")
       .select(`
@@ -522,8 +555,9 @@ export function PanelsPage() {
         building_id,
         buildings!inner(project_id)
       `);
-    // For customer users, restrict facades to their accessible projects via buildings join
-    if (isCustomer && accessibleProjectIds.length > 0) {
+    
+    // Filter by accessible projects
+    if (accessibleProjectIds.length > 0) {
       facadeQuery = facadeQuery.in('buildings.project_id', accessibleProjectIds);
     }
     
@@ -535,7 +569,7 @@ export function PanelsPage() {
       setFacades(facadeData || []);
     }
 
-    // Fetch panels with customer filtering using pagination to get all panels
+    // Fetch panels filtered by accessible projects using pagination
     let allPanels: any[] = [];
     let page = 0;
     const pageSize = 1000;
@@ -552,9 +586,9 @@ export function PanelsPage() {
         `)
         .range(page * pageSize, (page + 1) * pageSize - 1);
       
-      // For customer users, restrict panels to projects they own via join filter
-      if (isCustomer && currentUser?.customer_id) {
-        panelQuery = panelQuery.eq('projects.customer_id', currentUser.customer_id);
+      // Filter by accessible projects (this combines both customer filtering and project access)
+      if (accessibleProjectIds.length > 0) {
+        panelQuery = panelQuery.in('project_id', accessibleProjectIds);
       }
 
       const { data, error } = await panelQuery;
@@ -594,7 +628,7 @@ export function PanelsPage() {
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser?.customer_id]);
+  }, [currentUser?.id]);
 
   // Reset add panel project selection when dialog opens
   useEffect(() => {

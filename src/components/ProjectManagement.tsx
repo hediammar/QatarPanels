@@ -67,6 +67,7 @@ import { DateInput } from "./ui/date-input";
 import { crudOperations } from "../utils/userTracking";
 import { useAuth } from "../contexts/AuthContext";
 import { hasPermission, isCustomerRole, UserRole } from "../utils/rolePermissions";
+import { getUserAccessibleProjectIds } from "../utils/projectAccess";
 
 interface Customer {
   id: string;
@@ -177,7 +178,7 @@ export function ProjectManagement() {
     fetchCustomers();
     fetchProjects();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentUser?.id]);
 
   // Reset submitting state when dialog closes
   useEffect(() => {
@@ -213,6 +214,17 @@ export function ProjectManagement() {
     // Check if current user is a customer and implement data filtering
     const isCustomer = currentUser?.role ? isCustomerRole(currentUser.role as UserRole) : false;
     
+    // Get user's accessible project IDs
+    const accessibleProjectIds = await getUserAccessibleProjectIds(currentUser?.id, currentUser?.role);
+    console.log('🔐 ProjectManagement: User has access to', accessibleProjectIds === null ? 'all projects' : `${accessibleProjectIds.length} projects`);
+    
+    // If user has no project access (empty array), return empty
+    if (accessibleProjectIds !== null && accessibleProjectIds.length === 0) {
+      console.log('🔐 ProjectManagement: User has no project access, showing empty data');
+      setProjects([]);
+      return;
+    }
+    
     let query = supabase
       .from('projects')
       .select(`
@@ -224,6 +236,11 @@ export function ProjectManagement() {
     if (isCustomer && currentUser?.customer_id) {
       query = query.eq('customer_id', currentUser.customer_id);
       console.log('Filtering projects for customer:', currentUser.customer_id);
+    }
+    
+    // Apply project access filtering for non-admins
+    if (accessibleProjectIds !== null) {
+      query = query.in('id', accessibleProjectIds);
     }
     
     const { data, error } = await query;

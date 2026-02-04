@@ -33,6 +33,7 @@ import {
 import { Checkbox } from "../components/ui/checkbox";
 import { useAuth } from "../contexts/AuthContext";
 import { hasPermission, UserRole } from "../utils/rolePermissions";
+import { getUserAccessibleProjectIds } from "../utils/projectAccess";
 import { useToastContext } from "../contexts/ToastContext";
 
 const PANEL_STATUSES = [
@@ -1282,8 +1283,15 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
 }
 
 // Fetch panel groups from Supabase
-async function fetchPanelGroups(): Promise<PanelGroupModel[]> {
-  const { data, error } = await supabase
+// accessibleProjectIds: null means all projects, empty array means no projects, array of IDs means specific projects
+async function fetchPanelGroups(accessibleProjectIds?: string[] | null): Promise<PanelGroupModel[]> {
+  // If user has no project access, return empty
+  if (accessibleProjectIds !== undefined && accessibleProjectIds !== null && accessibleProjectIds.length === 0) {
+    console.log('🔐 PanelGroupsPage: User has no project access, returning empty groups');
+    return [];
+  }
+
+  let query = supabase
     .from('panel_groups')
     .select(`
       id,
@@ -1292,6 +1300,13 @@ async function fetchPanelGroups(): Promise<PanelGroupModel[]> {
       created_at,
       project_id
     `);
+
+  // Filter by accessible projects if specified
+  if (accessibleProjectIds !== undefined && accessibleProjectIds !== null) {
+    query = query.in('project_id', accessibleProjectIds);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching panel groups:', error);
@@ -1351,7 +1366,14 @@ async function fetchPanelGroups(): Promise<PanelGroupModel[]> {
   return groupsWithCounts;
 }
 
-async function fetchPanels(): Promise<PanelModel[]> {
+// accessibleProjectIds: null/undefined means all projects, empty array means no projects, array of IDs means specific projects
+async function fetchPanels(accessibleProjectIds?: string[] | null): Promise<PanelModel[]> {
+  // If user has no project access, return empty
+  if (accessibleProjectIds !== undefined && accessibleProjectIds !== null && accessibleProjectIds.length === 0) {
+    console.log('🔐 PanelGroupsPage: User has no project access, returning empty panels');
+    return [];
+  }
+
   // Fetch panels using pagination to get all panels
   let allPanels: any[] = [];
   let page = 0;
@@ -1359,7 +1381,7 @@ async function fetchPanels(): Promise<PanelModel[]> {
   let hasMore = true;
 
   while (hasMore) {
-    const { data, error } = await supabase
+    let query = supabase
       .from('panels')
       .select(`
         id,
@@ -1372,10 +1394,18 @@ async function fetchPanels(): Promise<PanelModel[]> {
         unit_rate_qr_m2,
         ifp_qty_area_sm,
         weight,
+        project_id,
         buildings(name),
         facades(name)
       `)
       .range(page * pageSize, (page + 1) * pageSize - 1);
+
+    // Filter by accessible projects if specified
+    if (accessibleProjectIds !== undefined && accessibleProjectIds !== null) {
+      query = query.in('project_id', accessibleProjectIds);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching panels:', error);
@@ -1497,10 +1527,18 @@ export function PanelGroupsPage({
   const canUpdatePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canUpdate') : false;
   const canDeletePanelGroups = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panelGroups', 'canDelete') : false;
 
+  // Store accessible project IDs for refetching
+  const [accessibleProjectIds, setAccessibleProjectIds] = useState<string[] | null>(null);
+
   useEffect(() => {
     async function loadData() {
-      const groups = await fetchPanelGroups();
-      const panelsData = await fetchPanels();
+      // Get user's accessible project IDs
+      const projectIds = await getUserAccessibleProjectIds(currentUser?.id, currentUser?.role);
+      console.log('🔐 PanelGroupsPage: User has access to', projectIds === null ? 'all projects' : `${projectIds?.length || 0} projects`);
+      setAccessibleProjectIds(projectIds);
+
+      const groups = await fetchPanelGroups(projectIds);
+      const panelsData = await fetchPanels(projectIds);
       setPanelGroups(groups);
       setPanels(panelsData);
     }
@@ -1508,15 +1546,17 @@ export function PanelGroupsPage({
 
     const groupSubscription = supabase
       .channel('panel_groups')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'panel_groups' }, () => {
-        fetchPanelGroups().then(setPanelGroups);
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'panel_groups' }, async () => {
+        const projectIds = await getUserAccessibleProjectIds(currentUser?.id, currentUser?.role);
+        fetchPanelGroups(projectIds).then(setPanelGroups);
       })
       .subscribe();
 
     const panelSubscription = supabase
       .channel('panels')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'panels' }, () => {
-        fetchPanels().then(setPanels);
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'panels' }, async () => {
+        const projectIds = await getUserAccessibleProjectIds(currentUser?.id, currentUser?.role);
+        fetchPanels(projectIds).then(setPanels);
       })
       .subscribe();
 
@@ -1524,7 +1564,8 @@ export function PanelGroupsPage({
       supabase.removeChannel(groupSubscription);
       supabase.removeChannel(panelSubscription);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 
   const getGroupPanels = (group: PanelGroupModel) => {
     // For many-to-many relationship, check if panel belongs to this group
@@ -1622,8 +1663,8 @@ export function PanelGroupsPage({
       }
       
       onDeleteGroup?.({ id: groupId, name: "Deleted", description: "", panelCount: 0, createdAt: "", project: "" });
-      await fetchPanelGroups().then(setPanelGroups);
-      await fetchPanels().then(setPanels);
+      await fetchPanelGroups(accessibleProjectIds).then(setPanelGroups);
+      await fetchPanels(accessibleProjectIds).then(setPanels);
       showToast('Panel group deleted successfully', 'success');
     } catch (err: any) {
       console.error('Error deleting panel group:', err);
@@ -2060,7 +2101,7 @@ export function PanelGroupsPage({
               groupId={selectedGroup.id}
               groupName={selectedGroup.name}
               currentStatus="active"
-              onStatusUpdate={() => fetchPanelGroups().then(setPanelGroups)}
+              onStatusUpdate={() => fetchPanelGroups(accessibleProjectIds).then(setPanelGroups)}
             />
           )}
 
@@ -2071,7 +2112,7 @@ export function PanelGroupsPage({
               onOpenChange={setIsCreateGroupDialogOpen}
               onGroupCreated={() => {
                 setIsCreateGroupDialogOpen(false);
-                fetchPanelGroups().then(setPanelGroups);
+                fetchPanelGroups(accessibleProjectIds).then(setPanelGroups);
               }}
             />
           )}
@@ -2086,8 +2127,8 @@ export function PanelGroupsPage({
               projectId={selectedGroup.project_id || ''}
               onPanelsAdded={() => {
                 setIsAddPanelsDialogOpen(false);
-                fetchPanelGroups().then(setPanelGroups);
-                fetchPanels().then(setPanels); // Refresh panels to reflect added ones
+                fetchPanelGroups(accessibleProjectIds).then(setPanelGroups);
+                fetchPanels(accessibleProjectIds).then(setPanels); // Refresh panels to reflect added ones
               }}
             />
           )}
@@ -2100,8 +2141,8 @@ export function PanelGroupsPage({
               group={selectedGroup}
               onGroupUpdated={() => {
                 setIsUpdatePanelGroupDialogOpen(false);
-                fetchPanelGroups().then(setPanelGroups);
-                fetchPanels().then(setPanels); // Refresh panels to reflect added/removed ones
+                fetchPanelGroups(accessibleProjectIds).then(setPanelGroups);
+                fetchPanels(accessibleProjectIds).then(setPanels); // Refresh panels to reflect added/removed ones
               }}
             />
           )}

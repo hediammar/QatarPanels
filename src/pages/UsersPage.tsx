@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popove
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/table";
 import { Avatar, AvatarFallback } from "../components/ui/avatar";
-import { Plus, Edit, Trash2, MoreHorizontal, UserPlus, Search, Filter, Users, Shield, Clock, Mail, Phone, Calendar, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Users2, Loader2, Building2 } from "lucide-react";
+import { Plus, Edit, Trash2, MoreHorizontal, UserPlus, Search, Filter, Users, Shield, Clock, Mail, Phone, Calendar, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Users2, Loader2, Building2, FolderOpen, Check, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToastContext } from "../contexts/ToastContext";
@@ -38,6 +38,11 @@ interface Customer {
   phone: string;
 }
 
+interface Project {
+  id: string;
+  name: string;
+}
+
 interface User {
   id: string;
   username: string;
@@ -59,9 +64,24 @@ export function UsersPage() {
   const { showToast } = useToastContext();
   const [users, setUsers] = useState<User[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [customersLoading, setCustomersLoading] = useState(false);
+  const [projectsLoading, setProjectsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Multi-step dialog state
+  const [createStep, setCreateStep] = useState<1 | 2>(1);
+  const [selectedProjectIds, setSelectedProjectIds] = useState<Set<string>>(new Set());
+  const [projectSearchTerm, setProjectSearchTerm] = useState('');
+  const [newUserId, setNewUserId] = useState<string | null>(null);
+  
+  // Project access management state
+  const [isProjectAccessDialogOpen, setIsProjectAccessDialogOpen] = useState(false);
+  const [projectAccessUser, setProjectAccessUser] = useState<User | null>(null);
+  const [userProjectAccess, setUserProjectAccess] = useState<Set<string>>(new Set());
+  const [projectAccessSearchTerm, setProjectAccessSearchTerm] = useState('');
+  const [isSavingProjectAccess, setIsSavingProjectAccess] = useState(false);
   
   // RBAC Permission checks
   const canManageUsersPermission = currentUser?.role ? canManageUsers(currentUser.role as UserRole) : false;
@@ -77,6 +97,11 @@ export function UsersPage() {
   // Fetch customers when component mounts
   useEffect(() => {
     fetchCustomers();
+  }, []);
+
+  // Fetch projects when component mounts
+  useEffect(() => {
+    fetchProjects();
   }, []);
 
   const fetchUsers = async () => {
@@ -156,6 +181,189 @@ export function UsersPage() {
     }
   };
 
+  const fetchProjects = async () => {
+    try {
+      setProjectsLoading(true);
+      const { data, error } = await supabase
+        .from('projects')
+        .select('id, name')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching projects:', error);
+        showToast('Error fetching projects', 'error');
+        return;
+      }
+
+      setProjects(data || []);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      showToast('Error fetching projects', 'error');
+    } finally {
+      setProjectsLoading(false);
+    }
+  };
+
+  const fetchUserProjectAccess = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_project_access')
+        .select('project_id')
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('Error fetching user project access:', error);
+        return new Set<string>();
+      }
+
+      return new Set(data?.map(item => item.project_id) || []);
+    } catch (error) {
+      console.error('Error fetching user project access:', error);
+      return new Set<string>();
+    }
+  };
+
+  const saveUserProjectAccess = async (userId: string, projectIds: Set<string>) => {
+    try {
+      // First, delete all existing access for this user
+      const { error: deleteError } = await supabase
+        .from('user_project_access')
+        .delete()
+        .eq('user_id', userId);
+
+      if (deleteError) {
+        console.error('Error deleting existing project access:', deleteError);
+        throw deleteError;
+      }
+
+      // Then insert new access records
+      if (projectIds.size > 0) {
+        const accessRecords = Array.from(projectIds).map(projectId => ({
+          user_id: userId,
+          project_id: projectId
+        }));
+
+        const { error: insertError } = await supabase
+          .from('user_project_access')
+          .insert(accessRecords);
+
+        if (insertError) {
+          console.error('Error inserting project access:', insertError);
+          throw insertError;
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error saving user project access:', error);
+      return false;
+    }
+  };
+
+  const openProjectAccessDialog = async (user: User) => {
+    setProjectAccessUser(user);
+    setProjectAccessSearchTerm('');
+    const access = await fetchUserProjectAccess(user.id);
+    setUserProjectAccess(access);
+    setIsProjectAccessDialogOpen(true);
+  };
+
+  const handleSaveProjectAccess = async () => {
+    if (!projectAccessUser) return;
+
+    setIsSavingProjectAccess(true);
+    try {
+      const success = await saveUserProjectAccess(projectAccessUser.id, userProjectAccess);
+      if (success) {
+        showToast('Project access updated successfully', 'success');
+        setIsProjectAccessDialogOpen(false);
+        setProjectAccessUser(null);
+      } else {
+        showToast('Failed to update project access', 'error');
+      }
+    } catch (error) {
+      console.error('Error saving project access:', error);
+      showToast('Error saving project access', 'error');
+    } finally {
+      setIsSavingProjectAccess(false);
+    }
+  };
+
+  const toggleProjectAccess = (projectId: string) => {
+    const newAccess = new Set(userProjectAccess);
+    if (newAccess.has(projectId)) {
+      newAccess.delete(projectId);
+    } else {
+      newAccess.add(projectId);
+    }
+    setUserProjectAccess(newAccess);
+  };
+
+  const selectAllProjects = () => {
+    setUserProjectAccess(new Set(projects.map(p => p.id)));
+  };
+
+  const deselectAllProjects = () => {
+    setUserProjectAccess(new Set());
+  };
+
+  const toggleCreateProjectSelection = (projectId: string) => {
+    const newSelected = new Set(selectedProjectIds);
+    if (newSelected.has(projectId)) {
+      newSelected.delete(projectId);
+    } else {
+      newSelected.add(projectId);
+    }
+    setSelectedProjectIds(newSelected);
+  };
+
+  const selectAllCreateProjects = () => {
+    setSelectedProjectIds(new Set(projects.map(p => p.id)));
+  };
+
+  const deselectAllCreateProjects = () => {
+    setSelectedProjectIds(new Set());
+  };
+
+  const filteredProjectsForAccess = projects.filter(project =>
+    project.name.toLowerCase().includes(projectAccessSearchTerm.toLowerCase())
+  );
+
+  const filteredProjectsForCreate = projects.filter(project =>
+    project.name.toLowerCase().includes(projectSearchTerm.toLowerCase())
+  );
+
+  const handleFinishUserCreation = async () => {
+    if (!newUserId) return;
+
+    setIsSubmitting(true);
+    try {
+      const success = await saveUserProjectAccess(newUserId, selectedProjectIds);
+      if (success) {
+        showToast('User created with project access!', 'success');
+        setIsAddDialogOpen(false);
+        resetForm();
+      } else {
+        showToast('User created but failed to set project access', 'error');
+        setIsAddDialogOpen(false);
+        resetForm();
+      }
+    } catch (error) {
+      console.error('Error saving project access:', error);
+      showToast('User created but failed to set project access', 'error');
+      setIsAddDialogOpen(false);
+      resetForm();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSkipProjectAccess = () => {
+    showToast('User created successfully', 'success');
+    setIsAddDialogOpen(false);
+    resetForm();
+  };
+
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
@@ -215,6 +423,10 @@ export function UsersPage() {
       confirmPassword: '',
       customer_id: ''
     });
+    setCreateStep(1);
+    setSelectedProjectIds(new Set());
+    setProjectSearchTerm('');
+    setNewUserId(null);
   };
 
   const handleFilterChange = () => {
@@ -423,7 +635,7 @@ export function UsersPage() {
         setEditingUser(null);
       } else {
         // Add new user
-        const { error } = await supabase
+        const { data: newUser, error } = await supabase
           .from('users')
           .insert({
             username: formData.username,
@@ -435,7 +647,9 @@ export function UsersPage() {
             department: formData.department || null,
             customer_id: formData.customer_id || null,
             password_hash: formData.password // In production, this should be hashed
-          });
+          })
+          .select()
+          .single();
 
         if (error) {
           console.error('Error adding user:', error);
@@ -469,8 +683,12 @@ export function UsersPage() {
           return;
         }
 
-        showToast('User added successfully', 'success');
-        setIsAddDialogOpen(false);
+        // Move to step 2 for project access selection
+        setNewUserId(newUser.id);
+        setCreateStep(2);
+        showToast('User created! Now select project access.', 'success');
+        fetchUsers(); // Refresh the users list
+        return; // Don't close dialog yet
       }
       
       resetForm();
@@ -695,7 +913,12 @@ export function UsersPage() {
         </div>
       </div>
 
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+          if (!open) {
+            resetForm();
+          }
+          setIsAddDialogOpen(open);
+        }}>
           <DialogTrigger asChild>
             <Button disabled={!canCreateUsers}>
               <Plus className="mr-2 h-4 w-4" />
@@ -704,167 +927,286 @@ export function UsersPage() {
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Add New User</DialogTitle>
-              <DialogDescription>Create a new user account with appropriate role and permissions.</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Enter full name"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      placeholder="Enter email address"
-                      required
-                    />
-                  </div>
+              <DialogTitle>
+                {createStep === 1 ? 'Add New User - Step 1' : 'Add New User - Step 2'}
+              </DialogTitle>
+              <DialogDescription>
+                {createStep === 1 
+                  ? 'Create a new user account with appropriate role and permissions.'
+                  : 'Select which projects this user can access.'
+                }
+              </DialogDescription>
+              {/* Step indicator */}
+              <div className="flex items-center gap-2 pt-2">
+                <div className={`flex items-center justify-center w-8 h-8 rounded-full ${createStep === 1 ? 'bg-primary text-primary-foreground' : 'bg-green-500 text-white'}`}>
+                  {createStep === 1 ? '1' : <Check className="h-4 w-4" />}
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                      id="username"
-                      value={formData.username}
-                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                      placeholder="Enter username"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      value={formData.phone_number}
-                      onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                      placeholder="Enter phone number"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="department">Department</Label>
-                    <Input
-                      id="department"
-                      value={formData.department}
-                      onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                      placeholder="Enter department"
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="role">Role</Label>
-                    <Select value={formData.role} onValueChange={(value: UserRole) => setFormData({ ...formData, role: value })}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {USER_ROLES.map((role) => (
-                          <SelectItem key={role.value} value={role.value}>
-                            <div className="flex items-center gap-2">
-                              <Shield className="h-4 w-4" />
-                              <div className="flex items-center gap-2">
-                                <div className="font-medium">{role.label}</div>
-                                <div className="text-xs text-muted-foreground">{role.description}</div>
-                              </div>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {formData.role === 'Customer' && (
-                  <div className="grid gap-2">
-                    <Label htmlFor="customer">Customer</Label>
-                    <Select
-                      value={formData.customer_id}
-                      onValueChange={(value) => setFormData({ ...formData, customer_id: value })}
-                      disabled={customersLoading}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a customer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customersLoading ? (
-                          <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading customers...</div>
-                        ) : customers.length === 0 ? (
-                          <div className="px-2 py-1.5 text-sm text-muted-foreground">No customers found</div>
-                        ) : (
-                          customers.map((customer) => (
-                            <SelectItem key={customer.id} value={customer.id}>
-                              <div className="flex items-center gap-2">
-                                <Building2 className="h-4 w-4" />
-                                {customer.name}
-                              </div>
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      placeholder="Enter password"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      value={formData.confirmPassword}
-                      onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                      placeholder="Confirm password"
-                      required
-                    />
-                  </div>
+                <div className={`flex-1 h-1 ${createStep === 2 ? 'bg-primary' : 'bg-muted'}`} />
+                <div className={`flex items-center justify-center w-8 h-8 rounded-full ${createStep === 2 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                  2
                 </div>
               </div>
-              <DialogFooter>
-                <Button 
-                  type="submit"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Adding...
-                    </>
-                  ) : (
-                    'Add User'
+            </DialogHeader>
+            
+            {createStep === 1 ? (
+              <form onSubmit={handleSubmit}>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="name">Full Name</Label>
+                      <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        placeholder="Enter full name"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="email">Email Address</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        placeholder="Enter email address"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="username">Username</Label>
+                      <Input
+                        id="username"
+                        value={formData.username}
+                        onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                        placeholder="Enter username"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="phone">Phone Number</Label>
+                      <Input
+                        id="phone"
+                        type="tel"
+                        value={formData.phone_number}
+                        onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+                        placeholder="Enter phone number"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="department">Department</Label>
+                      <Input
+                        id="department"
+                        value={formData.department}
+                        onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                        placeholder="Enter department"
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="role">Role</Label>
+                      <Select value={formData.role} onValueChange={(value: UserRole) => setFormData({ ...formData, role: value })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {USER_ROLES.map((role) => (
+                            <SelectItem key={role.value} value={role.value}>
+                              <div className="flex items-center gap-2">
+                                <Shield className="h-4 w-4" />
+                                <div className="flex items-center gap-2">
+                                  <div className="font-medium">{role.label}</div>
+                                  <div className="text-xs text-muted-foreground">{role.description}</div>
+                                </div>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {formData.role === 'Customer' && (
+                    <div className="grid gap-2">
+                      <Label htmlFor="customer">Customer</Label>
+                      <Select
+                        value={formData.customer_id}
+                        onValueChange={(value) => setFormData({ ...formData, customer_id: value })}
+                        disabled={customersLoading}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a customer" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {customersLoading ? (
+                            <div className="px-2 py-1.5 text-sm text-muted-foreground">Loading customers...</div>
+                          ) : customers.length === 0 ? (
+                            <div className="px-2 py-1.5 text-sm text-muted-foreground">No customers found</div>
+                          ) : (
+                            customers.map((customer) => (
+                              <SelectItem key={customer.id} value={customer.id}>
+                                <div className="flex items-center gap-2">
+                                  <Building2 className="h-4 w-4" />
+                                  {customer.name}
+                                </div>
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   )}
-                </Button>
-              </DialogFooter>
-            </form>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="password">Password</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        placeholder="Enter password"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="confirmPassword">Confirm Password</Label>
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        value={formData.confirmPassword}
+                        onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                        placeholder="Confirm password"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button 
+                    type="submit"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating User...
+                      </>
+                    ) : (
+                      'Next: Project Access'
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            ) : (
+              <div className="space-y-4 py-4">
+                {/* Search and Select All */}
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search projects..."
+                      value={projectSearchTerm}
+                      onChange={(e) => setProjectSearchTerm(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={selectAllCreateProjects}
+                  >
+                    <Check className="mr-1 h-4 w-4" />
+                    Select All
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={deselectAllCreateProjects}
+                  >
+                    <X className="mr-1 h-4 w-4" />
+                    Deselect All
+                  </Button>
+                </div>
+
+                {/* Selected count */}
+                <div className="text-sm text-muted-foreground">
+                  {selectedProjectIds.size} of {projects.length} projects selected
+                </div>
+
+                {/* Project list */}
+                <div className="border rounded-lg max-h-[300px] overflow-y-auto">
+                  {projectsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                      <span>Loading projects...</span>
+                    </div>
+                  ) : filteredProjectsForCreate.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                      <FolderOpen className="h-8 w-8 mb-2" />
+                      <p>{projectSearchTerm ? 'No projects match your search' : 'No projects found'}</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y">
+                      {filteredProjectsForCreate.map((project) => (
+                        <div
+                          key={project.id}
+                          className="flex items-center gap-3 p-3 hover:bg-muted/50 cursor-pointer"
+                          onClick={() => toggleCreateProjectSelection(project.id)}
+                        >
+                          <div className={`flex items-center justify-center w-5 h-5 rounded border ${
+                            selectedProjectIds.has(project.id) 
+                              ? 'bg-primary border-primary text-primary-foreground' 
+                              : 'border-muted-foreground'
+                          }`}>
+                            {selectedProjectIds.has(project.id) && <Check className="h-3 w-3" />}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                            <span>{project.name}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleSkipProjectAccess}
+                  >
+                    Skip (No Project Access)
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleFinishUserCreation}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Finish'
+                    )}
+                  </Button>
+                </DialogFooter>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>
@@ -1190,6 +1532,16 @@ export function UsersPage() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
+                                    onClick={() => openProjectAccessDialog(user)}
+                                    title="Manage project access"
+                                  >
+                                    <FolderOpen className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {canUpdateUsers && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
                                     onClick={() => startEdit(user)}
                                     title="Edit user"
                                   >
@@ -1465,6 +1817,130 @@ export function UsersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Project Access Management Dialog */}
+      <Dialog open={isProjectAccessDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setProjectAccessUser(null);
+          setProjectAccessSearchTerm('');
+        }
+        setIsProjectAccessDialogOpen(open);
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderOpen className="h-5 w-5" />
+              Manage Project Access
+            </DialogTitle>
+            <DialogDescription>
+              {projectAccessUser && (
+                <>
+                  Select which projects <strong>{projectAccessUser.name}</strong> can access.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Search and Select All */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search projects..."
+                  value={projectAccessSearchTerm}
+                  onChange={(e) => setProjectAccessSearchTerm(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={selectAllProjects}
+              >
+                <Check className="mr-1 h-4 w-4" />
+                Select All
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={deselectAllProjects}
+              >
+                <X className="mr-1 h-4 w-4" />
+                Deselect All
+              </Button>
+            </div>
+
+            {/* Selected count */}
+            <div className="text-sm text-muted-foreground">
+              {userProjectAccess.size} of {projects.length} projects selected
+            </div>
+
+            {/* Project list */}
+            <div className="border rounded-lg max-h-[350px] overflow-y-auto">
+              {projectsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                  <span>Loading projects...</span>
+                </div>
+              ) : filteredProjectsForAccess.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <FolderOpen className="h-8 w-8 mb-2" />
+                  <p>{projectAccessSearchTerm ? 'No projects match your search' : 'No projects found'}</p>
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {filteredProjectsForAccess.map((project) => (
+                    <div
+                      key={project.id}
+                      className="flex items-center gap-3 p-3 hover:bg-muted/50 cursor-pointer"
+                      onClick={() => toggleProjectAccess(project.id)}
+                    >
+                      <div className={`flex items-center justify-center w-5 h-5 rounded border ${
+                        userProjectAccess.has(project.id) 
+                          ? 'bg-primary border-primary text-primary-foreground' 
+                          : 'border-muted-foreground'
+                      }`}>
+                        {userProjectAccess.has(project.id) && <Check className="h-3 w-3" />}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                        <span>{project.name}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsProjectAccessDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveProjectAccess}
+              disabled={isSavingProjectAccess}
+            >
+              {isSavingProjectAccess ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Project Access'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

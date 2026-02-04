@@ -70,6 +70,8 @@ import { Alert, AlertDescription } from "../components/ui/alert";
 import { Upload, FileSpreadsheet, Trash2, Download, Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import * as XLSX from 'xlsx';
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../contexts/AuthContext";
+import { getUserAccessibleProjectIds } from "../utils/projectAccess";
 
 // Enhanced status constants with grouping
 const PRIMARY_STATUSES = [
@@ -132,6 +134,8 @@ interface FilterState {
 }
 
 export function Dashboard({ customers, projects, panels, buildings = [], facades = [] }: DashboardProps) {
+  const { user: currentUser } = useAuth();
+  
   // Data fetching state
   const [dashboardData, setDashboardData] = useState({
     customers: [] as any[],
@@ -171,6 +175,24 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
       
       console.log('🔍 Dashboard: Starting data fetch...');
       
+      // Get user's accessible project IDs
+      const accessibleProjectIds = await getUserAccessibleProjectIds(currentUser?.id, currentUser?.role);
+      console.log('🔐 Dashboard: User has access to', accessibleProjectIds === null ? 'all projects' : `${accessibleProjectIds.length} projects`);
+      
+      // If user has no project access (empty array), return empty data
+      if (accessibleProjectIds !== null && accessibleProjectIds.length === 0) {
+        console.log('🔐 Dashboard: User has no project access, showing empty data');
+        setDashboardData({
+          customers: [],
+          projects: [],
+          panels: [],
+          buildings: [],
+          facades: []
+        });
+        setLoading(false);
+        return;
+      }
+      
       // Fetch customers
       const { data: customersData, error: customersError } = await supabase
         .from('customers')
@@ -179,16 +201,22 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
       
       if (customersError) throw customersError;
       
-      // Fetch projects
-      const { data: projectsData, error: projectsError } = await supabase
+      // Fetch projects (filtered by access)
+      let projectsQuery = supabase
         .from('projects')
         .select('*')
         .order('name');
       
+      if (accessibleProjectIds !== null) {
+        projectsQuery = projectsQuery.in('id', accessibleProjectIds);
+      }
+      
+      const { data: projectsData, error: projectsError } = await projectsQuery;
+      
       if (projectsError) throw projectsError;
       
-      // Fetch buildings with project information
-      const { data: buildingsData, error: buildingsError } = await supabase
+      // Fetch buildings with project information (filtered by project access)
+      let buildingsQuery = supabase
         .from('buildings')
         .select(`
           *,
@@ -196,33 +224,52 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
         `)
         .order('name');
       
+      if (accessibleProjectIds !== null) {
+        buildingsQuery = buildingsQuery.in('project_id', accessibleProjectIds);
+      }
+      
+      const { data: buildingsData, error: buildingsError } = await buildingsQuery;
+      
       if (buildingsError) throw buildingsError;
       
-      // Fetch facades with project information
-      const { data: facadesData, error: facadesError } = await supabase
+      // Fetch facades with project information (filtered by project access via buildings)
+      let facadesQuery = supabase
         .from('facades')
         .select(`
           *,
           buildings!inner(
             name,
+            project_id,
             projects!inner(name)
           )
         `)
         .order('name');
       
+      if (accessibleProjectIds !== null) {
+        facadesQuery = facadesQuery.in('buildings.project_id', accessibleProjectIds);
+      }
+      
+      const { data: facadesData, error: facadesError } = await facadesQuery;
+      
       if (facadesError) throw facadesError;
       
-      // Fetch panels using pagination to get all panels
+      // Fetch panels using pagination to get all panels (filtered by project access)
       let allPanels: any[] = [];
       let page = 0;
       const pageSize = 1000;
       let hasMore = true;
 
       while (hasMore) {
-        const { data, error } = await supabase
+        let panelQuery = supabase
           .from('panels')
           .select('*')
           .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        if (accessibleProjectIds !== null) {
+          panelQuery = panelQuery.in('project_id', accessibleProjectIds);
+        }
+        
+        const { data, error } = await panelQuery;
         
         if (error) throw error;
 
@@ -318,10 +365,11 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
     }
   };
 
-  // Fetch data on component mount
+  // Fetch data on component mount and when user changes
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 
   // Section-independent data filtering and aggregation
   const projectData = useMemo(() => {

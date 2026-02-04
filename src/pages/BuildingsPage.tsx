@@ -31,6 +31,7 @@ import { crudOperations } from '../utils/userTracking';
 import { useAuth } from '../contexts/AuthContext';
 import { hasPermission } from '../utils/rolePermissions';
 import { useToastContext } from '../contexts/ToastContext';
+import { getUserAccessibleProjectIds } from '../utils/projectAccess';
 
 
 interface BuildingModel {
@@ -138,6 +139,18 @@ export function BuildingsPage({
     async function fetchBuildings() {
       setLoading(true);
       try {
+        // Get user's accessible project IDs
+        const accessibleProjectIds = await getUserAccessibleProjectIds(currentUser?.id, currentUser?.role);
+        console.log('🔐 BuildingsPage: User has access to', accessibleProjectIds === null ? 'all projects' : `${accessibleProjectIds?.length || 0} projects`);
+
+        // If user has no project access, return empty
+        if (accessibleProjectIds !== null && accessibleProjectIds.length === 0) {
+          console.log('🔐 BuildingsPage: User has no project access, showing empty data');
+          setBuildings([]);
+          setLoading(false);
+          return;
+        }
+
         let query = supabase
           .from('buildings')
           .select('*');
@@ -145,6 +158,9 @@ export function BuildingsPage({
         // If we have a project filter, apply it
         if (projectId) {
           query = query.eq('project_id', projectId);
+        } else if (accessibleProjectIds !== null) {
+          // Filter by accessible projects for non-admins
+          query = query.in('project_id', accessibleProjectIds);
         }
 
         const { data, error } = await query;
@@ -209,7 +225,8 @@ export function BuildingsPage({
     }
 
     fetchBuildings();
-  }, [projectId, showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, currentUser?.id]);
 
   const handleAddBuilding = async (buildingData: Omit<BuildingModel, "id" | "created_at" | "totalArea" | "totalAmount" | "totalWeight" | "totalPanels">) => {
     if (!currentUser?.id) {

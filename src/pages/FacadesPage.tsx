@@ -28,6 +28,7 @@ import { supabase } from "../lib/supabase";
 import { FacadeModalTrigger } from "../components/FacadeModal";
 import { useAuth } from "../contexts/AuthContext";
 import { hasPermission } from "../utils/rolePermissions";
+import { getUserAccessibleProjectIds } from "../utils/projectAccess";
 
 interface FacadeData {
   id: string;
@@ -130,12 +131,26 @@ export function FacadesPage({
   useEffect(() => {
     async function fetchFacades() {
       setLoading(true);
+      
+      // Get user's accessible project IDs
+      const accessibleProjectIds = await getUserAccessibleProjectIds(currentUser?.id, currentUser?.role);
+      console.log('🔐 FacadesPage: User has access to', accessibleProjectIds === null ? 'all projects' : `${accessibleProjectIds?.length || 0} projects`);
+
+      // If user has no project access, return empty
+      if (accessibleProjectIds !== null && accessibleProjectIds.length === 0) {
+        console.log('🔐 FacadesPage: User has no project access, showing empty data');
+        setFacades([]);
+        setLoading(false);
+        return;
+      }
+
       let query = supabase
         .from('facades')
         .select(`
           *,
-          buildings (
+          buildings!inner (
             name,
+            project_id,
             projects (
               name
             )
@@ -146,12 +161,16 @@ export function FacadesPage({
         query = query.eq('building_id', buildingId);
       } else if (projectId) {
         query = query.eq('buildings.project_id', projectId);
+      } else if (accessibleProjectIds !== null) {
+        // Filter by accessible projects for non-admins
+        query = query.in('buildings.project_id', accessibleProjectIds);
       }
 
       const { data, error } = await query;
       
       if (error) {
         console.error('Error fetching facades:', error);
+        setLoading(false);
         return;
       }
       
@@ -208,7 +227,8 @@ export function FacadesPage({
     }
 
     fetchFacades();
-  }, [projectId, buildingId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, buildingId, currentUser?.id]);
 
   const handleEdit = async (facade: FacadeData) => {
     // The FacadeModalTrigger will handle opening the modal

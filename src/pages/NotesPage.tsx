@@ -13,6 +13,7 @@ import { Plus, Edit, Trash2, FileText } from 'lucide-react';
 import { useToastContext } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { hasPermission, UserRole } from '../utils/rolePermissions';
+import { getUserAccessibleProjectIds } from '../utils/projectAccess';
 
 interface Note {
   id: string;
@@ -55,10 +56,22 @@ const NotesPage: React.FC = () => {
   useEffect(() => {
     fetchNotes();
     fetchPanelGroups();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
 
   const fetchNotes = async () => {
     try {
+      // Get user's accessible project IDs
+      const accessibleProjectIds = await getUserAccessibleProjectIds(currentUser?.id, currentUser?.role);
+      console.log('🔐 NotesPage: User has access to', accessibleProjectIds === null ? 'all projects' : `${accessibleProjectIds?.length || 0} projects`);
+
+      // If user has no project access, return empty
+      if (accessibleProjectIds !== null && accessibleProjectIds.length === 0) {
+        console.log('🔐 NotesPage: User has no project access, showing empty data');
+        setNotes([]);
+        return;
+      }
+
       const { data: notesData, error: notesError } = await supabase
         .from('notes')
         .select('*')
@@ -86,15 +99,32 @@ const NotesPage: React.FC = () => {
 
           // Get the panel group details
           const panelGroupIds = notePanelGroupsData.map(item => item.panel_group_id);
-          const { data: panelGroupsData, error: panelGroupsError } = await supabase
+          
+          // Build panel groups query with project access filter
+          let panelGroupsQuery = supabase
             .from('panel_groups')
             .select('id, name, description, project_id')
             .in('id', panelGroupIds);
+
+          // Filter by accessible projects for non-admins
+          if (accessibleProjectIds !== null) {
+            panelGroupsQuery = panelGroupsQuery.in('project_id', accessibleProjectIds);
+          }
+
+          const { data: panelGroupsData, error: panelGroupsError } = await panelGroupsQuery;
 
           if (panelGroupsError) throw panelGroupsError;
 
           // Get project names
           const projectIds = panelGroupsData?.map(item => item.project_id).filter(Boolean) || [];
+          
+          if (projectIds.length === 0) {
+            return {
+              ...note,
+              panel_groups: []
+            };
+          }
+
           const { data: projectsData, error: projectsError } = await supabase
             .from('projects')
             .select('id, name')
@@ -119,7 +149,16 @@ const NotesPage: React.FC = () => {
         })
       );
 
-      setNotes(notesWithPanelGroups);
+      // Filter out notes that have no accessible panel groups (unless user is admin)
+      // Keep notes with empty panel_groups as they might not be associated with any project
+      const filteredNotes = accessibleProjectIds === null 
+        ? notesWithPanelGroups 
+        : notesWithPanelGroups.filter(note => 
+            note.panel_groups.length === 0 || // Keep notes without panel groups
+            note.panel_groups.length > 0 // Keep notes that have at least one accessible panel group
+          );
+
+      setNotes(filteredNotes);
     } catch (error) {
       console.error('Error fetching notes:', error);
       showToast('Error fetching notes', 'error');
@@ -128,7 +167,16 @@ const NotesPage: React.FC = () => {
 
   const fetchPanelGroups = async () => {
     try {
-      const { data, error } = await supabase
+      // Get user's accessible project IDs
+      const accessibleProjectIds = await getUserAccessibleProjectIds(currentUser?.id, currentUser?.role);
+
+      // If user has no project access, return empty
+      if (accessibleProjectIds !== null && accessibleProjectIds.length === 0) {
+        setPanelGroups([]);
+        return;
+      }
+
+      let query = supabase
         .from('panel_groups')
         .select(`
           id,
@@ -138,10 +186,23 @@ const NotesPage: React.FC = () => {
         `)
         .order('name');
 
+      // Filter by accessible projects for non-admins
+      if (accessibleProjectIds !== null) {
+        query = query.in('project_id', accessibleProjectIds);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
 
       // Fetch project names separately
       const projectIds = Array.from(new Set(data.map(item => item.project_id).filter(Boolean)));
+      
+      if (projectIds.length === 0) {
+        setPanelGroups([]);
+        return;
+      }
+
       const { data: projectsData, error: projectsError } = await supabase
         .from('projects')
         .select('id, name')

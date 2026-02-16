@@ -84,9 +84,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return { success: false, error: 'Invalid username or password' };
       }
 
-      // In production, verify password hash here
-      // For now, we'll accept any password for demo purposes
-      // You should implement proper password verification
+      // Verify password against stored password_hash
+      if (data.password_hash !== password) {
+        return { success: false, error: 'Invalid username or password' };
+      }
 
       // Update last login
       await updateLastLogin(data.id);

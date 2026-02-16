@@ -15,6 +15,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToastContext } from "../contexts/ToastContext";
 import { canManageUsers, hasPermission } from "../utils/rolePermissions";
+import { hasAllProjectAccess } from "../utils/projectAccess";
 
 // User roles and statuses - matches database constraints exactly
 const USER_ROLES = [
@@ -680,6 +681,15 @@ export function UsersPage() {
           } else {
             showToast(`Error adding user: ${error.message}`, 'error');
           }
+          return;
+        }
+
+        // If the role has all-project access by default, skip step 2
+        if (hasAllProjectAccess(formData.role)) {
+          showToast('User created successfully (has access to all projects by default)', 'success');
+          setIsAddDialogOpen(false);
+          resetForm();
+          fetchUsers();
           return;
         }
 
@@ -1529,14 +1539,20 @@ export function UsersPage() {
                         <TableCell>
                             <div className="flex items-center justify-end gap-2">
                                 {canUpdateUsers && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => openProjectAccessDialog(user)}
-                                    title="Manage project access"
-                                  >
-                                    <FolderOpen className="h-4 w-4" />
-                                  </Button>
+                                  hasAllProjectAccess(user.role) ? (
+                                    <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                                      All Projects
+                                    </Badge>
+                                  ) : (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => openProjectAccessDialog(user)}
+                                      title="Manage project access"
+                                    >
+                                      <FolderOpen className="h-4 w-4" />
+                                    </Button>
+                                  )
                                 )}
                                 {canUpdateUsers && (
                                   <Button
@@ -1834,9 +1850,15 @@ export function UsersPage() {
             </DialogTitle>
             <DialogDescription>
               {projectAccessUser && (
-                <>
-                  Select which projects <strong>{projectAccessUser.name}</strong> can access.
-                </>
+                hasAllProjectAccess(projectAccessUser.role) ? (
+                  <>
+                    <strong>{projectAccessUser.name}</strong> has the <strong>{projectAccessUser.role}</strong> role which automatically grants access to all projects.
+                  </>
+                ) : (
+                  <>
+                    Select which projects <strong>{projectAccessUser.name}</strong> can access.
+                  </>
+                )
               )}
             </DialogDescription>
           </DialogHeader>

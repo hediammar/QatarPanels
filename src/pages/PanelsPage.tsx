@@ -132,28 +132,6 @@ export interface PanelModel {
   issued_for_production_date?: string;
 }
 
-interface ImportedPanel {
-  id: string;
-  name: string;
-  type: number;
-  status: number;
-  project_id: string;
-  project_name: string;
-  building_id?: string;
-  building_name?: string;
-  facade_id?: string;
-  facade_name?: string;
-  issue_transmittal_no?: string;
-  drawing_number?: string;
-  unit_rate_qr_m2?: number;
-  ifp_qty_area_sm?: number;
-  ifp_qty_nos?: number;
-  weight?: number;
-  dimension?: string;
-  issued_for_production_date?: string;
-  isValid: boolean;
-  errors: string[];
-}
 
 
 export function PanelsPage() {
@@ -185,22 +163,8 @@ export function PanelsPage() {
   const [expandedRows] = useState<Set<string>>(new Set());
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [expandAllRows] = useState(false);
-  const [isBulkImportMode, setIsBulkImportMode] = useState(false);
-  const [bulkImportStep, setBulkImportStep] = useState<"upload" | "preview" | "importing" | "complete">("upload");
-  const [bulkImportFile, setBulkImportFile] = useState<File | null>(null);
-  const [importedPanels, setImportedPanels] = useState<ImportedPanel[]>([]);
-  const [importProgress, setImportProgress] = useState(0);
-  const [importResults, setImportResults] = useState({ successful: 0, failed: 0 });
-  const [bulkImportErrors, setBulkImportErrors] = useState<string[]>([]);
-  const [bulkImportCurrentPage, setBulkImportCurrentPage] = useState(1);
-  const [bulkImportPageSize] = useState(25);
-  const [bulkImportSearchTerm, setBulkImportSearchTerm] = useState("");
-  const [bulkImportStatusFilter, setBulkImportStatusFilter] = useState<string>("all");
-  const [bulkImportTypeFilter, setBulkImportTypeFilter] = useState<string>("all");
-  const [bulkImportValidityFilter, setBulkImportValidityFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
-  const [isImportingPanels, setIsImportingPanels] = useState(false);
   const [isSavingPanel, setIsSavingPanel] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedPanels, setSelectedPanels] = useState<Set<string>>(new Set());
@@ -1241,229 +1205,6 @@ export function PanelsPage() {
     }
   };
 
-  const normalizeType = (type: string): number => {
-    const normalized = type.toLowerCase().trim();
-    if (normalized.includes("wall")) return 0;
-    if (normalized.includes("facade")) return 1;
-    if (normalized.includes("stair")) return 2;
-    if (normalized.includes("column")) return 3;
-    if (normalized.includes("beam")) return 4;
-    if (normalized.includes("slab")) return 5;
-    return 0;
-  };
-
-  const normalizeStatus = (status: string): number => {
-    const normalized = status.toLowerCase().trim();
-
-    if (normalized.includes("issued for production")) return PANEL_STATUSES.indexOf("Issued For Production");
-    if (normalized.includes("manufactur") || normalized.includes("produce")) return PANEL_STATUSES.indexOf("Produced");
-    if (normalized.includes("proceed")) return PANEL_STATUSES.indexOf("Proceed for Delivery");
-    if (normalized.includes("deliver")) return PANEL_STATUSES.indexOf("Delivered");
-    if (normalized.includes("approved material") || (normalized.includes("approve") && !normalized.includes("final"))) return PANEL_STATUSES.indexOf("Approved Material");
-    if (normalized.includes("reject")) return PANEL_STATUSES.indexOf("Rejected Material");
-    if (normalized.includes("install")) return PANEL_STATUSES.indexOf("Installed");
-    if (normalized.includes("inspect")) return PANEL_STATUSES.indexOf("Inspected");
-    if (normalized.includes("approved final")) return PANEL_STATUSES.indexOf("Approved Final");
-    if (normalized.includes("on hold") || normalized === "hold") return PANEL_STATUSES.indexOf("On Hold");
-    if (normalized.includes("cancel")) return PANEL_STATUSES.indexOf("Cancelled");
-    if (normalized.includes("broken")) return PANEL_STATUSES.indexOf("Broken at Site");
-
-    return 0;
-  };
-
-
-  const validatePanel = (panel: ImportedPanel) => {
-    const errors: string[] = [];
-    if (!panel.name.trim()) errors.push("Panel name is required");
-    if (panel.unit_rate_qr_m2 && panel.unit_rate_qr_m2 < 0) errors.push("Unit rate cannot be negative");
-    if (panel.ifp_qty_area_sm && panel.ifp_qty_area_sm < 0) errors.push("IFP qty area cannot be negative");
-    if (panel.ifp_qty_nos && panel.ifp_qty_nos < 0) errors.push("IFP qty nos cannot be negative");
-    panel.errors = errors;
-    panel.isValid = errors.length === 0;
-  };
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleFileUpload = async (selectedFile: File) => {
-    if (!selectedFile) return;
-
-    try {
-      setBulkImportFile(selectedFile);
-      setBulkImportErrors([]);
-      const data = await selectedFile.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(sheet);
-
-      if (jsonData.length === 0) {
-        setBulkImportErrors(["The Excel file appears to be empty or invalid."]);
-        return;
-      }
-
-      const parsedPanels: ImportedPanel[] = jsonData.map((row: any, index: number) => {
-        const panel: ImportedPanel = {
-          id: `import-${Date.now()}-${index}`,
-          name: row["Panel Name"] || row["Name"] || row["panel_name"] || "",
-          type: normalizeType(row["Type"] || row["Panel Type"] || row["type"] || "GRC"),
-          status: normalizeStatus(row["Status"] || row["status"] || "Manufactured"),
-          project_id: 'projectId',
-          project_name: 'projectName',
-          building_id: row["Building ID"] || row["building_id"] || undefined,
-          building_name: row["Building Name"] || row["building_name"] || undefined,
-          facade_id: row["Facade ID"] || row["facade_id"] || undefined,
-          facade_name: row["Facade Name"] || row["facade_name"] || undefined,
-          issue_transmittal_no: row["Issue Transmittal No"] || row["IssueTransmittalNo"] || row["issue_transmittal_no"] || undefined,
-          drawing_number: row["Drawing Number"] || row["DrawingNumber"] || row["drawing_number"] || undefined,
-          unit_rate_qr_m2: parseFloat(row["Unit Rate QR/m2"] || row["unit_rate_qr_m2"] || "0") || undefined,
-          ifp_qty_area_sm: parseFloat(row["IFP Qty Area SM"] || row["ifp_qty_area_sm"] || "0") || undefined,
-          ifp_qty_nos: parseInt(row["IFP Qty Nos"] || row["ifp_qty_nos"] || "0") || undefined,
-          weight: parseFloat(row["Weight"] || row["weight"] || "0") || undefined,
-          dimension: row["Dimension"] || row["dimension"] || undefined,
-          issued_for_production_date: row["Issued for Production Date"] || row["IssuedForProductionDate"] || row["issued_for_production_date"] || undefined,
-          isValid: true,
-          errors: [],
-        };
-
-        validatePanel(panel);
-        return panel;
-      });
-
-      setImportedPanels(parsedPanels);
-      setBulkImportStep("preview");
-    } catch (error) {
-      console.error("Error parsing Excel file:", error);
-      setBulkImportErrors(["Failed to parse Excel file. Please ensure it's a valid .xlsx file."]);
-    }
-  };
-
-  const updateImportedPanel = (index: number, field: keyof ImportedPanel, value: any) => {
-    const actualIndex = importedPanels.findIndex((p) => p.id === filteredImportedPanels[index].id);
-    const updatedPanels = [...importedPanels];
-    (updatedPanels[actualIndex] as any)[field] = value;
-    validatePanel(updatedPanels[actualIndex]);
-    setImportedPanels(updatedPanels);
-  };
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const removeImportedPanel = (index: number) => {
-    const panelToRemove = filteredImportedPanels[index];
-    setImportedPanels((prev) => prev.filter((p) => p.id !== panelToRemove.id));
-  };
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleImportPanels = async () => {
-    if (isImportingPanels) {
-      return; // Prevent double-clicking
-    }
-
-    const validPanels = importedPanels.filter((p) => p.isValid);
-    if (validPanels.length === 0) {
-      setBulkImportErrors(["No valid panels to import. Please fix the errors and try again."]);
-      return;
-    }
-
-    setIsImportingPanels(true);
-    try {
-      setBulkImportStep("importing");
-      setImportProgress(0);
-
-      if (!selectedProjectId) {
-        setBulkImportErrors(["Please select a project first"]);
-        return;
-      }
-
-      const newPanels = validPanels.map((p) => ({
-        name: p.name,
-        type: p.type,
-        status: p.status,
-        project_id: selectedProjectId,
-        building_id: p.building_id || null,
-        facade_id: p.facade_id || null,
-        issue_transmittal_no: p.issue_transmittal_no || null,
-        drawing_number: p.drawing_number || null,
-        unit_rate_qr_m2: p.unit_rate_qr_m2 || null,
-        ifp_qty_area_sm: p.ifp_qty_area_sm || null,
-        ifp_qty_nos: p.ifp_qty_nos || null,
-        weight: p.weight || null,
-        dimension: p.dimension || null,
-        issued_for_production_date: p.issued_for_production_date || null,
-      }));
-
-      // Import panels with user tracking
-      const importedPanels = [];
-      for (const panelData of newPanels) {
-        try {
-          const newPanel = await crudOperations.create("panels", panelData);
-          // Database triggers will automatically add status history
-          importedPanels.push(newPanel);
-        } catch (error) {
-          console.error("Error importing panel:", error);
-          // Continue with other panels even if one fails
-        }
-      }
-
-      // Fetch complete data for imported panels
-      const panelIds = importedPanels.map(p => p.id);
-      const { data, error } = await supabase
-        .from("panels")
-        .select(`
-          *,
-          projects!inner(name),
-          buildings(name),
-          facades(name)
-        `)
-        .in("id", panelIds);
-
-      if (error) {
-        console.error("Error fetching imported panels:", error);
-      }
-
-      setPanels([
-        ...panels,
-        ...(data?.map((panel) => ({
-          ...panel,
-          project_name: panel.projects?.name,
-          building_name: panel.buildings?.name,
-          facade_name: panel.facades?.name,
-        })) || []),
-      ]);
-
-      setImportResults({ successful: validPanels.length, failed: 0 });
-      setBulkImportStep("complete");
-    } catch (error) {
-      console.error("Bulk import error:", error);
-      setBulkImportErrors(["Failed to import panels. Please try again."]);
-    } finally {
-      setImportProgress(100);
-      setIsImportingPanels(false);
-    }
-  };
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const downloadTemplate = () => {
-    const template = [
-      {
-        "Panel Name": "Sample Panel 1",
-        "Type": "GRC",
-        "Status": "Issued For Production",
-        "Building Name": "Sample Building",
-        "Facade Name": "Sample Facade",
-        "Issue Transmittal No": "T-001",
-        "Drawing Number": "DWG-001-A1",
-        "Unit Rate QR/m2": 100.5,
-        "IFP Qty Area SM": 50.25,
-        "IFP Qty Nos": 1,
-        "Weight": 150.5,
-        "Issued for Production Date": "2024-01-15",
-      },
-    ];
-
-    const ws = XLSX.utils.json_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Panels Template");
-    XLSX.writeFile(wb, "panels_import_template.xlsx");
-  };
-
   // Normalize a "date-only" string to YYYY-MM-DD for export
   const normalizeDateOnlyToISO = (dateStr?: string) => {
     if (!dateStr?.trim()) return "";
@@ -1583,47 +1324,6 @@ export function PanelsPage() {
       showToast(`Error exporting panel history: ${error instanceof Error ? error.message : "Unknown error"}`, "error");
     }
   };
-
-  // Bulk import filters
-  const filteredImportedPanels = importedPanels.filter((panel) => {
-    const matchesSearch =
-      bulkImportSearchTerm === "" ||
-      panel.name.toLowerCase().includes(bulkImportSearchTerm.toLowerCase()) ||
-      (panel.building_name?.toLowerCase().includes(bulkImportSearchTerm.toLowerCase()) ?? false) ||
-      (panel.drawing_number?.toLowerCase().includes(bulkImportSearchTerm.toLowerCase()) ?? false) ||
-      (panel.issue_transmittal_no?.toLowerCase().includes(bulkImportSearchTerm.toLowerCase()) ?? false);
-    const matchesStatus = bulkImportStatusFilter === "all" || statusMap[panel.status] === bulkImportStatusFilter;
-    const matchesType = bulkImportTypeFilter === "all" || typeMap[panel.type] === bulkImportTypeFilter;
-    const matchesValidity =
-      bulkImportValidityFilter === "all" ||
-      (bulkImportValidityFilter === "valid" && panel.isValid) ||
-      (bulkImportValidityFilter === "invalid" && !panel.isValid);
-    return matchesSearch && matchesStatus && matchesType && matchesValidity;
-  });
-
-  const bulkImportTotalPages = Math.ceil(filteredImportedPanels.length / bulkImportPageSize);
-  const bulkImportStartIndex = (bulkImportCurrentPage - 1) * bulkImportPageSize;
-  const bulkImportEndIndex = bulkImportStartIndex + bulkImportPageSize;
-  const paginatedImportedPanels = filteredImportedPanels.slice(bulkImportStartIndex, bulkImportEndIndex);
-
-  const validPanelsCount = importedPanels.filter((p) => p.isValid).length;
-  const invalidPanelsCount = importedPanels.length - validPanelsCount;
-
-  const clearBulkImportFilters = () => {
-    setBulkImportSearchTerm("");
-    setBulkImportStatusFilter("all");
-    setBulkImportTypeFilter("all");
-    setBulkImportValidityFilter("all");
-    setBulkImportCurrentPage(1);
-  };
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const activeBulkImportFiltersCount = [
-    bulkImportSearchTerm,
-    bulkImportStatusFilter !== "all" ? bulkImportStatusFilter : "",
-    bulkImportTypeFilter !== "all" ? bulkImportTypeFilter : "",
-    bulkImportValidityFilter !== "all" ? bulkImportValidityFilter : "",
-  ].filter(Boolean).length;
 
   const toggleSelectionMode = () => {
     setIsSelectionMode(!isSelectionMode);
@@ -1748,7 +1448,7 @@ export function PanelsPage() {
               {canBulkImportPanels && (
                 <Button
                   variant="outline"
-                  onClick={() => setIsBulkImportMode(true)}
+                  onClick={() => navigate('/bulk-import-panels')}
                   className="bg-secondary hover:bg-secondary/90 text-secondary-foreground border-border h-9 text-xs sm:text-sm"
                 >
                   <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
@@ -1980,7 +1680,7 @@ export function PanelsPage() {
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() => setIsBulkImportMode(true)}
+                      onClick={() => navigate('/bulk-import-panels')}
                       className="bg-secondary hover:bg-secondary/90 text-secondary-foreground border-border"
                     >
                       <Upload className="mr-2 h-4 w-4" />

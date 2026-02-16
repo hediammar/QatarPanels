@@ -1459,9 +1459,15 @@ export function PanelGroupsSection({
 
 
   const filteredGroups = panelGroups.filter((group) => {
+    const searchLower = searchTerm.toLowerCase();
     const matchesSearch = searchTerm === "" ||
-      group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      group.description.toLowerCase().includes(searchTerm.toLowerCase());
+      group.name.toLowerCase().includes(searchLower) ||
+      group.description.toLowerCase().includes(searchLower) ||
+      getGroupPanels(group).some(panel =>
+        panel.name.toLowerCase().includes(searchLower) ||
+        panel.panelTag.toLowerCase().includes(searchLower) ||
+        panel.dwgNo.toLowerCase().includes(searchLower)
+      );
 
     const matchesStatus = statusFilter === "all" || group.status === statusFilter;
 
@@ -1580,7 +1586,7 @@ export function PanelGroupsSection({
                 <div className="relative">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search groups..."
+                    placeholder="Search groups or panel names..."
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);

@@ -1,8 +1,23 @@
 import { supabase } from '../lib/supabase';
 
+// Roles that have access to all projects by default (no manual assignment needed)
+export const ROLES_WITH_ALL_PROJECT_ACCESS = [
+  'Administrator',
+  'Data Entry',
+  'Production engineer',
+  'QC Factory',
+];
+
+/**
+ * Checks if a role has automatic access to all projects
+ */
+export function hasAllProjectAccess(userRole: string | undefined): boolean {
+  return !!userRole && ROLES_WITH_ALL_PROJECT_ACCESS.includes(userRole);
+}
+
 /**
  * Fetches the project IDs that a user has access to.
- * Administrators have access to all projects.
+ * Certain roles (Administrator, Data Entry, Production Engineer, QC Factory) have access to all projects.
  * Other users only have access to projects in the user_project_access table.
  * 
  * @param userId - The user's ID
@@ -18,8 +33,8 @@ export async function getUserAccessibleProjectIds(
     return [];
   }
 
-  // Administrators have access to all projects
-  if (userRole === 'Administrator') {
+  // These roles have access to all projects by default
+  if (hasAllProjectAccess(userRole)) {
     return null; // null means "all projects"
   }
 
@@ -51,8 +66,8 @@ export async function hasProjectAccess(
 ): Promise<boolean> {
   if (!userId) return false;
   
-  // Administrators have access to all projects
-  if (userRole === 'Administrator') {
+  // These roles have access to all projects by default
+  if (hasAllProjectAccess(userRole)) {
     return true;
   }
 

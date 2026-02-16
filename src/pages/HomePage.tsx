@@ -97,6 +97,17 @@ type SecondaryStatus = typeof SECONDARY_STATUSES[number];
 type AllStatus = PrimaryStatus | SecondaryStatus;
 type ChartStatus = AllStatus | 'Rest';
 
+// Dashboard display labels - friendly names shown to users instead of internal status names
+const STATUS_DISPLAY_LABELS: Partial<Record<AllStatus, string>> = {
+  'Issued For Production': 'Under Production',
+  'Produced': 'Factory Stock',
+  'Delivered': 'Site Stock',
+};
+
+const getStatusDisplayLabel = (status: string): string => {
+  return (STATUS_DISPLAY_LABELS as Record<string, string>)[status] || status;
+};
+
 // Status mapping function to convert integer status codes to string values
 const mapStatusToString = (statusCode: number): AllStatus => {
   switch (statusCode) {
@@ -521,15 +532,17 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
     const { status, location } = metrics;
     
     // Pie chart data based on current view
-    const pieChartData: Array<{ status: ChartStatus; count: number; percentage: number }> = pieChartView === 'primary' 
+    const pieChartData: Array<{ status: ChartStatus; count: number; percentage: number; originalStatus?: AllStatus }> = pieChartView === 'primary' 
       ? PRIMARY_STATUSES.map(statusName => ({
-          status: statusName,
+          status: getStatusDisplayLabel(statusName) as ChartStatus,
+          originalStatus: statusName as AllStatus,
           count: status.primary[statusName as PrimaryStatus],
           percentage: metrics.counts.panels > 0 ? 
             (status.primary[statusName as PrimaryStatus] / metrics.counts.panels) * 100 : 0
         })).filter(item => item.count > 0)
       : SECONDARY_STATUSES.map(statusName => ({
-          status: statusName,
+          status: getStatusDisplayLabel(statusName) as ChartStatus,
+          originalStatus: statusName as AllStatus,
           count: status.secondary[statusName as SecondaryStatus],
           percentage: metrics.counts.panels > 0 ? 
             (status.secondary[statusName as SecondaryStatus] / metrics.counts.panels) * 100 : 0
@@ -564,9 +577,9 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
 
     // Timeline data for manufacturing pipeline
     const timelineData = [
-      { stage: 'Issued For Production', count: status.all['Issued For Production'] || 0, cumulative: status.all['Issued For Production'] || 0 },
-      { stage: 'Produced', count: status.all['Produced'] || 0, cumulative: (status.all['Issued For Production'] || 0) + (status.all['Produced'] || 0) },
-      { stage: 'Delivered', count: status.all['Delivered'] || 0, cumulative: (status.all['Issued For Production'] || 0) + (status.all['Produced'] || 0) + (status.all['Delivered'] || 0) },
+      { stage: 'Under Production', count: status.all['Issued For Production'] || 0, cumulative: status.all['Issued For Production'] || 0 },
+      { stage: 'Factory Stock', count: status.all['Produced'] || 0, cumulative: (status.all['Issued For Production'] || 0) + (status.all['Produced'] || 0) },
+      { stage: 'Site Stock', count: status.all['Delivered'] || 0, cumulative: (status.all['Issued For Production'] || 0) + (status.all['Produced'] || 0) + (status.all['Delivered'] || 0) },
       { stage: 'Installed', count: status.all['Installed'] || 0, cumulative: (status.all['Issued For Production'] || 0) + (status.all['Produced'] || 0) + (status.all['Delivered'] || 0) + (status.all['Installed'] || 0) },
       { stage: 'Approved Material', count: status.all['Approved Material'] || 0, cumulative: (status.all['Issued For Production'] || 0) + (status.all['Produced'] || 0) + (status.all['Delivered'] || 0) + (status.all['Installed'] || 0) + (status.all['Approved Material'] || 0) },
       { stage: 'Inspected', count: status.all['Inspected'] || 0, cumulative: (status.all['Issued For Production'] || 0) + (status.all['Produced'] || 0) + (status.all['Delivered'] || 0) + (status.all['Installed'] || 0) + (status.all['Approved Material'] || 0) + (status.all['Inspected'] || 0) },
@@ -753,7 +766,7 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">Data-driven insights across Projects, Buildings, and Facades</p>
+          <p className="text-sm sm:text-base text-muted-foreground">Data-driven insights across projects, buildings, and facades</p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <Button 
@@ -1291,10 +1304,11 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
           <Card key={status} className="qatar-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-xs sm:text-sm font-medium text-card-foreground truncate">
-                <span className="hidden sm:inline">{status}</span>
+                <span className="hidden sm:inline">{getStatusDisplayLabel(status)}</span>
                 <span className="sm:hidden">
-                  {status === 'Issued For Production' ? 'Issued' :
-                   status === 'Proceed for Delivery' ? 'Delivery' :
+                  {status === 'Issued For Production' ? 'Under Prod.' :
+                   status === 'Produced' ? 'Factory' :
+                   status === 'Delivered' ? 'Site' :
                    status}
                 </span>
               </CardTitle>
@@ -1324,27 +1338,27 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
           <CardContent className="space-y-4">
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-card-foreground">Issued For Production</span>
+                <span className="text-sm font-medium text-card-foreground">Under Production</span>
                 <span className="text-muted-foreground">
                   {pipelineIssuedCount} / {totalEstimatedPanels}
                 </span>
               </div>
               <Progress value={pipelinePct(pipelineIssuedCount)} className="h-2" />
               <p className="text-xs text-muted-foreground mt-1">
-                {pipelinePct(pipelineIssuedCount).toFixed(1)}% panels issued for production
+                {pipelinePct(pipelineIssuedCount).toFixed(1)}% panels under production
               </p>
             </div>
 
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-card-foreground">Produced Progress</span>
+                <span className="text-sm font-medium text-card-foreground">Factory Stock Progress</span>
                 <span className="text-muted-foreground">
                   {pipelineProducedCount} / {totalEstimatedPanels}
                 </span>
               </div>
               <Progress value={pipelinePct(pipelineProducedCount)} className="h-2" />
               <p className="text-xs text-muted-foreground mt-1">
-                {pipelinePct(pipelineProducedCount).toFixed(1)}% panels produced
+                {pipelinePct(pipelineProducedCount).toFixed(1)}% panels in factory stock
               </p>
             </div>
             
@@ -1363,14 +1377,14 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
             
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-card-foreground">Delivered Progress</span>
+                <span className="text-sm font-medium text-card-foreground">Site Stock Progress</span>
                 <span className="text-muted-foreground">
                   {pipelineDeliveredCount} / {totalEstimatedPanels}
                 </span>
               </div>
               <Progress value={pipelinePct(pipelineDeliveredCount)} className="h-2" />
               <p className="text-xs text-muted-foreground mt-1">
-                {pipelinePct(pipelineDeliveredCount).toFixed(1)}% panels delivered
+                {pipelinePct(pipelineDeliveredCount).toFixed(1)}% panels in site stock
               </p>
             </div>
 
@@ -1548,7 +1562,7 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                           {chartData.pieChart.map((entry, index) => (
                             <Cell 
                               key={`cell-${index}`} 
-                              fill={entry.status === 'Rest' ? '#6B7280' : STATUS_COLORS[entry.status as AllStatus] || '#9CA3AF'} 
+                              fill={entry.status === 'Rest' ? '#6B7280' : STATUS_COLORS[(entry.originalStatus || entry.status) as AllStatus] || '#9CA3AF'} 
                             />
                           ))}
                         </Pie>
@@ -1586,7 +1600,7 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                               <span 
                                 className="inline-block h-3 w-3 sm:h-4 sm:w-4 rounded-sm flex-shrink-0" 
                                 style={{ 
-                                  backgroundColor: item.status === 'Rest' ? '#6B7280' : STATUS_COLORS[item.status as AllStatus] || '#9CA3AF' 
+                                  backgroundColor: item.status === 'Rest' ? '#6B7280' : STATUS_COLORS[(item.originalStatus || item.status) as AllStatus] || '#9CA3AF' 
                                 }} 
                               />
                               <span className="text-muted-foreground truncate text-xs sm:text-sm">{item.status}</span>
@@ -1868,19 +1882,19 @@ export function Dashboard({ customers, projects, panels, buildings = [], facades
                 <h4 className="font-medium text-card-foreground">Manufacturing Pipeline</h4>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center p-3 rounded-lg bg-amber-500/20">
-                    <span className="text-sm text-amber-700 dark:text-amber-300">Issued for Production</span>
+                    <span className="text-sm text-amber-700 dark:text-amber-300">Under Production</span>
                     <Badge variant="secondary" className="bg-amber-500 text-white">
-                      {metrics.status.primary['Issued for Production']}
+                      {metrics.status.primary['Issued For Production']}
                     </Badge>
                   </div>
                   <div className="flex justify-between items-center p-3 rounded-lg bg-emerald-500/20">
-                    <span className="text-sm text-emerald-700 dark:text-emerald-300">Produced</span>
+                    <span className="text-sm text-emerald-700 dark:text-emerald-300">Factory Stock</span>
                     <Badge variant="secondary" className="bg-emerald-500 text-white">
                       {metrics.status.primary['Produced']}
                     </Badge>
                   </div>
                   <div className="flex justify-between items-center p-3 rounded-lg bg-blue-500/20">
-                    <span className="text-sm text-blue-700 dark:text-blue-300">Delivered</span>
+                    <span className="text-sm text-blue-700 dark:text-blue-300">Site Stock</span>
                     <Badge variant="secondary" className="bg-blue-500 text-white">
                       {metrics.status.primary['Delivered']}
                     </Badge>

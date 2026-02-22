@@ -1721,10 +1721,13 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
           }
           
           console.log(`Creating panel ${panel.name} with facade_id: ${resolvedFacadeId}, building_id: ${resolvedBuildingId}`);
-          const panelData = {
+          const issuedForProdIdx = PANEL_STATUSES.indexOf("Issued For Production");
+          const isExcelStatusIFP = panel.status === issuedForProdIdx;
+          
+          const panelData: Record<string, any> = {
             name: panel.name,
             type: panel.type,
-            status: panel.status,
+            status: 0,
             project_id: projectId,
             building_id: resolvedBuildingId || null,
             facade_id: resolvedFacadeId || null,
@@ -1735,15 +1738,12 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
             ifp_qty_nos: panel.ifp_qty_nos || null,
             weight: panel.weight || null,
             dimension: panel.dimension || null,
-            issued_for_production_date: panel.issued_for_production_date || null,
+            ...(isExcelStatusIFP ? { issued_for_production_date: panel.issued_for_production_date || null } : {}),
           };
 
           if (existingPanel) {
             console.log(`Panel "${panel.name}" already exists in this project. Updating...`);
 
-            // IMPORTANT: For bulk import updates, do NOT update panel status.
-            // We update everything else, but ignore the imported "status" field.
-            // (Status changes must happen via the status change workflows.)
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { status: _ignoredStatus, ...panelUpdateData } = panelData;
 
@@ -1765,14 +1765,12 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
             } else {
               let wroteResultRow = false;
 
-              // Sync the "Issued For Production" (status 0) timeline entry timestamp
-              // to match the imported "Issued for Production Date" (even if it's not the current status).
-              const issuedForProductionStatusIndex = PANEL_STATUSES.indexOf("Issued For Production");
+              // Only sync when Excel status is "Issued for Production" — the date was conditionally included above
               const issuedDate = panelUpdateData.issued_for_production_date;
 
               if (
                 issuedDate &&
-                (issuedForProductionStatusIndex ?? -1) >= 0
+                (issuedForProdIdx ?? -1) >= 0
               ) {
                 const issuedAt = (() => {
                   const d = issuedDate as string;
@@ -1782,7 +1780,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
                 if (currentUser?.id) {
                   const { error: syncError } = await syncLatestPanelStatusHistoryTimestamp(
                     existingPanel.id,
-                    issuedForProductionStatusIndex,
+                    issuedForProdIdx,
                     currentUser.id,
                     issuedAt,
                     { notes: 'Synced from bulk import "Issued for Production Date"' }
@@ -1817,16 +1815,13 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
             // Create new panel
             const newPanel = await crudOperations.create("panels", panelData);
             
-            // Sync the "Issued For Production" (status 0) timeline entry timestamp
-            // to match the imported "Issued for Production Date" if the panel is created with status "Issued For Production"
-            const issuedForProductionStatusIndex = PANEL_STATUSES.indexOf("Issued For Production");
             const issuedDate = panelData.issued_for_production_date;
             
             if (
               newPanel &&
-              panelData.status === issuedForProductionStatusIndex &&
+              isExcelStatusIFP &&
               issuedDate &&
-              (issuedForProductionStatusIndex ?? -1) >= 0
+              (issuedForProdIdx ?? -1) >= 0
             ) {
               const issuedAt = (() => {
                 const d = issuedDate as string;
@@ -1836,7 +1831,7 @@ export function PanelsSection({ projectId, projectName, facadeId, facadeName }: 
               if (currentUser?.id) {
                 const { error: syncError } = await syncLatestPanelStatusHistoryTimestamp(
                   newPanel.id,
-                  issuedForProductionStatusIndex,
+                  issuedForProdIdx,
                   currentUser.id,
                   issuedAt,
                   { notes: 'Synced from bulk import "Issued for Production Date"' }

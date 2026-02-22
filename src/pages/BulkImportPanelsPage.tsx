@@ -1181,10 +1181,11 @@ export function BulkImportPanelsPage() {
         if (existingPanel) {
           console.log(`Panel "${row.name}" already exists. Updating...`);
           
-          const updateData = {
+          const isIssuedForProduction = (row.status || '').toLowerCase().trim() === 'issued for production';
+          
+          const updateData: Record<string, any> = {
             name: row.name.trim(),
             type: mapTypeToNumber(row.type),
-            status: mapStatusToNumber(row.status),
             project_id: resolvedProjectId,
             building_id: resolvedBuildingId,
             facade_id: resolvedFacadeId,
@@ -1195,17 +1196,18 @@ export function BulkImportPanelsPage() {
             ifp_qty_nos: row.ifp_qty_nos?.trim() ? parseInt(row.ifp_qty_nos) : null,
             weight: row.weight?.trim() ? parseFloat(row.weight) : null,
             dimension: row.dimension?.trim() || null,
-            issued_for_production_date: row.date?.trim() ? (() => {
-              const parsedDate = parseDate(row.date);
-              if (!parsedDate) return null;
-              // Format as YYYY-MM-DD string for Supabase
+            user_id: currentUser?.id || null
+          };
+
+          if (isIssuedForProduction && row.date?.trim()) {
+            const parsedDate = parseDate(row.date);
+            if (parsedDate) {
               const year = parsedDate.getUTCFullYear();
               const month = String(parsedDate.getUTCMonth() + 1).padStart(2, '0');
               const day = String(parsedDate.getUTCDate()).padStart(2, '0');
-              return `${year}-${month}-${day}`;
-            })() : null,
-            user_id: currentUser?.id || null
-          };
+              updateData.issued_for_production_date = `${year}-${month}-${day}`;
+            }
+          }
 
           const { data: updatedPanel, error: updateError } = await supabase
             .from('panels')
@@ -1222,12 +1224,10 @@ export function BulkImportPanelsPage() {
             });
             errorCount++;
           } else {
-            // When status is "Issued for Production" (0), sync the date to panel_status_histories.created_at
-            const issuedForProductionStatus = 0;
-            const statusNum = mapStatusToNumber(row.status);
             const issuedDateStr = updateData.issued_for_production_date;
+            const issuedForProductionStatus = 0;
             if (
-              statusNum === issuedForProductionStatus &&
+              isIssuedForProduction &&
               issuedDateStr &&
               currentUser?.id
             ) {
@@ -1267,10 +1267,12 @@ export function BulkImportPanelsPage() {
         } else {
           console.log('Creating new panel with data:', row.name);
           
-          const panelData = {
+          const isIssuedForProductionCreate = (row.status || '').toLowerCase().trim() === 'issued for production';
+          
+          const panelData: Record<string, any> = {
             name: row.name.trim(),
             type: mapTypeToNumber(row.type),
-            status: mapStatusToNumber(row.status),
+            status: 0,
             project_id: resolvedProjectId,
             building_id: resolvedBuildingId,
             facade_id: resolvedFacadeId,
@@ -1281,17 +1283,18 @@ export function BulkImportPanelsPage() {
             ifp_qty_nos: row.ifp_qty_nos?.trim() ? parseInt(row.ifp_qty_nos) : null,
             weight: row.weight?.trim() ? parseFloat(row.weight) : null,
             dimension: row.dimension?.trim() || null,
-            issued_for_production_date: row.date?.trim() ? (() => {
-              const parsedDate = parseDate(row.date);
-              if (!parsedDate) return null;
-              // Format as YYYY-MM-DD string for Supabase
+            user_id: currentUser?.id || null
+          };
+
+          if (isIssuedForProductionCreate && row.date?.trim()) {
+            const parsedDate = parseDate(row.date);
+            if (parsedDate) {
               const year = parsedDate.getUTCFullYear();
               const month = String(parsedDate.getUTCMonth() + 1).padStart(2, '0');
               const day = String(parsedDate.getUTCDate()).padStart(2, '0');
-              return `${year}-${month}-${day}`;
-            })() : null,
-            user_id: currentUser?.id || null
-          };
+              panelData.issued_for_production_date = `${year}-${month}-${day}`;
+            }
+          }
 
           // Insert panel
           const { data: newPanel, error } = await supabase
@@ -1308,12 +1311,10 @@ export function BulkImportPanelsPage() {
             });
             errorCount++;
           } else {
-            // When status is "Issued for Production" (0), sync the date to panel_status_histories.created_at
-            const issuedForProductionStatus = 0;
-            const statusNum = mapStatusToNumber(row.status);
             const issuedDateStr = panelData.issued_for_production_date;
+            const issuedForProductionStatus = 0;
             if (
-              statusNum === issuedForProductionStatus &&
+              isIssuedForProductionCreate &&
               issuedDateStr &&
               currentUser?.id
             ) {

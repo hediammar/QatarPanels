@@ -1732,7 +1732,8 @@ export function PanelGroupsPage({
     })();
 
     return matchesSearch && matchesPanelCount && matchesDateRange && hasFilteredPanels;
-  });
+  })
+  .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 
   // Get unique buildings and facades from panels
   const uniqueBuildings = useMemo(() => {

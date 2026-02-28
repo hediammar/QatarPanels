@@ -1,6 +1,42 @@
 import { supabase } from '../lib/supabase';
 
 /**
+ * Fetches the immediate previous status from panel status history (one step back only).
+ * Used by admins to revert to the status before the current one.
+ * History is never updated or removed - reverts add new entries.
+ * @param panelId - The ID of the panel
+ * @param currentStatus - The current status (excluded from results)
+ * @returns Promise with the previous status index, or null if none
+ */
+export async function fetchPreviousStatus(
+  panelId: string,
+  currentStatus: number
+): Promise<number | null> {
+  try {
+    const { data, error } = await supabase
+      .from('panel_status_histories')
+      .select('status')
+      .eq('panel_id', panelId)
+      .order('created_at', { ascending: false })
+      .limit(2);
+
+    if (error) {
+      console.error('Error fetching panel status history:', error);
+      return null;
+    }
+
+    if (!data || data.length < 2) return null;
+
+    // Second row is the immediate previous status
+    const prev = data[1].status;
+    return prev !== currentStatus ? prev : null;
+  } catch (error) {
+    console.error('Error fetching previous status:', error);
+    return null;
+  }
+}
+
+/**
  * Creates a panel status history record
  * @param panelId - The ID of the panel
  * @param status - The new status (number)

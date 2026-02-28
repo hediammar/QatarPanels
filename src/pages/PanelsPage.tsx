@@ -78,7 +78,7 @@ import { QRCodeModal } from "../components/QRCodeModal";
 import { useToastContext } from "../contexts/ToastContext";
 import { DateInput } from "../components/ui/date-input";
 import { crudOperations, testDatabaseConnection, checkTableStructure, testMinimalPanelCreation } from "../utils/userTracking";
-import { createPanelStatusHistory, syncLatestPanelStatusHistoryTimestamp } from "../utils/panelStatusHistory";
+import { createPanelStatusHistory, syncLatestPanelStatusHistoryTimestamp, fetchPreviousStatus } from "../utils/panelStatusHistory";
 import { StatusChangeDialog } from "../components/StatusChangeDialog";
 import { useAuth } from "../contexts/AuthContext";
 import { hasPermission, isCustomerRole, UserRole } from "../utils/rolePermissions";
@@ -89,7 +89,9 @@ import {
   validateStatusTransition, 
   validateStatusTransitionWithRole,
   getValidNextStatuses,
-  isSpecialStatus 
+  isSpecialStatus,
+  getAdminAllowedStatuses,
+  validateAdminStatusTransition
 } from "../utils/statusValidation";
 
 
@@ -204,77 +206,24 @@ export function PanelsPage() {
   const canChangePanelStatus = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canChangeStatus') : false;
   const canSelectPanels = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'panels', 'canSelect') : false;
 
-  // Fetch previous status from panel status history
-  const fetchPreviousStatus = async (panelId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('panel_status_histories')
-        .select('status')
-        .eq('panel_id', panelId)
-        .order('created_at', { ascending: false })
-        .limit(2); // Get the last 2 statuses
-
-      if (error) {
-        console.error('Error fetching panel status history:', error);
-        return null;
-      }
-
-      // If we have at least 2 statuses, the second one is the previous status
-      if (data && data.length >= 2) {
-        return data[1].status;
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('Error fetching previous status:', error);
-      return null;
-    }
-  };
-
-  // Get all forward statuses from current status (for admin skip functionality)
-  const getAllForwardStatuses = (currentStatus: number): number[] => {
-    const visited = new Set<number>();
-    const forwardStatuses = new Set<number>();
-    
-    const traverse = (status: number) => {
-      if (visited.has(status)) return;
-      visited.add(status);
-      
-      const nextStatuses = getValidNextStatuses(status);
-      for (const nextStatus of nextStatuses) {
-        // Only include statuses that are forward in the main workflow (higher index)
-        // Exclude special statuses and rework paths (like Rejected Material -> Issued For Production)
-        if (!isSpecialStatus(nextStatus) && nextStatus > status) {
-          forwardStatuses.add(nextStatus);
-          traverse(nextStatus);
-        }
-      }
-    };
-    
-    traverse(currentStatus);
-    return Array.from(forwardStatuses).sort((a, b) => a - b);
-  };
-
   // Helper function to get valid statuses for a given current status
-  const getValidStatuses = (currentStatus: number) => {
+  const getValidStatuses = (currentStatus: number, panelId?: string) => {
     if (currentUser?.role === 'Administrator') {
-      // For bulk updates, admins should not be restricted by role/transition rules.
+      // For edit form: use getAdminAllowedStatuses with previousStatuses (revert to any previous)
+      if (editingPanel && panelId === editingPanel.id) {
+        return getAdminAllowedStatuses(currentStatus, previousStatus);
+      }
+      // For bulk updates: admins can set any status
       return PANEL_STATUSES
         .map((_, index) => index)
         .filter((status) => status !== currentStatus)
         .sort((a, b) => a - b);
     }
-    
+
     const validNextStatuses = getValidNextStatuses(currentStatus);
     const allStatuses = PANEL_STATUSES.map((_, index) => index);
-    
-    // Include special statuses (On Hold, Cancelled) that can be set from any status
     const specialStatuses = allStatuses.filter(status => isSpecialStatus(status));
-    
-    // Combine valid next statuses with special statuses, removing duplicates
-    const validStatuses = Array.from(new Set([...validNextStatuses, ...specialStatuses]));
-    
-    return validStatuses.sort((a, b) => a - b);
+    return Array.from(new Set([...validNextStatuses, ...specialStatuses])).sort((a, b) => a - b);
   };
 
   // Removed unused fileInputRef
@@ -873,14 +822,9 @@ export function PanelsPage() {
       issued_for_production_date: panel.issued_for_production_date,
     });
     
-    // Fetch previous status if current status is "On Hold"
-    const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
-    if (panel.status === onHoldStatusIndex) {
-      fetchPreviousStatus(panel.id).then(setPreviousStatus);
-    } else {
-      setPreviousStatus(null);
-    }
-    
+    // Fetch immediate previous status (one step back only - never update/remove history)
+    fetchPreviousStatus(panel.id, panel.status).then(setPreviousStatus);
+
     // Filter facades based on the panel's building
     filterFacadesByBuilding(panel.building_id);
     setIsEditDialogOpen(true);
@@ -933,31 +877,11 @@ export function PanelsPage() {
 
     // Validate status transition if editing an existing panel and status has changed
     if (editingPanel && editingPanel.status !== newPanelModel.status) {
-      // Ensure both statuses are valid numbers
       if (typeof editingPanel.status === 'number' && typeof newPanelModel.status === 'number') {
         if (currentUser?.role === 'Administrator') {
-          const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
-          const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
-          const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
-          
-          let isValidAdminTransition = false;
-          if (editingPanel.status === onHoldStatusIndex) {
-            // From On Hold, check if newStatus is in allowed statuses
-            const allowedStatuses = [cancelledStatusIndex, brokenAtSiteStatusIndex];
-            if (previousStatus !== null) {
-              allowedStatuses.push(previousStatus);
-            }
-            isValidAdminTransition = allowedStatuses.includes(newPanelModel.status);
-          } else {
-            // For other statuses, check if newStatus is a forward status or a special status
-            const forwardStatuses = getAllForwardStatuses(editingPanel.status);
-            const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex, brokenAtSiteStatusIndex];
-            const allowedStatuses = Array.from(new Set([...forwardStatuses, ...specialStatuses]));
-            isValidAdminTransition = allowedStatuses.includes(newPanelModel.status);
-          }
-
-          if (!isValidAdminTransition) {
-            showToast('Invalid status transition for Administrator', 'error');
+          const validation = validateAdminStatusTransition(editingPanel.status, newPanelModel.status, previousStatus);
+          if (!validation.isValid) {
+            showToast(validation.error || 'Invalid status transition for Administrator', 'error');
             return;
           }
         } else {
@@ -2406,7 +2330,7 @@ export function PanelsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {editingPanel ? getValidStatuses(editingPanel.status).map((statusIndex) => {
+                  {editingPanel ? getValidStatuses(editingPanel.status, editingPanel.id).map((statusIndex) => {
                     const statusName = statusMap[statusIndex];
                     const isSpecial = isSpecialStatus(statusIndex);
                     return (

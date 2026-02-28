@@ -253,3 +253,73 @@ export function isTerminalStatus(status: number): boolean {
 export function isSpecialStatus(status: number): boolean {
   return SPECIAL_STATUSES.includes(status);
 }
+
+/**
+ * Gets all forward statuses from current status (for admin skip functionality)
+ */
+function getAllForwardStatusesInternal(currentStatus: number): number[] {
+  const visited = new Set<number>();
+  const forwardStatuses = new Set<number>();
+
+  const traverse = (status: number) => {
+    if (visited.has(status)) return;
+    visited.add(status);
+
+    const nextStatuses = getValidNextStatuses(status);
+    for (const nextStatus of nextStatuses) {
+      if (!isSpecialStatus(nextStatus) && nextStatus > status) {
+        forwardStatuses.add(nextStatus);
+        traverse(nextStatus);
+      }
+    }
+  };
+
+  traverse(currentStatus);
+  return Array.from(forwardStatuses).sort((a, b) => a - b);
+}
+
+/**
+ * Gets allowed statuses for Administrator: forward + special + one step back (immediate previous status only).
+ * Admins can revert only to the status before the current one (never update/remove history).
+ */
+export function getAdminAllowedStatuses(
+  currentStatus: number,
+  previousStatus: number | null = null
+): number[] {
+  const onHoldStatusIndex = PANEL_STATUSES.indexOf('On Hold');
+  const cancelledStatusIndex = PANEL_STATUSES.indexOf('Cancelled');
+  const brokenAtSiteStatusIndex = PANEL_STATUSES.indexOf('Broken at Site');
+  const deliveredStatusIndex = PANEL_STATUSES.indexOf('Delivered');
+
+  const oneStepBack = previousStatus !== null ? [previousStatus] : [];
+
+  if (currentStatus === onHoldStatusIndex) {
+    const allowed = [cancelledStatusIndex, ...oneStepBack];
+    if (previousStatus !== null && previousStatus >= deliveredStatusIndex) {
+      allowed.push(brokenAtSiteStatusIndex);
+    }
+    return Array.from(new Set(allowed)).filter((s) => s !== currentStatus).sort((a, b) => a - b);
+  }
+
+  const forwardStatuses = getAllForwardStatusesInternal(currentStatus);
+  const specialStatuses = [onHoldStatusIndex, cancelledStatusIndex];
+  if (canShowBrokenAtSiteForCurrentStatus(currentStatus)) {
+    specialStatuses.push(brokenAtSiteStatusIndex);
+  }
+  return Array.from(new Set([...forwardStatuses, ...specialStatuses, ...oneStepBack]))
+    .filter((s) => s !== currentStatus)
+    .sort((a, b) => a - b);
+}
+
+/**
+ * Validates if an admin status transition is allowed (forward + special + one step back only)
+ */
+export function validateAdminStatusTransition(
+  currentStatus: number,
+  newStatus: number,
+  previousStatus: number | null = null
+): { isValid: boolean; error?: string } {
+  const allowed = getAdminAllowedStatuses(currentStatus, previousStatus);
+  if (allowed.includes(newStatus)) return { isValid: true };
+  return { isValid: false, error: 'Invalid status transition for Administrator' };
+}

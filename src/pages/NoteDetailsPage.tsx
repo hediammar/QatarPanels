@@ -1135,7 +1135,7 @@ export function NoteDetailsPage() {
                     </div>
                     <div className="space-y-2">
                       {[
-                        { key: 'Issued For Production', label: 'Issued For Production' },
+                        { key: 'Issued For Production', label: 'Under Production' },
                         { key: 'Produced', label: 'Factory Stock' },
                         { key: 'Delivered', label: 'Site Stock' },
                         { key: 'Installed', label: 'Installed' }

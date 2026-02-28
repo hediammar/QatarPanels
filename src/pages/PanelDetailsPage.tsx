@@ -17,9 +17,9 @@ import { useAuth } from "../contexts/AuthContext";
 import { hasPermission, UserRole } from "../utils/rolePermissions";
 import { useToastContext } from "../contexts/ToastContext";
 import { crudOperations } from "../utils/userTracking";
-import { createPanelStatusHistory, syncLatestPanelStatusHistoryTimestamp } from "../utils/panelStatusHistory";
+import { createPanelStatusHistory, syncLatestPanelStatusHistoryTimestamp, fetchPreviousStatus } from "../utils/panelStatusHistory";
 import { PanelModel } from "../components/project-details/PanelsSection";
-import { PANEL_STATUSES, validateStatusTransition, getValidNextStatuses, isSpecialStatus } from "../utils/statusValidation";
+import { PANEL_STATUSES, validateStatusTransition, getValidNextStatuses, isSpecialStatus, getAdminAllowedStatuses, validateAdminStatusTransition } from "../utils/statusValidation";
 
 const PANEL_TYPES = [
   "GRC", "GRG", "GRP", "EIFS", "UHPC"
@@ -104,6 +104,7 @@ export function PanelDetailsPage() {
   const [isQRCodeModalOpen, setIsQRCodeModalOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isSavingPanel, setIsSavingPanel] = useState(false);
+  const [previousStatus, setPreviousStatus] = useState<number | null>(null);
   const [newPanelModel, setNewPanelModel] = useState({
     name: "",
     type: 0,
@@ -213,7 +214,7 @@ export function PanelDetailsPage() {
 
   const startEditPanel = () => {
     if (!panel) return;
-    
+
     setNewPanelModel({
       name: panel.name,
       type: panel.type,
@@ -229,6 +230,8 @@ export function PanelDetailsPage() {
       dimension: panel.dimension,
       issued_for_production_date: panel.issued_for_production_date,
     });
+    // Fetch immediate previous status (one step back only - never update/remove history)
+    fetchPreviousStatus(panel.id, panel.status).then(setPreviousStatus);
     setIsEditDialogOpen(true);
   };
 
@@ -242,10 +245,18 @@ export function PanelDetailsPage() {
 
     // Validate status transition if status has changed
     if (panel.status !== newPanelModel.status) {
-      const validation = validateStatusTransition(panel.status, newPanelModel.status);
-      if (!validation.isValid) {
-        showToast(validation.error || "Invalid status transition", "error");
-        return;
+      if (currentUser?.role === 'Administrator') {
+        const validation = validateAdminStatusTransition(panel.status, newPanelModel.status, previousStatus);
+        if (!validation.isValid) {
+          showToast(validation.error || "Invalid status transition", "error");
+          return;
+        }
+      } else {
+        const validation = validateStatusTransition(panel.status, newPanelModel.status);
+        if (!validation.isValid) {
+          showToast(validation.error || "Invalid status transition", "error");
+          return;
+        }
       }
     }
 
@@ -343,16 +354,13 @@ export function PanelDetailsPage() {
   };
 
   const getValidStatuses = (currentStatus: number) => {
+    if (currentUser?.role === 'Administrator') {
+      return getAdminAllowedStatuses(currentStatus, previousStatus);
+    }
     const validNextStatuses = getValidNextStatuses(currentStatus);
     const allStatuses = PANEL_STATUSES.map((_, index) => index);
-    
-    // Include special statuses (On Hold, Cancelled) that can be set from any status
     const specialStatuses = allStatuses.filter(status => isSpecialStatus(status));
-    
-    // Combine valid next statuses with special statuses, removing duplicates
-    const validStatuses = Array.from(new Set([...validNextStatuses, ...specialStatuses]));
-    
-    return validStatuses.sort((a, b) => a - b);
+    return Array.from(new Set([...validNextStatuses, ...specialStatuses])).sort((a, b) => a - b);
   };
 
   const getStatusBadge = (status: number) => {
@@ -808,7 +816,7 @@ export function PanelDetailsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {panel ? getValidStatuses(panel.status).map((statusIndex) => {
+                  {panel ? getValidStatuses(panel.status).map((statusIndex: number) => {
                     const statusName = statusMap[statusIndex];
                     const isSpecial = isSpecialStatus(statusIndex);
                     return (

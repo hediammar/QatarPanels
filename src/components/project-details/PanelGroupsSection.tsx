@@ -51,17 +51,24 @@ const PANEL_STATUSES = [
 ] as const;
 
 type PanelStatus = (typeof PANEL_STATUSES)[number]["value"];
+const PANEL_TYPES = ["GRC", "GRG", "GRP", "EIFS", "UHPC"] as const;
+type PanelType = (typeof PANEL_TYPES)[number];
 
 interface PanelModel {
   id: string;
   name: string;
   status: PanelStatus;
+  type: PanelType;
   panelTag: string;
   dwgNo: string;
   unitQty: number;
   unitRateQrM2: number;
   ifpQtyAreaSm: number;
   weight: number;
+  projectId?: string;
+  projectName?: string;
+  buildingId?: string;
+  facadeId?: string;
   buildingName?: string;
   facadeName?: string;
   groupId?: string; // Optional since we're using many-to-many relationship
@@ -213,6 +220,7 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, proj
             .select(`
               id,
               name,
+              type,
               status,
               drawing_number,
               ifp_qty_nos,
@@ -220,6 +228,10 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, proj
               unit_rate_qr_m2,
               ifp_qty_area_sm,
               weight,
+              project_id,
+              building_id,
+              facade_id,
+              projects(name),
               buildings(name),
               facades(name)
             `)
@@ -237,12 +249,17 @@ function AddPanelsToGroupDialog({ isOpen, onOpenChange, groupId, groupName, proj
             id: panel.id,
             name: panel.name,
             status: mapPanelStatus(panel.status),
+            type: mapPanelType(panel.type),
             panelTag: panel.issue_transmittal_no || `TAG-${panel.id.slice(0, 8)}`,
             dwgNo: panel.drawing_number || 'N/A',
             unitQty: panel.ifp_qty_nos || 0,
             unitRateQrM2: panel.unit_rate_qr_m2 || 0,
             ifpQtyAreaSm: panel.ifp_qty_area_sm || 0,
             weight: panel.weight || 0,
+            projectId: panel.project_id || '',
+            projectName: panel.projects?.name ?? '',
+            buildingId: panel.building_id || '',
+            facadeId: panel.facade_id || '',
             buildingName: panel.buildings?.name ?? '',
             facadeName: panel.facades?.name ?? '',
             groupId: '',
@@ -467,6 +484,7 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
           .select(`
             id,
             name,
+            type,
             status,
             drawing_number,
             ifp_qty_nos,
@@ -474,6 +492,10 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
             unit_rate_qr_m2,
             ifp_qty_area_sm,
             weight,
+            project_id,
+            building_id,
+            facade_id,
+            projects(name),
             buildings(name),
             facades(name)
           `)
@@ -490,12 +512,17 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
         id: panel.id,
         name: panel.name,
         status: mapPanelStatus(panel.status),
+        type: mapPanelType(panel.type),
         panelTag: panel.issue_transmittal_no || `TAG-${panel.id.slice(0, 8)}`,
         dwgNo: panel.drawing_number || 'N/A',
         unitQty: panel.ifp_qty_nos || 0,
         unitRateQrM2: panel.unit_rate_qr_m2 || 0,
         ifpQtyAreaSm: panel.ifp_qty_area_sm || 0,
         weight: panel.weight || 0,
+        projectId: panel.project_id || '',
+        projectName: panel.projects?.name ?? '',
+        buildingId: panel.building_id || '',
+        facadeId: panel.facade_id || '',
         buildingName: panel.buildings?.name ?? '',
         facadeName: panel.facades?.name ?? '',
         groupId: group.id,
@@ -509,6 +536,7 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
         .select(`
           id,
           name,
+          type,
           status,
           drawing_number,
           ifp_qty_nos,
@@ -516,6 +544,10 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
           unit_rate_qr_m2,
           ifp_qty_area_sm,
           weight,
+          project_id,
+          building_id,
+          facade_id,
+          projects(name),
           buildings(name),
           facades(name)
         `)
@@ -535,12 +567,17 @@ function UpdatePanelGroupDialog({ isOpen, onOpenChange, group, onGroupUpdated }:
         id: panel.id,
         name: panel.name,
         status: mapPanelStatus(panel.status),
+        type: mapPanelType(panel.type),
         panelTag: panel.issue_transmittal_no || `TAG-${panel.id.slice(0, 8)}`,
         dwgNo: panel.drawing_number || 'N/A',
         unitQty: panel.ifp_qty_nos || 0,
         unitRateQrM2: panel.unit_rate_qr_m2 || 0,
         ifpQtyAreaSm: panel.ifp_qty_area_sm || 0,
         weight: panel.weight || 0,
+        projectId: panel.project_id || '',
+        projectName: panel.projects?.name ?? '',
+        buildingId: panel.building_id || '',
+        facadeId: panel.facade_id || '',
         buildingName: panel.buildings?.name ?? '',
         facadeName: panel.facades?.name ?? '',
         groupId: '',
@@ -1026,6 +1063,10 @@ async function fetchPanels(): Promise<PanelModel[]> {
         unit_rate_qr_m2,
         ifp_qty_area_sm,
         weight,
+        project_id,
+        building_id,
+        facade_id,
+        projects(name),
         buildings(name),
         facades(name)
       `)
@@ -1079,12 +1120,17 @@ async function fetchPanels(): Promise<PanelModel[]> {
       id: panel.id,
       name: panel.name,
       status: mapPanelStatus(panel.status),
+      type: mapPanelType(panel.type),
       panelTag: panel.issue_transmittal_no || `TAG-${panel.id.slice(0, 8)}`,
       dwgNo: panel.drawing_number || 'N/A',
       unitQty: panel.ifp_qty_nos || 0,
       unitRateQrM2: panel.unit_rate_qr_m2 || 0,
       ifpQtyAreaSm: panel.ifp_qty_area_sm || 0,
       weight: panel.weight || 0,
+      projectId: panel.project_id || '',
+      projectName: panel.projects?.name ?? '',
+      buildingId: panel.building_id || '',
+      facadeId: panel.facade_id || '',
       buildingName: panel.buildings?.name ?? '',
       facadeName: panel.facades?.name ?? '',
       groupId: '', // No longer used for many-to-many relationship
@@ -1094,6 +1140,10 @@ async function fetchPanels(): Promise<PanelModel[]> {
   });
 
   return panelsWithGroups;
+}
+
+function mapPanelType(type: number): PanelType {
+  return PANEL_TYPES[type] || PANEL_TYPES[0];
 }
 
 function mapPanelStatus(status: number): PanelStatus {
@@ -1127,10 +1177,14 @@ export function PanelGroupsSection({
   const [panels, setPanels] = useState<PanelModel[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
 
+  const [projectFilter, setProjectFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [panelCountMinFilter, setPanelCountMinFilter] = useState("");
   const [panelCountMaxFilter, setPanelCountMaxFilter] = useState("");
   const [dateRangeFilter, setDateRangeFilter] = useState<string>("all");
+  const [buildingFilter, setBuildingFilter] = useState<string>("all");
+  const [facadeFilter, setFacadeFilter] = useState<string>("all");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isAddNoteDialogOpen, setIsAddNoteDialogOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -1208,10 +1262,32 @@ export function PanelGroupsSection({
 
   const getGroupPanels = (group: PanelGroupModel) => {
     // For many-to-many relationship, check if panel belongs to this group
-    return panels.filter(panel => {
+    let groupPanels = panels.filter(panel => {
       // Check if this panel belongs to the current group using allGroupIds
       return panel.allGroupIds?.includes(group.id);
     });
+
+    if (projectFilter !== "all") {
+      groupPanels = groupPanels.filter(panel => panel.projectId === projectFilter);
+    }
+
+    if (statusFilter !== "all") {
+      groupPanels = groupPanels.filter(panel => panel.status === statusFilter);
+    }
+
+    if (typeFilter !== "all") {
+      groupPanels = groupPanels.filter(panel => panel.type === typeFilter);
+    }
+
+    if (buildingFilter !== "all") {
+      groupPanels = groupPanels.filter(panel => panel.buildingId === buildingFilter);
+    }
+
+    if (facadeFilter !== "all") {
+      groupPanels = groupPanels.filter(panel => panel.facadeId === facadeFilter);
+    }
+
+    return groupPanels;
   };
 
   const calculateGroupTotals = (group: PanelGroupModel) => {
@@ -1459,17 +1535,19 @@ export function PanelGroupsSection({
 
 
   const filteredGroups = panelGroups.filter((group) => {
+    const groupPanels = getGroupPanels(group);
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = searchTerm === "" ||
       group.name.toLowerCase().includes(searchLower) ||
       group.description.toLowerCase().includes(searchLower) ||
-      getGroupPanels(group).some(panel =>
+      groupPanels.some(panel =>
         panel.name.toLowerCase().includes(searchLower) ||
         panel.panelTag.toLowerCase().includes(searchLower) ||
-        panel.dwgNo.toLowerCase().includes(searchLower)
+        panel.dwgNo.toLowerCase().includes(searchLower) ||
+        (panel.projectName?.toLowerCase().includes(searchLower) ?? false) ||
+        (panel.buildingName?.toLowerCase().includes(searchLower) ?? false) ||
+        (panel.facadeName?.toLowerCase().includes(searchLower) ?? false)
       );
-
-    const matchesStatus = statusFilter === "all" || group.status === statusFilter;
 
     const matchesPanelCount = (() => {
       if (!panelCountMinFilter && !panelCountMaxFilter) return true;
@@ -1505,12 +1583,71 @@ export function PanelGroupsSection({
       }
     })();
 
-    return matchesSearch && matchesStatus && matchesPanelCount && matchesDateRange;
+    const hasFilteredPanels = (() => {
+      if (
+        projectFilter === "all" &&
+        statusFilter === "all" &&
+        typeFilter === "all" &&
+        buildingFilter === "all" &&
+        facadeFilter === "all"
+      ) {
+        return true;
+      }
+      return groupPanels.length > 0;
+    })();
+
+    return matchesSearch && matchesPanelCount && matchesDateRange && hasFilteredPanels;
   });
+
+  const uniqueProjects = useMemo(() => {
+    const projectMap = new Map<string, string>();
+    panels.forEach((panel) => {
+      if (panel.projectId && panel.projectName) {
+        projectMap.set(panel.projectId, panel.projectName);
+      }
+    });
+    return Array.from(projectMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [panels]);
+
+  const buildingsForFilter = useMemo(() => {
+    if (projectFilter === "all") {
+      return [];
+    }
+    const buildingMap = new Map<string, string>();
+    panels.forEach((panel) => {
+      if (panel.projectId === projectFilter && panel.buildingId && panel.buildingName) {
+        buildingMap.set(panel.buildingId, panel.buildingName);
+      }
+    });
+    return Array.from(buildingMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [panels, projectFilter]);
+
+  const facadesForFilter = useMemo(() => {
+    if (buildingFilter === "all") {
+      return [];
+    }
+    const facadeMap = new Map<string, string>();
+    panels.forEach((panel) => {
+      if (panel.buildingId === buildingFilter && panel.facadeId && panel.facadeName) {
+        facadeMap.set(panel.facadeId, panel.facadeName);
+      }
+    });
+    return Array.from(facadeMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [panels, buildingFilter]);
 
   const activePanelGroupFiltersCount = [
     searchTerm !== "",
+    projectFilter !== "all",
     statusFilter !== "all",
+    typeFilter !== "all",
+    buildingFilter !== "all",
+    facadeFilter !== "all",
     panelCountMinFilter !== "",
     panelCountMaxFilter !== "",
     dateRangeFilter !== "all",
@@ -1522,7 +1659,11 @@ export function PanelGroupsSection({
 
   const clearPanelGroupFilters = () => {
     setSearchTerm("");
+    setProjectFilter("all");
     setStatusFilter("all");
+    setTypeFilter("all");
+    setBuildingFilter("all");
+    setFacadeFilter("all");
     setPanelCountMinFilter("");
     setPanelCountMaxFilter("");
     setDateRangeFilter("all");
@@ -1580,7 +1721,7 @@ export function PanelGroupsSection({
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
               <div className="space-y-2">
                 <Label>Search</Label>
                 <div className="relative">
@@ -1606,14 +1747,111 @@ export function PanelGroupsSection({
                     handleFilterChange();
                   }}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="All statuses" />
+                  <SelectTrigger className="overflow-hidden">
+                    <SelectValue placeholder="All statuses" className="truncate" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All statuses</SelectItem>
                     {PANEL_STATUSES.map((status) => (
                       <SelectItem key={status.value} value={status.value}>
                         {status.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select
+                  value={typeFilter}
+                  onValueChange={(value) => {
+                    setTypeFilter(value);
+                    handleFilterChange();
+                  }}
+                >
+                  <SelectTrigger className="overflow-hidden">
+                    <SelectValue placeholder="All types" className="truncate" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All types</SelectItem>
+                    {PANEL_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Project</Label>
+                <Select
+                  value={projectFilter}
+                  onValueChange={(value) => {
+                    setProjectFilter(value);
+                    setBuildingFilter("all");
+                    setFacadeFilter("all");
+                    handleFilterChange();
+                  }}
+                >
+                  <SelectTrigger className="overflow-hidden">
+                    <SelectValue placeholder="All projects" className="truncate" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="all">All projects</SelectItem>
+                    {uniqueProjects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Building</Label>
+                <Select
+                  value={buildingFilter}
+                  onValueChange={(value) => {
+                    setBuildingFilter(value);
+                    setFacadeFilter("all");
+                    handleFilterChange();
+                  }}
+                  disabled={projectFilter === "all"}
+                >
+                  <SelectTrigger className="overflow-hidden">
+                    <SelectValue placeholder="All buildings" className="truncate" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="all">All buildings</SelectItem>
+                    {buildingsForFilter.map((building) => (
+                      <SelectItem key={building.id} value={building.id}>
+                        {building.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Facade</Label>
+                <Select
+                  value={facadeFilter}
+                  onValueChange={(value) => {
+                    setFacadeFilter(value);
+                    handleFilterChange();
+                  }}
+                  disabled={projectFilter === "all" || buildingFilter === "all"}
+                >
+                  <SelectTrigger className="overflow-hidden">
+                    <SelectValue placeholder="All facades" className="truncate" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="all">All facades</SelectItem>
+                    {facadesForFilter.map((facade) => (
+                      <SelectItem key={facade.id} value={facade.id}>
+                        {facade.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1668,7 +1906,7 @@ export function PanelGroupsSection({
               </div>
             </div>
 
-            <div className="flex items-center justify-between mt-4 pt-4 border-t">
+            <div className="flex items-center justify-between">
               <div className="text-sm text-muted-foreground">
                 Showing {startIndex + 1}-{Math.min(endIndex, filteredGroups.length)} of {filteredGroups.length} panel groups
               </div>
@@ -1693,16 +1931,16 @@ export function PanelGroupsSection({
               <div className="flex flex-col items-center justify-center py-12">
                 <Package className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium">
-                  {searchTerm || statusFilter !== 'all' || panelCountMinFilter || panelCountMaxFilter || dateRangeFilter !== 'all'
+                  {searchTerm || projectFilter !== 'all' || statusFilter !== 'all' || typeFilter !== 'all' || buildingFilter !== 'all' || facadeFilter !== 'all' || panelCountMinFilter || panelCountMaxFilter || dateRangeFilter !== 'all'
                     ? 'No panel groups match your search criteria'
                     : 'No panel groups found'}
                 </h3>
                 <p className="text-muted-foreground text-center">
-                  {searchTerm || statusFilter !== 'all' || panelCountMinFilter || panelCountMaxFilter || dateRangeFilter !== 'all'
+                  {searchTerm || projectFilter !== 'all' || statusFilter !== 'all' || typeFilter !== 'all' || buildingFilter !== 'all' || facadeFilter !== 'all' || panelCountMinFilter || panelCountMaxFilter || dateRangeFilter !== 'all'
                     ? 'Try adjusting your filters to see more results.'
                     : 'Get started by creating your first panel group.'}
                 </p>
-                {!searchTerm && statusFilter === 'all' && !panelCountMinFilter && !panelCountMaxFilter && dateRangeFilter === 'all' && (
+                {!searchTerm && projectFilter === 'all' && statusFilter === 'all' && typeFilter === 'all' && buildingFilter === 'all' && facadeFilter === 'all' && !panelCountMinFilter && !panelCountMaxFilter && dateRangeFilter === 'all' && (
                   <Button 
                     onClick={() => setIsAddDialogOpen(true)} 
                     className="mt-4"
@@ -1783,7 +2021,16 @@ export function PanelGroupsSection({
                       <div className="flex items-center gap-6 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Package className="h-4 w-4" />
-                          <span>{group.panelCount || 0} panels</span>
+                          <span>
+                            {(() => {
+                              const filteredPanels = getGroupPanels(group);
+                              const totalPanels = group.panelCount || 0;
+                              const filteredCount = filteredPanels.length;
+                              return projectFilter !== "all" || statusFilter !== "all" || typeFilter !== "all" || buildingFilter !== "all" || facadeFilter !== "all"
+                                ? `${filteredCount} of ${totalPanels} panels`
+                                : `${totalPanels} panels`;
+                            })()}
+                          </span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />

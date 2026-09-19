@@ -7,9 +7,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import PanelGroupSelect from '../components/PanelGroupSelect';
 import { Badge } from '../components/ui/badge';
-import { Plus, Edit, Trash2, FileText } from 'lucide-react';
+import { Plus, Edit, Trash2, FileText, RefreshCw } from 'lucide-react';
 import { useToastContext } from '../contexts/ToastContext';
 import { useAuth } from '../contexts/AuthContext';
 import { hasPermission, UserRole } from '../utils/rolePermissions';
@@ -45,6 +45,7 @@ const NotesPage: React.FC = () => {
   const [newNote, setNewNote] = useState({ title: '', content: '' });
   const [selectedPanelGroups, setSelectedPanelGroups] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const { showToast } = useToastContext();
   const { user: currentUser } = useAuth();
 
@@ -54,6 +55,7 @@ const NotesPage: React.FC = () => {
   const canDeleteNotes = currentUser?.role ? hasPermission(currentUser.role as UserRole, 'notes', 'canDelete') : false;
 
   useEffect(() => {
+    setIsLoading(true);
     fetchNotes();
     fetchPanelGroups();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -162,6 +164,8 @@ const NotesPage: React.FC = () => {
     } catch (error) {
       console.error('Error fetching notes:', error);
       showToast('Error fetching notes', 'error');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -351,6 +355,22 @@ const NotesPage: React.FC = () => {
     setIsEditDialogOpen(true);
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center space-y-4">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <div>
+            <h3 className="font-medium">Loading notes...</h3>
+            <p className="text-sm text-muted-foreground">
+              Please wait while we fetch your notes
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -399,25 +419,14 @@ const NotesPage: React.FC = () => {
               </div>
               <div>
                 <Label>Panel Groups (Optional)</Label>
-                <Select
-                  value=""
-                  onValueChange={(value) => {
-                    if (value && !selectedPanelGroups.includes(value)) {
+                <PanelGroupSelect
+                  panelGroups={panelGroups}
+                  onAdd={(value) => {
+                    if (!selectedPanelGroups.includes(value)) {
                       setSelectedPanelGroups([...selectedPanelGroups, value]);
                     }
                   }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select panel groups to add" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {panelGroups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name} - {group.project_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
                 {selectedPanelGroups.length > 0 && (
                   <div className="mt-2 space-y-2">
                     <Label>Selected Panel Groups:</Label>
@@ -599,25 +608,14 @@ const NotesPage: React.FC = () => {
                 </div>
                 <div>
                   <Label>Panel Groups (Optional)</Label>
-                  <Select
-                    value=""
-                    onValueChange={(value) => {
-                      if (value && !selectedPanelGroups.includes(value)) {
+                  <PanelGroupSelect
+                    panelGroups={panelGroups}
+                    onAdd={(value) => {
+                      if (!selectedPanelGroups.includes(value)) {
                         setSelectedPanelGroups([...selectedPanelGroups, value]);
                       }
                     }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select panel groups to add" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {panelGroups.map((group) => (
-                        <SelectItem key={group.id} value={group.id}>
-                          {group.name} - {group.project_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                   {selectedPanelGroups.length > 0 && (
                     <div className="mt-2 space-y-2">
                       <Label>Selected Panel Groups:</Label>
@@ -696,25 +694,14 @@ const NotesPage: React.FC = () => {
               </div>
               <div>
                 <Label>Panel Groups</Label>
-                <Select
-                  value=""
-                  onValueChange={(value) => {
-                    if (value && !selectedPanelGroups.includes(value)) {
+                <PanelGroupSelect
+                  panelGroups={panelGroups}
+                  onAdd={(value) => {
+                    if (!selectedPanelGroups.includes(value)) {
                       setSelectedPanelGroups([...selectedPanelGroups, value]);
                     }
                   }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select panel groups to add" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {panelGroups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name} - {group.project_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
                 {selectedPanelGroups.length > 0 && (
                   <div className="mt-2 space-y-2">
                     <Label>Selected Panel Groups:</Label>

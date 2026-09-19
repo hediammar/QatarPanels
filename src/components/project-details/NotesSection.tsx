@@ -7,7 +7,7 @@ import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { Label } from "../ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import PanelGroupSelect from "../PanelGroupSelect";
 import {
   Dialog,
   DialogContent,
@@ -448,25 +448,14 @@ export function NotesSection({ projectId, projectName }: NotesSectionProps) {
                 </div>
                 <div className="space-y-2">
                   <Label>Panel Groups</Label>
-                  <Select
-                    value=""
-                    onValueChange={(value) => {
-                      if (value && !selectedPanelGroups.includes(value)) {
+                  <PanelGroupSelect
+                    panelGroups={panelGroups}
+                    onAdd={(value) => {
+                      if (!selectedPanelGroups.includes(value)) {
                         setSelectedPanelGroups([...selectedPanelGroups, value]);
                       }
                     }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select panel groups to add" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {panelGroups.map((group) => (
-                        <SelectItem key={group.id} value={group.id}>
-                          {group.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                   {selectedPanelGroups.length > 0 && (
                     <div className="mt-2 space-y-2">
                       <Label>Selected Panel Groups:</Label>
@@ -693,25 +682,14 @@ export function NotesSection({ projectId, projectName }: NotesSectionProps) {
             </div>
             <div className="space-y-2">
               <Label>Panel Groups</Label>
-              <Select
-                value=""
-                onValueChange={(value) => {
-                  if (value && !selectedPanelGroups.includes(value)) {
+              <PanelGroupSelect
+                panelGroups={panelGroups}
+                onAdd={(value) => {
+                  if (!selectedPanelGroups.includes(value)) {
                     setSelectedPanelGroups([...selectedPanelGroups, value]);
                   }
                 }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select panel groups to add" />
-                </SelectTrigger>
-                <SelectContent>
-                  {panelGroups.map((group) => (
-                    <SelectItem key={group.id} value={group.id}>
-                      {group.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
               {selectedPanelGroups.length > 0 && (
                 <div className="mt-2 space-y-2">
                   <Label>Selected Panel Groups:</Label>
